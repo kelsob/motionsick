@@ -1,0 +1,29 @@
+[gd_scene load_steps=6 format=3 uid="uid://dwjhkh178778o"]
+
+[ext_resource type="Script" uid="uid://dm5mn2fdd4ppt" path="res://scripts/player/Player.gd" id="1_tpytq"]
+[ext_resource type="Script" uid="uid://d4lbwp1akjl48" path="res://scripts/camera/FirstPersonCamera.gd" id="2_2gs60"]
+[ext_resource type="Script" uid="uid://2kndjrlk5w5f" path="res://scripts/player/Gun.gd" id="3_gmlin"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_wqvcu"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_2hlsy"]
+
+[node name="Player" type="CharacterBody3D"]
+script = ExtResource("1_tpytq")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("CapsuleShape3D_wqvcu")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CapsuleMesh_2hlsy")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+current = true
+script = ExtResource("2_2gs60")
+
+[node name="Gun" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+script = ExtResource("3_gmlin")
