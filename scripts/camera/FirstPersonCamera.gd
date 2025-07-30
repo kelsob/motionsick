@@ -17,4 +17,9 @@ func _unhandled_input(event):
 		rotation_y -= event.relative.x * mouse_sensitivity
 		rotation_x = clamp(rotation_x, -vertical_look_limit, vertical_look_limit)
 		rotation_degrees.x = rotation_x
-		get_parent().rotation_degrees.y = rotation_y 
+		get_parent().rotation_degrees.y = rotation_y
+
+func add_recoil_offset(vertical_degrees: float):
+	"""Add recoil offset to internal rotation tracking so mouse input doesn't snap back."""
+	rotation_x += vertical_degrees
+	rotation_x = clamp(rotation_x, -vertical_look_limit, vertical_look_limit) 

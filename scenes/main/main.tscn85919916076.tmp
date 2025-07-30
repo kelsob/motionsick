@@ -1,11 +1,8 @@
-[gd_scene load_steps=17 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=14 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
 [ext_resource type="PackedScene" uid="uid://ck3rnw8kd0b7k" path="res://scenes/environment/enemy.tscn" id="2_iuonh"]
 [ext_resource type="Script" uid="uid://l7okr7pysr23" path="res://scripts/environment/EnemySpawner.gd" id="3_k2fmo"]
-[ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/GameUI.gd" id="4_l3cfh"]
-[ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="5_6q06x"]
-[ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_vom5j"]
 size = Vector3(160, 10, 160)
@@ -102,103 +99,3 @@ transform = Transform3D(1, 0, 0, 0, -0.988014, 0.154366, 0, -0.154366, -0.988014
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.18013, -28.9532)
 script = ExtResource("3_k2fmo")
 enemy_scene = ExtResource("2_iuonh")
-
-[node name="UI" type="CanvasLayer" parent="."]
-
-[node name="Control" type="Control" parent="UI"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("4_l3cfh")
-
-[node name="Crosshair" type="Control" parent="UI/Control"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -20.0
-offset_top = -20.0
-offset_right = 20.0
-offset_bottom = 20.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("5_6q06x")
-
-[node name="CenterDot" type="Control" parent="UI/Control/Crosshair"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-
-[node name="TopLine" type="Control" parent="UI/Control/Crosshair"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-
-[node name="BottomLine" type="Control" parent="UI/Control/Crosshair"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-
-[node name="LeftLine" type="Control" parent="UI/Control/Crosshair"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-
-[node name="RightLine" type="Control" parent="UI/Control/Crosshair"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-
-[node name="ActionHistoryPanel" type="Panel" parent="UI/Control"]
-custom_minimum_size = Vector2(200, 120)
-layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_top = -40.0
-offset_right = 40.0
-grow_vertical = 0
-mouse_filter = 2
-script = ExtResource("6_ow5a4")
-
-[node name="MarginContainer" type="MarginContainer" parent="UI/Control/ActionHistoryPanel"]
-layout_mode = 2
-offset_right = 200.0
-offset_bottom = 120.0
-size_flags_vertical = 3
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 6
-
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/Control/ActionHistoryPanel/MarginContainer"]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="TitleLabel" type="Label" parent="UI/Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Recent Actions"
-
-[node name="ActionContainer" type="VBoxContainer" parent="UI/Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="HealthBar" type="Control" parent="UI/Control"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
