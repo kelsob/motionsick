@@ -3,7 +3,7 @@ extends CharacterBody3D
 # === ENEMY CONFIGURATION ===
 @export var max_health: int = 100
 @export var death_effect_duration: float = 0.5
-@export var move_speed: float = 3.0
+@export var move_speed: float = 15.0
 @export var detection_range: float = 15.0
 @export var stop_distance: float = 2.0  # How close to get to player before stopping
 
@@ -18,6 +18,9 @@ var player_reference: Node3D = null
 # === COMPONENTS ===
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
+
+# === TIME SYSTEM ===
+var time_affected: TimeAffected = null
 
 # === SIGNALS ===
 signal health_changed(new_health: int, max_health: int)
@@ -38,21 +41,29 @@ func _ready():
 	if not player_reference:
 		print("Warning: Enemy couldn't find player!")
 	
+	# Add time system component
+	time_affected = TimeAffected.new()
+	time_affected.time_resistance = 0.0  # Fully affected by time
+	add_child(time_affected)
+	
 	health_changed.emit(current_health, max_health)
 
 func _physics_process(delta):
 	if is_dead:
 		return
 	
+	# Get time-adjusted delta
+	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
+	
 	# Apply gravity
 	if not is_on_floor():
-		velocity.y -= GRAVITY * delta
+		velocity.y -= GRAVITY * time_delta
 	else:
 		if velocity.y < 0:
 			velocity.y = 0
 	
 	# Move towards player
-	handle_movement_towards_player(delta)
+	handle_movement_towards_player(time_delta)
 	
 	# Apply movement
 	move_and_slide()
@@ -63,6 +74,9 @@ func handle_movement_towards_player(delta):
 	
 	var distance_to_player = global_position.distance_to(player_reference.global_position)
 	
+	# Get effective time scale for movement speed
+	var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+	
 	# Always chase player unless we're too close
 	if distance_to_player > stop_distance:
 		# Calculate direction to player (only on XZ plane to avoid flying)
@@ -70,9 +84,9 @@ func handle_movement_towards_player(delta):
 		direction_to_player.y = 0  # Remove vertical component
 		direction_to_player = direction_to_player.normalized()
 		
-		# Move towards player
-		velocity.x = direction_to_player.x * move_speed
-		velocity.z = direction_to_player.z * move_speed
+		# Move towards player with time-scaled speed
+		velocity.x = direction_to_player.x * move_speed * effective_time_scale
+		velocity.z = direction_to_player.z * move_speed * effective_time_scale
 		
 		# Look at player (with safety check)
 		var look_direction = player_reference.global_position - global_position

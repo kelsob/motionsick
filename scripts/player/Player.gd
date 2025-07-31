@@ -167,6 +167,10 @@ func get_movement_speed() -> float:
 	else:
 		return WALK_SPEED
 
+func get_movement_speed_percentage() -> float:
+	var speed_percentage : float = velocity.length() / WALK_SPEED
+	return speed_percentage
+
 func handle_crouch_slide_input():
 	# Sprinting - only allow when on ground
 	is_sprinting = Input.is_action_pressed("action_sprint") and not is_crouching and not is_sliding and is_on_floor()
@@ -223,16 +227,11 @@ func update_movement_state():
 		is_moving = true
 		movement_started.emit()
 		
-		# Notify TimeManager that player started moving
-		if time_manager:
-			time_manager.set_player_moving(true)
 	elif not moving_now and is_moving:
 		is_moving = false
 		movement_stopped.emit()
 		
-		# Notify TimeManager that player stopped moving
-		if time_manager:
-			time_manager.set_player_moving(false)
+
 
 func update_floor_state():
 	if not is_on_floor() and was_on_floor:

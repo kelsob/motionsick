@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 TimeManager="*res://scripts/TimeManager.gd"
+TracerManager="*res://scripts/TracerManager.gd"
 
 [input]
 

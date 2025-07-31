@@ -39,6 +39,9 @@ var has_hit_target: bool = false  # Prevent multiple hits
 # Time system
 var time_affected: TimeAffected = null
 
+# Tracer system
+var tracer_id: int = -1
+
 # Explosion properties
 var is_explosive: bool = false
 var explosion_radius: float = 0.0
@@ -49,6 +52,9 @@ var current_speed: float = 0.0
 var travel_direction: Vector3 = Vector3.ZERO
 var initial_position: Vector3 = Vector3.ZERO
 var hitscan_timer: float = 0.0
+
+@onready var forward_raycast : RayCast3D = $ForwardRaycast
+@onready var backward_raycast : RayCast3D = $BackwardRaycast
 
 func _ready():
 	# Ensure bullet starts with proper physics settings
@@ -72,12 +78,17 @@ func _ready():
 	time_affected.time_resistance = time_resistance
 	add_child(time_affected)
 	
+	# Register with tracer system
+	if TracerManager:
+		tracer_id = TracerManager.register_bullet(self)
+	
 	# Bullet ready with bouncy physics and time system
 
 func _physics_process(delta):
-	# If not fired yet, track the gun's muzzle position
+	# If not fired yet, track the gun's muzzle position and rotation
 	if not has_been_fired and muzzle_marker:
 		global_position = muzzle_marker.global_position
+		global_rotation = muzzle_marker.global_rotation
 		return
 	
 	# Only count lifetime after being fired
@@ -87,6 +98,7 @@ func _physics_process(delta):
 		
 		life_timer += time_delta
 		if life_timer > lifetime:
+			_cleanup_bullet()
 			queue_free()
 		
 		# Handle travel behavior with time-adjusted delta
@@ -103,7 +115,7 @@ func set_explosion_properties(radius: float, explosion_dmg: int):
 	is_explosive = true
 	explosion_radius = radius
 	explosion_damage = explosion_dmg
-	print("Bullet configured as explosive - Radius: ", radius, " Damage: ", explosion_dmg)
+	#print("Bullet configured as explosive - Radius: ", radius, " Damage: ", explosion_dmg)
 
 func set_time_resistance(resistance: float):
 	"""Set time resistance for this bullet."""
@@ -282,9 +294,11 @@ func _fire_hitscan():
 		else:
 			print("ERROR: Target has no take_damage method!")
 		has_hit_target = true
+		_cleanup_bullet()
 		queue_free()
 	else:
 		print("No damage to apply - no target hit")
+		_cleanup_bullet()
 		queue_free()
 	
 	print("=== END HITSCAN DEBUG ===\n")
@@ -466,10 +480,17 @@ func _safe_cleanup_impact(impact: MeshInstance3D):
 	if is_instance_valid(impact):
 		impact.queue_free()
 
+func _cleanup_bullet():
+	"""Clean up bullet resources including tracer registration."""
+	# Unregister from tracer system
+	if TracerManager and tracer_id != -1:
+		TracerManager.unregister_bullet(tracer_id)
+		tracer_id = -1
+
 func _on_body_entered(body):
 	# Check if we hit an enemy
 	if body.has_method("take_damage"):
-		print("Bullet hit enemy for ", damage, " damage")
+		#print("Bullet hit enemy for ", damage, " damage")
 		body.take_damage(damage)
 		has_hit_target = true
 		
@@ -477,14 +498,16 @@ func _on_body_entered(body):
 		if is_explosive:
 			_create_bullet_explosion(global_position)
 		
+		_cleanup_bullet()
 		queue_free()
 	# Check if we hit environment (walls/floor) - let bullets bounce naturally
 	elif body != get_tree().get_first_node_in_group("player"):
-		print("Bullet bounced off ", body.name)
+		#print("Bullet bounced off ", body.name)
 		
 		# Create explosion if this bullet is explosive (even on environment hits)
 		if is_explosive:
 			_create_bullet_explosion(global_position)
+			_cleanup_bullet()
 			queue_free()  # Explosive bullets don't bounce
 		else:
 			# Let RigidBody3D physics handle the bounce automatically
@@ -497,7 +520,7 @@ func _create_bullet_explosion(position: Vector3):
 	if not is_explosive or explosion_radius <= 0.0:
 		return
 	
-	print("BULLET EXPLOSION at ", position, " - Radius: ", explosion_radius, " Damage: ", explosion_damage)
+	#print("BULLET EXPLOSION at ", position, " - Radius: ", explosion_radius, " Damage: ", explosion_damage)
 	
 	# Apply area damage
 	_apply_bullet_explosion_damage(position)
@@ -527,7 +550,7 @@ func _apply_bullet_explosion_damage(explosion_pos: Vector3):
 			var damage_multiplier = 1.0 - (distance / explosion_radius)  # Linear falloff
 			var final_damage = int(explosion_damage * damage_multiplier)
 			
-			print("Bullet explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
+			#print("Bullet explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
 			enemy.take_damage(final_damage)
 
 func _create_bullet_explosion_visual(position: Vector3):

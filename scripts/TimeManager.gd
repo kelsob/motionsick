@@ -38,58 +38,17 @@ func _find_player():
 
 func _process(delta: float):
 	# Update time scale smoothly
-	if is_transitioning:
-		_update_time_transition(delta)
+	_update_time_scale(delta)
 
-func _update_time_transition(delta: float):
-	# Smooth transition between time scales
-	var old_scale = custom_time_scale
-	custom_time_scale = lerp(custom_time_scale, target_time_scale, transition_speed * delta)
-	
-	# Check if transition is complete
-	if abs(custom_time_scale - target_time_scale) < 0.01:
-		custom_time_scale = target_time_scale
-		is_transitioning = false
-		print("Time transition complete. Scale: ", custom_time_scale)
-	
-	# Emit signal if scale changed significantly
-	if abs(custom_time_scale - old_scale) > 0.01:
-		time_scale_changed.emit(custom_time_scale)
 
-func set_player_moving(moving: bool):
-	"""Called by player to update movement state."""
-	if player_is_moving == moving:
-		return
-	
-	player_is_moving = moving
-	
-	if moving:
-		# Player started moving - begin time freeze
-		_start_time_freeze()
-	else:
-		# Player stopped moving - begin time unfreeze
-		_start_time_unfreeze()
+func _update_time_scale(delta):
+	custom_time_scale = 1.0 - player.get_movement_speed_percentage()
+	if custom_time_scale < 0.01:
+		custom_time_scale = 0.0
+	time_scale_changed.emit(custom_time_scale)
 
-func _start_time_freeze():
-	"""Begin transition to frozen time."""
-	target_time_scale = 0.0
-	transition_speed = 1.0 / freeze_duration
-	is_transitioning = true
-	
-	print("Time freeze initiated (", freeze_duration, "s)")
-	time_freeze_started.emit()
-
-func _start_time_unfreeze():
-	"""Begin transition to normal time."""
-	target_time_scale = 1.0
-	transition_speed = 1.0 / unfreeze_duration
-	is_transitioning = true
-	
-	print("Time unfreeze initiated (", unfreeze_duration, "s)")
-	time_unfreeze_started.emit()
 
 # === PUBLIC API ===
-
 func get_time_scale() -> float:
 	"""Get current custom time scale (0.0 to 1.0)."""
 	return custom_time_scale
