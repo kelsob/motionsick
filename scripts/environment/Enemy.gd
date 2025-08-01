@@ -3,7 +3,7 @@ extends CharacterBody3D
 # === ENEMY CONFIGURATION ===
 @export var max_health: int = 100
 @export var death_effect_duration: float = 0.5
-@export var move_speed: float = 15.0
+@export var move_speed: float = 4.0
 @export var detection_range: float = 15.0
 @export var stop_distance: float = 2.0  # How close to get to player before stopping
 
@@ -57,10 +57,7 @@ func _physics_process(delta):
 	
 	# Apply gravity
 	if not is_on_floor():
-		velocity.y -= GRAVITY * time_delta
-	else:
-		if velocity.y < 0:
-			velocity.y = 0
+		position.y -= GRAVITY * time_delta
 	
 	# Move towards player
 	handle_movement_towards_player(time_delta)

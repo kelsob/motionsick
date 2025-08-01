@@ -14,8 +14,8 @@ const DASH_DURATION := 0.25
 const DASH_COOLDOWN := 0.5
 
 # Smooth movement
-const ACCELERATION := 40.0
-const DECELERATION := 30.0
+const ACCELERATION := 3.0   # Slower acceleration (takes ~0.5 seconds to reach full speed)
+const DECELERATION := 3.0   # Slower deceleration (takes ~0.3 seconds to stop)
 const DASH_DECELERATION := 35.0
 
 # Crouch system
@@ -55,8 +55,12 @@ var is_moving := false
 var move_input := Vector2.ZERO
 var was_on_floor := true
 
+# Movement intent for time system (tracks input intensity, not velocity)
+var movement_intent: float = 0.0  # 0.0 to 1.0, based on input not velocity
+
 # Time system integration
 var time_manager: Node = null
+var time_energy_manager: Node = null
 
 # === SIGNALS FOR GUN SYSTEM ===
 signal movement_started
@@ -81,6 +85,18 @@ func _ready():
 		print("Player connected to TimeManager")
 	else:
 		print("WARNING: Player can't find TimeManager!")
+	
+	# Connect to TimeEnergyManager
+	time_energy_manager = get_node("/root/TimeEnergyManager")
+	if time_energy_manager:
+		print("Player connected to TimeEnergyManager")
+		# Connect to energy manager signals
+		time_energy_manager.movement_lock_started.connect(_on_movement_locked)
+		time_energy_manager.movement_unlocked.connect(_on_movement_unlocked)
+		time_energy_manager.energy_depleted.connect(_on_energy_depleted)
+		time_energy_manager.energy_restored.connect(_on_energy_restored)
+	else:
+		print("WARNING: Player can't find TimeEnergyManager!")
 	
 	# Connect to gun if it exists
 	if gun and gun.has_method("_on_player_movement_started"):
@@ -129,6 +145,9 @@ func handle_movement_input(delta):
 	var input_dir = get_input_direction()
 	var target_speed = get_movement_speed()
 	
+	# Update movement intent based on input (not velocity)
+	update_movement_intent(delta)
+	
 	# Handle crouching/sliding
 	handle_crouch_slide_input()
 	
@@ -169,7 +188,47 @@ func get_movement_speed() -> float:
 
 func get_movement_speed_percentage() -> float:
 	var speed_percentage : float = velocity.length() / WALK_SPEED
+	if speed_percentage >= 0.99:
+		speed_percentage = 1.0
+	elif speed_percentage <= 0.01:
+		speed_percentage = 0
+	print("player movement speed percentage:", speed_percentage)
 	return speed_percentage
+
+func update_movement_intent(delta: float):
+	"""Update movement intent based on input keys, not actual velocity."""
+	# Check if any movement keys are being pressed AND movement is allowed
+	var has_movement_input = (
+		Input.is_action_pressed("action_move_forward") or
+		Input.is_action_pressed("action_move_back") or
+		Input.is_action_pressed("action_move_left") or
+		Input.is_action_pressed("action_move_right")
+	)
+	
+	# Check if movement is allowed by energy system
+	var movement_allowed = true
+	if time_energy_manager:
+		movement_allowed = time_energy_manager.can_move()
+	
+	if has_movement_input and movement_allowed:
+		# Increase intent using same acceleration as movement
+		movement_intent = min(1.0, movement_intent + ACCELERATION * delta)
+	else:
+		# Decrease intent using same deceleration as movement
+		movement_intent = max(0.0, movement_intent - DECELERATION * delta)
+		
+		# If movement is not allowed, force stop velocity immediately
+		if not movement_allowed:
+			velocity.x = 0.0
+			velocity.z = 0.0
+	
+	# Send movement intent to energy manager
+	if time_energy_manager:
+		time_energy_manager.set_player_movement_intent(movement_intent)
+
+func get_movement_intent() -> float:
+	"""Get current movement intent (0.0 to 1.0) based on input, not velocity."""
+	return movement_intent
 
 func handle_crouch_slide_input():
 	# Sprinting - only allow when on ground
@@ -365,4 +424,29 @@ func is_player_moving() -> bool:
 	return is_moving
 
 func is_player_dashing() -> bool:
-	return is_dashing 
+	return is_dashing
+
+# === TIME ENERGY SYSTEM SIGNAL HANDLERS ===
+
+func _on_movement_locked():
+	"""Called when energy system locks player movement."""
+	print("Player received movement lock signal")
+	# Force stop any current movement
+	velocity.x = 0
+	velocity.z = 0
+	# Reset movement intent
+	movement_intent = 0.0
+
+func _on_movement_unlocked():
+	"""Called when energy system unlocks player movement."""
+	print("Player received movement unlock signal")
+
+func _on_energy_depleted():
+	"""Called when energy is completely depleted."""
+	print("Player received energy depleted signal")
+	# Could add visual/audio feedback here
+
+func _on_energy_restored():
+	"""Called when energy is restored after depletion."""
+	print("Player received energy restored signal")
+	# Could add visual/audio feedback here 

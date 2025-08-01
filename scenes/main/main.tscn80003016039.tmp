@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=17 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
 [ext_resource type="PackedScene" uid="uid://ck3rnw8kd0b7k" path="res://scenes/environment/enemy.tscn" id="2_iuonh"]
@@ -6,7 +6,6 @@
 [ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/GameUI.gd" id="4_l3cfh"]
 [ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="5_6q06x"]
 [ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
-[ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="7_hujxm"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_vom5j"]
 size = Vector3(160, 10, 160)
@@ -198,17 +197,8 @@ layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 2
 
-[node name="EnergyBar" type="ProgressBar" parent="UI/Control"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -300.0
-offset_top = -70.0
-offset_right = 300.0
-offset_bottom = -6.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("7_hujxm")
+[node name="HealthBar" type="Control" parent="UI/Control"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2

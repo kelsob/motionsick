@@ -53,6 +53,9 @@ var travel_direction: Vector3 = Vector3.ZERO
 var initial_position: Vector3 = Vector3.ZERO
 var hitscan_timer: float = 0.0
 
+# Gravity constant (same as player)
+@onready var GRAVITY: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+
 @onready var forward_raycast : RayCast3D = $ForwardRaycast
 @onready var backward_raycast : RayCast3D = $BackwardRaycast
 
@@ -60,7 +63,7 @@ func _ready():
 	# Ensure bullet starts with proper physics settings
 	sleeping = false
 	freeze = false
-	gravity_scale = 1.0
+	gravity_scale = 0.0  # Disable built-in gravity, we'll apply it manually with time scaling
 	
 	# Set bouncy physics for bullets using physics material
 	var physics_material = PhysicsMaterial.new()
@@ -96,6 +99,9 @@ func _physics_process(delta):
 		# Use time-adjusted delta for lifetime and travel behavior
 		var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
 		
+		# Handle time-stop physics freezing
+		_handle_time_freeze()
+		
 		life_timer += time_delta
 		if life_timer > lifetime:
 			_cleanup_bullet()
@@ -103,6 +109,31 @@ func _physics_process(delta):
 		
 		# Handle travel behavior with time-adjusted delta
 		_update_travel_behavior(time_delta)
+		
+		# Apply manual gravity using time-adjusted delta (built-in gravity disabled)
+		linear_velocity.y -= GRAVITY * time_delta
+
+func _handle_time_freeze():
+	"""Freeze bullet physics when time is stopped to prevent player collision interference."""
+	if time_affected:
+		var time_scale = time_affected.get_effective_time_scale()
+		
+		# Consider time "stopped" when scale is very close to 0
+		if time_scale < 0.01:
+			# Time is stopped - freeze the bullet completely
+			if not freeze:
+				freeze = true
+				# Store current velocity to restore later
+				if not has_meta("stored_velocity"):
+					set_meta("stored_velocity", linear_velocity)
+		else:
+			# Time is running - unfreeze the bullet
+			if freeze:
+				freeze = false
+				# Restore velocity if we had stored it
+				if has_meta("stored_velocity"):
+					linear_velocity = get_meta("stored_velocity")
+					remove_meta("stored_velocity")
 
 func set_gun_reference(gun: Node3D, muzzle: Node3D):
 	gun_reference = gun

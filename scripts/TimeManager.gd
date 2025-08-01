@@ -42,7 +42,10 @@ func _process(delta: float):
 
 
 func _update_time_scale(delta):
-	custom_time_scale = 1.0 - player.get_movement_speed_percentage()
+	# Use movement intent instead of velocity percentage to avoid turning issues
+	var movement_intent = player.get_movement_intent() if player else 0.0
+	custom_time_scale = 1.0 - movement_intent
+	
 	if custom_time_scale < 0.01:
 		custom_time_scale = 0.0
 	time_scale_changed.emit(custom_time_scale)

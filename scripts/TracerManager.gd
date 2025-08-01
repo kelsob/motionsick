@@ -6,7 +6,7 @@ extends Node
 
 # === CONFIGURATION ===
 @export var tracer_enabled: bool = true
-@export var tracer_length_seconds: float = 0.4  # How long the trail lasts
+@export var tracer_length_seconds: float = 0.6  # How long the trail lasts (increased by 50%)
 @export var tracer_segment_count: int = 100  # Number of trail segments (MUCH denser!)
 @export var tracer_update_rate: float = 0.003  # How often to add new segments (seconds) (SUPER fast!)
 
@@ -21,19 +21,30 @@ var tracer_container: Node3D = null
 var active_tracers: Dictionary = {}  # bullet_id -> tracer_data
 var next_bullet_id: int = 0
 
+# === TIME SYSTEM INTEGRATION ===
+var time_manager: Node = null
+
 # === TRACER DATA STRUCTURE ===
 class TracerData:
 	var bullet: RigidBody3D
 	var trail_segments: Array[MeshInstance3D] = []
+	var segment_ages: Array[float] = []  # Track age of each segment for manual fadeout
 	var last_update_time: float = 0.0
 	var segment_positions: Array[Vector3] = []
 	var is_active: bool = true
+	var bullet_destroyed: bool = false  # Track if bullet is gone but tracers should persist
 	
 	func _init(bullet_ref: RigidBody3D):
 		bullet = bullet_ref
 
 func _ready():
 	print("TracerManager initialized")
+	# Connect to TimeManager
+	time_manager = get_node("/root/TimeManager")
+	if time_manager:
+		print("TracerManager connected to TimeManager")
+	else:
+		print("WARNING: TracerManager can't find TimeManager!")
 	# Create tracer container when main scene is ready
 	call_deferred("_setup_tracer_container")
 
@@ -53,12 +64,18 @@ func _process(delta: float):
 	if not tracer_enabled or not tracer_container:
 		return
 	
+	# Use time-adjusted delta - tracers should respect time scale
+	var time_adjusted_delta = delta
+	if time_manager:
+		time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0)  # No time resistance for tracers
+	
 	var current_time = Time.get_ticks_msec() / 1000.0
 	
-	# Update each active tracer
+	# Update each active tracer with time-adjusted delta
 	for bullet_id in active_tracers.keys():
 		var tracer_data = active_tracers[bullet_id]
-		_update_tracer(tracer_data, delta, current_time)
+		_update_tracer(tracer_data, time_adjusted_delta, current_time)
+		_update_segment_fadeout(tracer_data, time_adjusted_delta)
 	
 	# Clean up invalid bullets
 	_cleanup_invalid_tracers()
@@ -74,35 +91,47 @@ func register_bullet(bullet: RigidBody3D) -> int:
 	var tracer_data = TracerData.new(bullet)
 	active_tracers[bullet_id] = tracer_data
 	
-	print("Registered bullet for tracer tracking: ID ", bullet_id)
+	# Bullet registered for tracer tracking
 	return bullet_id
 
 func unregister_bullet(bullet_id: int):
-	"""Unregister a bullet and clean up its tracer."""
+	"""Unregister a bullet but let tracers fade out naturally."""
 	if not active_tracers.has(bullet_id):
 		return
 	
 	var tracer_data = active_tracers[bullet_id]
-	_cleanup_tracer_visuals(tracer_data)
-	active_tracers.erase(bullet_id)
 	
-	print("Unregistered bullet tracer: ID ", bullet_id)
+	# Mark bullet as destroyed but don't clean up visuals immediately
+	tracer_data.bullet_destroyed = true
+	tracer_data.bullet = null  # Clear reference to help with memory
+	
+	# Let the tracer fade out naturally - cleanup will happen in _cleanup_invalid_tracers()
+	# when all segments are fully faded
+	
+	# Bullet tracer marked for natural fadeout
 
-func _update_tracer(tracer_data: TracerData, delta: float, current_time: float):
+func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float, current_time: float):
 	"""Update a single bullet's tracer."""
+	# Check if bullet still exists
 	if not is_instance_valid(tracer_data.bullet):
-		tracer_data.is_active = false
+		tracer_data.bullet_destroyed = true
+		# Don't return here - let existing segments continue fading
+	
+	# If bullet is destroyed, skip creating new segments but continue fadeout
+	if tracer_data.bullet_destroyed:
 		return
 	
 	# Check if bullet has been fired (has_been_fired property)
 	if not tracer_data.bullet.get("has_been_fired"):
 		return  # Don't show tracer until bullet is fired
 	
-	# Only update at specified intervals
-	if current_time - tracer_data.last_update_time < tracer_update_rate:
+	# Use time-adjusted delta for update intervals instead of real time
+	tracer_data.last_update_time += time_adjusted_delta
+	if tracer_data.last_update_time < tracer_update_rate:
 		return
 	
-	tracer_data.last_update_time = current_time
+	# Reset interval timer
+	tracer_data.last_update_time = 0.0
 	
 	# Get bullet position using the raycast nodes
 	var bullet_pos = tracer_data.bullet.global_position
@@ -158,7 +187,7 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 			segment.transform.basis = Basis(new_x, new_y, new_z)
 		
 		tracer_data.trail_segments.append(segment)
-		_animate_segment_fadeout(segment)
+		tracer_data.segment_ages.append(0.0)  # Start with age 0
 	else:
 		# Create sphere segment (fallback or first segment)
 		var segment = _create_sphere_segment(position)
@@ -168,7 +197,7 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 		segment.global_position = position
 		
 		tracer_data.trail_segments.append(segment)
-		_animate_segment_fadeout(segment)
+		tracer_data.segment_ages.append(0.0)  # Start with age 0
 
 	
 
@@ -178,8 +207,8 @@ func _create_sphere_segment(position: Vector3) -> MeshInstance3D:
 	
 	# Create small sphere mesh for segment
 	var sphere = SphereMesh.new()
-	sphere.radius = tracer_thickness
-	sphere.height = tracer_thickness * 2
+	sphere.radius = tracer_thickness * 4
+	sphere.height = tracer_thickness * 4
 	segment.mesh = sphere
 	
 	# Position will be set after adding to tree
@@ -202,7 +231,7 @@ func _create_line_segment(start_pos: Vector3, end_pos: Vector3) -> MeshInstance3
 	# Create cylinder mesh for line
 	var cylinder = CylinderMesh.new()
 	var distance = start_pos.distance_to(end_pos)
-	cylinder.height = distance
+	cylinder.height = distance * 1.75
 	cylinder.top_radius = tracer_thickness * 0.7  # Slightly thinner than spheres
 	cylinder.bottom_radius = tracer_thickness * 0.7
 	segment.mesh = cylinder
@@ -220,23 +249,48 @@ func _create_line_segment(start_pos: Vector3, end_pos: Vector3) -> MeshInstance3
 		
 	return segment
 
-func _animate_segment_fadeout(segment: MeshInstance3D):
-	"""Animate a tracer segment to fade out over time."""
-	if not is_instance_valid(segment):
-		return
+func _update_segment_fadeout(tracer_data: TracerData, time_adjusted_delta: float):
+	"""Manually update segment fadeout using time-adjusted aging."""
+	var segments_to_remove: Array[int] = []
 	
-	var tween = get_tree().create_tween()
+	for i in range(tracer_data.trail_segments.size()):
+		if i >= tracer_data.segment_ages.size():
+			continue
+			
+		# Age the segment using time-adjusted delta
+		tracer_data.segment_ages[i] += time_adjusted_delta
+		
+		# Calculate fade progress (0.0 = new, 1.0 = fully faded)
+		var fade_progress = tracer_data.segment_ages[i] / tracer_length_seconds
+		
+		# Apply scaling based on fade progress
+		var segment = tracer_data.trail_segments[i]
+		if is_instance_valid(segment):
+			if fade_progress >= 1.0:
+				# Segment is fully faded, mark for removal
+				segments_to_remove.append(i)
+				segment.queue_free()
+			else:
+				# Scale from 1.0 to 0.0 over the fadeout duration
+				var scale_factor = max(0.0, 1.0 - fade_progress)
+				segment.scale = Vector3.ONE * scale_factor
 	
-	# Fade out over tracer lifetime - no callback needed, cleanup handled by segment trimming
-	tween.tween_property(segment, "scale", Vector3.ZERO, tracer_length_seconds)
+	# Remove fully faded segments (in reverse order to maintain indices)
+	for i in range(segments_to_remove.size() - 1, -1, -1):
+		var index = segments_to_remove[i]
+		tracer_data.trail_segments.remove_at(index)
+		tracer_data.segment_ages.remove_at(index)
 
 func _trim_old_segments(tracer_data: TracerData):
 	"""Remove segments that exceed the maximum count."""
-	# Trim visual segments
+	# Trim visual segments and their ages
 	while tracer_data.trail_segments.size() > tracer_segment_count:
 		var old_segment = tracer_data.trail_segments.pop_front()
 		if is_instance_valid(old_segment):
 			old_segment.queue_free()
+		# Remove corresponding age
+		if tracer_data.segment_ages.size() > 0:
+			tracer_data.segment_ages.pop_front()
 	
 	# Trim position history (keep a few extra for line segment generation)
 	while tracer_data.segment_positions.size() > tracer_segment_count + 5:
@@ -249,19 +303,39 @@ func _cleanup_tracer_visuals(tracer_data: TracerData):
 			segment.queue_free()
 	
 	tracer_data.trail_segments.clear()
+	tracer_data.segment_ages.clear()
 	tracer_data.segment_positions.clear()
 
 func _cleanup_invalid_tracers():
-	"""Remove tracers for bullets that no longer exist."""
+	"""Remove tracers that are fully faded out."""
 	var to_remove: Array[int] = []
 	
 	for bullet_id in active_tracers.keys():
 		var tracer_data = active_tracers[bullet_id]
-		if not tracer_data.is_active or not is_instance_valid(tracer_data.bullet):
+		
+		# Check if tracer should be removed
+		var should_remove = false
+		
+		# Remove if explicitly marked as inactive
+		if not tracer_data.is_active:
+			should_remove = true
+		# Remove if bullet is destroyed AND all segments are fully faded out
+		elif tracer_data.bullet_destroyed and _all_segments_faded(tracer_data):
+			should_remove = true
+		
+		if should_remove:
 			to_remove.append(bullet_id)
 	
+	# Clean up tracers that are fully faded (use direct cleanup, not unregister)
 	for bullet_id in to_remove:
-		unregister_bullet(bullet_id)
+		var tracer_data = active_tracers[bullet_id]
+		_cleanup_tracer_visuals(tracer_data)
+		active_tracers.erase(bullet_id)
+
+func _all_segments_faded(tracer_data: TracerData) -> bool:
+	"""Check if all segments in a tracer have fully faded out."""
+	# Since we remove fully faded segments immediately, just check if no segments remain
+	return tracer_data.trail_segments.size() == 0
 
 # === PUBLIC API ===
 

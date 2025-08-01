@@ -3,7 +3,6 @@ class_name GameUI
 
 # UI components
 @onready var crosshair: Control = $Crosshair
-@onready var health_bar: Control = $HealthBar
 @onready var action_history_panel: Control = $ActionHistoryPanel
 
 # Player reference

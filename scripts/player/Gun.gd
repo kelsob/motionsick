@@ -32,135 +32,136 @@ enum FireMode {
 @export var auto_position := false  # Enable to automatically position gun
 
 @export_group("Firing System")
-@export var rapid_fire_rate_start: float = 0.4  # seconds between shots when starting
-@export var rapid_fire_rate_min: float = 0.08   # minimum seconds between shots
-@export var rapid_fire_acceleration: float = 0.03  # how much to decrease interval per shot
+@export var rapid_fire_rate_start: float = 0.5   # Pistol: slower single shots
+@export var rapid_fire_rate_min: float = 0.5     # Pistol: no acceleration
+@export var rapid_fire_acceleration: float = 0.0 # Pistol: consistent timing
 
 @export_group("Charging System")
-@export var charge_time: float = 1.0  # seconds to fully charge (faster for testing)
-@export var min_charge_for_blast: float = 0.05  # minimum charge ratio for power blast (not used in testing mode)
+@export var charge_time: float = 0.0  # Assault rifle: no charging needed
+@export var min_charge_for_blast: float = 0.0
 
 @export_group("Damage Values")
-@export var rapid_fire_damage: int = 25
-@export var charged_blast_damage_min: int = 80
-@export var charged_blast_damage_max: int = 200
-@export var dash_attack_damage: int = 150
-@export var jump_burst_damage: int = 40
-@export var jump_burst_count: int = 3
-@export var jump_burst_interval: float = 0.08
+@export var rapid_fire_damage: int = 45          # Pistol: higher damage per shot
+@export var charged_blast_damage_min: int = 30   # Assault rifle: consistent medium damage
+@export var charged_blast_damage_max: int = 30   # Assault rifle: no charge variation
+@export var dash_attack_damage: int = 120        # Shotgun: high damage total
+@export var jump_burst_damage: int = 35          # Triple shot: decent damage per shot
+@export var jump_burst_count: int = 3            # Triple shot: 3 shots
+@export var jump_burst_interval: float = 0.12    # Triple shot: slightly slower burst
+@export var slow_fire_damage: int = 150          # Rocket launcher: high direct damage
 
 @export_group("Spread System (degrees)")
-@export var rapid_fire_spread: float = 2.0
-@export var charge_blast_spread: float = 0.5
-@export var dash_attack_spread: float = 1.0
-@export var jump_burst_spread: float = 3.0
-@export var slow_fire_spread: float = 4.0
-@export var fast_fire_spread: float = 5.0
-@export var heavy_blast_spread: float = 0.0
-@export var triple_shot_spread: float = 8.0
-@export var auto_charge_spread: float = 0.5
+@export var rapid_fire_spread: float = 1.0       # Pistol: accurate
+@export var charge_blast_spread: float = 2.5     # Assault rifle: some spread when firing fast
+@export var dash_attack_spread: float = 0.5      # Shotgun: tight center pattern (pellets handle spread)
+@export var jump_burst_spread: float = 3.0       # Triple shot: medium spread
+@export var slow_fire_spread: float = 0.0        # Rocket launcher: perfectly accurate
+@export var fast_fire_spread: float = 5.0        # Unused
+@export var heavy_blast_spread: float = 0.0      # Unused
+@export var triple_shot_spread: float = 8.0      # Unused
+@export var auto_charge_spread: float = 0.5      # Unused
 
 @export_group("Recoil System (degrees)")
-@export var rapid_fire_recoil: float = 0.17
-@export var charge_blast_recoil: float = 0.9
-@export var dash_attack_recoil: float = 1.33
-@export var jump_burst_recoil: float = 0.23
-@export var slow_fire_recoil: float = 0.33
-@export var fast_fire_recoil: float = 0.1
-@export var heavy_blast_recoil: float = 1.67
-@export var triple_shot_recoil: float = 0.27
-@export var auto_charge_recoil: float = 0.67
+@export var rapid_fire_recoil: float = 0.8       # Pistol: moderate recoil
+@export var charge_blast_recoil: float = 0.4     # Assault rifle: manageable recoil for continuous fire
+@export var dash_attack_recoil: float = 2.5      # Shotgun: heavy recoil
+@export var jump_burst_recoil: float = 0.6       # Triple shot: medium recoil per shot
+@export var slow_fire_recoil: float = 3.0        # Rocket launcher: very heavy recoil
+@export var fast_fire_recoil: float = 0.1        # Unused
+@export var heavy_blast_recoil: float = 1.67     # Unused
+@export var triple_shot_recoil: float = 0.27     # Unused
+@export var auto_charge_recoil: float = 0.67     # Unused
 
 @export_group("Recoil Duration (seconds)")
-@export var rapid_fire_recoil_duration: float = 0.3
-@export var charge_blast_recoil_duration: float = 1.2
-@export var dash_attack_recoil_duration: float = 0.8
-@export var jump_burst_recoil_duration: float = 0.4
-@export var slow_fire_recoil_duration: float = 1.0
-@export var fast_fire_recoil_duration: float = 0.2
-@export var heavy_blast_recoil_duration: float = 1.5
-@export var triple_shot_recoil_duration: float = 0.5
-@export var auto_charge_recoil_duration: float = 1.0
+@export var rapid_fire_recoil_duration: float = 0.4  # Pistol: moderate recovery
+@export var charge_blast_recoil_duration: float = 0.3 # Assault rifle: quick recovery for continuous fire
+@export var dash_attack_recoil_duration: float = 1.2  # Shotgun: long recovery
+@export var jump_burst_recoil_duration: float = 0.5   # Triple shot: medium recovery
+@export var slow_fire_recoil_duration: float = 2.0    # Rocket launcher: very long recovery
+@export var fast_fire_recoil_duration: float = 0.2    # Unused
+@export var heavy_blast_recoil_duration: float = 1.5  # Unused
+@export var triple_shot_recoil_duration: float = 0.5  # Unused
+@export var auto_charge_recoil_duration: float = 1.0  # Unused
 
 @export_group("Explosive Properties")
-@export var rapid_fire_explosive: bool = false
-@export var charge_blast_explosive: bool = true
-@export var dash_attack_explosive: bool = true
-@export var jump_burst_explosive: bool = false
-@export var slow_fire_explosive: bool = false
-@export var fast_fire_explosive: bool = false
-@export var heavy_blast_explosive: bool = true
-@export var triple_shot_explosive: bool = false
-@export var auto_charge_explosive: bool = true
+@export var rapid_fire_explosive: bool = false    # Pistol: no explosions
+@export var charge_blast_explosive: bool = false  # Assault rifle: no explosions
+@export var dash_attack_explosive: bool = false   # Shotgun: no explosions
+@export var jump_burst_explosive: bool = false    # Triple shot: no explosions
+@export var slow_fire_explosive: bool = true      # Rocket launcher: explosive!
+@export var fast_fire_explosive: bool = false     # Unused
+@export var heavy_blast_explosive: bool = true    # Unused
+@export var triple_shot_explosive: bool = false   # Unused
+@export var auto_charge_explosive: bool = true    # Unused
 
 @export_group("Explosion Radius (units)")
-@export var rapid_fire_explosion_radius: float = 0.0
-@export var charge_blast_explosion_radius: float = 8.0
-@export var dash_attack_explosion_radius: float = 6.0
-@export var jump_burst_explosion_radius: float = 0.0
-@export var slow_fire_explosion_radius: float = 0.0
-@export var fast_fire_explosion_radius: float = 0.0
-@export var heavy_blast_explosion_radius: float = 12.0
-@export var triple_shot_explosion_radius: float = 0.0
-@export var auto_charge_explosion_radius: float = 10.0
+@export var rapid_fire_explosion_radius: float = 0.0   # Pistol: no explosions
+@export var charge_blast_explosion_radius: float = 0.0 # Assault rifle: no explosions
+@export var dash_attack_explosion_radius: float = 0.0  # Shotgun: no explosions
+@export var jump_burst_explosion_radius: float = 0.0   # Triple shot: no explosions
+@export var slow_fire_explosion_radius: float = 10.0   # Rocket launcher: large explosion
+@export var fast_fire_explosion_radius: float = 0.0    # Unused
+@export var heavy_blast_explosion_radius: float = 12.0 # Unused
+@export var triple_shot_explosion_radius: float = 0.0  # Unused
+@export var auto_charge_explosion_radius: float = 10.0 # Unused
 
 @export_group("Explosion Damage")
-@export var rapid_fire_explosion_damage: int = 0
-@export var charge_blast_explosion_damage: int = 150
-@export var dash_attack_explosion_damage: int = 100
-@export var jump_burst_explosion_damage: int = 0
-@export var slow_fire_explosion_damage: int = 0
-@export var fast_fire_explosion_damage: int = 0
-@export var heavy_blast_explosion_damage: int = 250
-@export var triple_shot_explosion_damage: int = 0
-@export var auto_charge_explosion_damage: int = 180
+@export var rapid_fire_explosion_damage: int = 0       # Pistol: no explosions
+@export var charge_blast_explosion_damage: int = 0     # Assault rifle: no explosions
+@export var dash_attack_explosion_damage: int = 0      # Shotgun: no explosions
+@export var jump_burst_explosion_damage: int = 0       # Triple shot: no explosions
+@export var slow_fire_explosion_damage: int = 200      # Rocket launcher: high explosion damage
+@export var fast_fire_explosion_damage: int = 0        # Unused
+@export var heavy_blast_explosion_damage: int = 250    # Unused
+@export var triple_shot_explosion_damage: int = 0      # Unused
+@export var auto_charge_explosion_damage: int = 180    # Unused
 
 @export_group("Shotgun Properties")
-@export var rapid_fire_shotgun: bool = false
-@export var charge_blast_shotgun: bool = false
-@export var dash_attack_shotgun: bool = false
-@export var jump_burst_shotgun: bool = false
-@export var slow_fire_shotgun: bool = false
-@export var fast_fire_shotgun: bool = false
-@export var heavy_blast_shotgun: bool = false
-@export var triple_shot_shotgun: bool = true
-@export var auto_charge_shotgun: bool = false
+@export var rapid_fire_shotgun: bool = false       # Pistol: not shotgun
+@export var charge_blast_shotgun: bool = false     # Assault rifle: not shotgun
+@export var dash_attack_shotgun: bool = true       # Shotgun: IS shotgun!
+@export var jump_burst_shotgun: bool = false       # Triple shot: not shotgun (burst fire instead)
+@export var slow_fire_shotgun: bool = false        # Rocket launcher: not shotgun
+@export var fast_fire_shotgun: bool = false        # Unused
+@export var heavy_blast_shotgun: bool = false      # Unused
+@export var triple_shot_shotgun: bool = true       # Unused
+@export var auto_charge_shotgun: bool = false      # Unused
 
 @export_group("Shotgun Pellet Count")
-@export var rapid_fire_pellets: int = 1
-@export var charge_blast_pellets: int = 1
-@export var dash_attack_pellets: int = 1
-@export var jump_burst_pellets: int = 1
-@export var slow_fire_pellets: int = 1
-@export var fast_fire_pellets: int = 1
-@export var heavy_blast_pellets: int = 1
-@export var triple_shot_pellets: int = 8
-@export var auto_charge_pellets: int = 1
+@export var rapid_fire_pellets: int = 1            # Pistol: single shot
+@export var charge_blast_pellets: int = 1          # Assault rifle: single shot
+@export var dash_attack_pellets: int = 8           # Shotgun: 8 pellets
+@export var jump_burst_pellets: int = 1            # Triple shot: single shots in burst
+@export var slow_fire_pellets: int = 1             # Rocket launcher: single rocket
+@export var fast_fire_pellets: int = 1             # Unused
+@export var heavy_blast_pellets: int = 1           # Unused
+@export var triple_shot_pellets: int = 8           # Unused
+@export var auto_charge_pellets: int = 1           # Unused
 
 @export_group("Shotgun Spread (degrees)")
-@export var rapid_fire_shotgun_spread: float = 0.0
-@export var charge_blast_shotgun_spread: float = 0.0
-@export var dash_attack_shotgun_spread: float = 0.0
-@export var jump_burst_shotgun_spread: float = 0.0
-@export var slow_fire_shotgun_spread: float = 0.0
-@export var fast_fire_shotgun_spread: float = 0.0
-@export var heavy_blast_shotgun_spread: float = 0.0
-@export var triple_shot_shotgun_spread: float = 15.0
-@export var auto_charge_shotgun_spread: float = 0.0
+@export var rapid_fire_shotgun_spread: float = 0.0     # Pistol: not shotgun
+@export var charge_blast_shotgun_spread: float = 0.0   # Assault rifle: not shotgun
+@export var dash_attack_shotgun_spread: float = 20.0   # Shotgun: wide pellet spread
+@export var jump_burst_shotgun_spread: float = 0.0     # Triple shot: not shotgun
+@export var slow_fire_shotgun_spread: float = 0.0      # Rocket launcher: not shotgun
+@export var fast_fire_shotgun_spread: float = 0.0      # Unused
+@export var heavy_blast_shotgun_spread: float = 0.0    # Unused
+@export var triple_shot_shotgun_spread: float = 15.0   # Unused
+@export var auto_charge_shotgun_spread: float = 0.0    # Unused
 
 @export_group("Recoil Settings")
 @export var recoil_randomness: float = 0.25  # Random variation in recoil direction
 
 @export_group("Bullet Travel Behaviors")
-@export var rapid_fire_travel: int = 2  # CONSTANT_FAST
-@export var charge_blast_travel: int = 0  # HITSCAN
-@export var dash_attack_travel: int = 7  # DELAYED_HITSCAN
-@export var jump_burst_travel: int = 3  # SLOW_ACCELERATE
-@export var slow_fire_travel: int = 1  # CONSTANT_SLOW
-@export var fast_fire_travel: int = 6  # PULSE_SPEED
-@export var heavy_blast_travel: int = 0  # HITSCAN
-@export var triple_shot_travel: int = 5  # CURVE_ACCELERATE
-@export var auto_charge_travel: int = 4  # FAST_DECELERATE
+@export var rapid_fire_travel: int = 2  # Pistol: CONSTANT_FAST projectiles
+@export var charge_blast_travel: int = 2  # Assault rifle: CONSTANT_FAST projectiles  
+@export var dash_attack_travel: int = 2  # Shotgun: CONSTANT_FAST pellets
+@export var jump_burst_travel: int = 2  # Triple shot: CONSTANT_FAST projectiles
+@export var slow_fire_travel: int = 1   # Rocket launcher: CONSTANT_SLOW rockets
+@export var fast_fire_travel: int = 6   # Unused
+@export var heavy_blast_travel: int = 0 # Unused  
+@export var triple_shot_travel: int = 5 # Unused
+@export var auto_charge_travel: int = 4 # Unused
 
 # === STATE ===
 var current_state: State = State.IDLE
@@ -180,6 +181,7 @@ var recoil_timer: float = 0.0
 @export var affect_muzzle_flash: bool = true  # Whether muzzle flash should be time-scaled
 @export var affect_visual_effects: bool = true  # Whether visual effects should be time-scaled
 var time_manager: Node = null
+var time_energy_manager: Node = null
 
 # === COMPONENTS ===
 @onready var bullet_scene = preload("res://scenes/bullet.tscn")
@@ -218,6 +220,13 @@ func _ready():
 	if time_manager:
 		print("Gun connected to TimeManager for visual effects")
 	
+	# Connect to time energy manager
+	time_energy_manager = get_node("/root/TimeEnergyManager")
+	if time_energy_manager:
+		print("Gun connected to TimeEnergyManager")
+	else:
+		print("WARNING: Gun can't find TimeEnergyManager!")
+	
 	# Set initial state
 	_change_state(State.IDLE)
 	
@@ -232,15 +241,15 @@ func _ready():
 	if testing_mode:
 		print("\n=== GUN TESTING CONTROLS ===")
 		print("Fire mode controls:")
-		print("1 - Rapid Fire (", "%.1f" % rapid_fire_spread, "° spread) - Constant fast bullets")
-		print("2 - Charge Blast (", "%.1f" % charge_blast_spread, "° spread) - Hitscan, hold to charge")
-		print("3 - Dash Attack (", "%.1f" % dash_attack_spread, "° spread) - Delayed hitscan")
-		print("4 - Jump Burst (", "%.1f" % jump_burst_spread, "° spread) - Slow start, fast finish")
-		print("5 - Slow Fire (", "%.1f" % slow_fire_spread, "° spread) - Constant slow bullets")
-		print("6 - Fast Fire (", "%.1f" % fast_fire_spread, "° spread) - Pulsing speed bullets") 
-		print("7 - Heavy Blast (", "%.1f" % heavy_blast_spread, "° spread) - Instant hitscan")
-		print("8 - Shotgun (", "%.1f" % triple_shot_spread, "° spread) - 8 pellets, smooth acceleration")
-		print("9 - Auto Charge (", "%.1f" % auto_charge_spread, "° spread) - Fast start, slow down")
+		print("1 - Pistol (", "%.1f" % rapid_fire_spread, "° spread) - Single shot, moderate damage")
+		print("2 - Assault Rifle (", "%.1f" % charge_blast_spread, "° spread) - Continuous fire, hold to spray")
+		print("3 - Shotgun (", "%.1f" % dash_attack_spread, "° spread) - ", dash_attack_pellets, " pellets, high damage")
+		print("4 - Triple Shot (", "%.1f" % jump_burst_spread, "° spread) - 3 shot burst")
+		print("5 - Rocket Launcher (", "%.1f" % slow_fire_spread, "° spread) - High damage explosive")
+		print("6 - Fast Fire (", "%.1f" % fast_fire_spread, "° spread) - Unused") 
+		print("7 - Heavy Blast (", "%.1f" % heavy_blast_spread, "° spread) - Unused")
+		print("8 - Shotgun Old (", "%.1f" % triple_shot_spread, "° spread) - Unused")
+		print("9 - Auto Charge (", "%.1f" % auto_charge_spread, "° spread) - Unused")
 		print("\nControls:")
 		print("Left Click - Fire in selected mode")
 		print("Q - Dash")
@@ -294,8 +303,8 @@ func _set_fire_mode(mode: FireMode):
 	current_fire_mode = mode
 	fire_mode_changed.emit(mode)
 	
-	var mode_names = ["Rapid Fire", "Charge Blast", "Dash Attack", "Jump Burst", 
-					  "Slow Fire", "Fast Fire", "Heavy Blast", "Shotgun", "Auto Charge"]
+	var mode_names = ["Pistol", "Assault Rifle", "Shotgun", "Triple Shot", 
+					  "Rocket Launcher", "Fast Fire", "Heavy Blast", "Shotgun Old", "Auto Charge"]
 	var travel_names = ["Hitscan", "Constant Slow", "Constant Fast", "Slow→Fast", 
 						"Fast→Slow", "Smooth Accel", "Pulsing", "Delayed Hitscan"]
 	var spread = get_current_spread()
@@ -320,9 +329,10 @@ func _start_test_firing():
 		FireMode.RAPID_FIRE:
 			_change_state(State.FIRING)
 		FireMode.CHARGE_BLAST:
-			_change_state(State.CHARGING)
+			# Assault rifle: continuous fire, no charging
+			_start_assault_rifle()
 		FireMode.DASH_ATTACK:
-			_fire_dash_attack()
+			_fire_shotgun_blast()
 		FireMode.JUMP_BURST:
 			_fire_jump_burst()
 		FireMode.SLOW_FIRE:
@@ -341,10 +351,8 @@ func _stop_test_firing():
 	
 	match current_fire_mode:
 		FireMode.CHARGE_BLAST:
-			if current_state == State.CHARGED:  # Only fire if fully charged
-				_fire_charged_blast()
-			else:
-				print("Released before fully charged - no shot fired")
+			# Assault rifle: just stop firing, no charging behavior
+			pass
 		FireMode.AUTO_CHARGE:
 			if current_state == State.CHARGED:  # Only fire if fully charged
 				_fire_charged_blast()
@@ -354,9 +362,22 @@ func _stop_test_firing():
 	_change_state(State.IDLE)
 
 # === NEW FIRE MODES FOR TESTING ===
-func _start_slow_fire():
-	rapid_fire_current_rate = 0.8  # Slower than normal
+func _start_assault_rifle():
+	# Assault rifle: fast continuous fire
+	rapid_fire_current_rate = 0.15  # Fast fire rate for assault rifle
 	_change_state(State.FIRING)
+
+func _fire_shotgun_blast():
+	# Shotgun: single blast with multiple pellets
+	_fire_bullet(dash_attack_damage)
+	fired_shot.emit(dash_attack_damage)
+	print("Shotgun blast! Damage: ", dash_attack_damage)
+
+func _start_slow_fire():
+	# Rocket launcher: single shot with high damage
+	_fire_bullet(slow_fire_damage)
+	fired_shot.emit(slow_fire_damage)
+	print("Rocket fired! Damage: ", slow_fire_damage)
 
 func _start_fast_fire():
 	rapid_fire_current_rate = 0.05  # Much faster than normal
@@ -604,6 +625,18 @@ func _setup_prepared_bullet():
 		prepared_bullet.angular_velocity = Vector3.ZERO
 
 func _fire_bullet(damage: int):
+	# Check if firing is allowed by energy system
+	if time_energy_manager and not time_energy_manager.can_fire():
+		print("Firing blocked - insufficient energy or in forced recharge")
+		return
+	
+	# Drain energy for firing
+	if time_energy_manager:
+		var energy_drained = time_energy_manager.drain_energy_for_firing()
+		if not energy_drained:
+			print("Firing blocked - energy drain failed")
+			return
+	
 	var travel_type = get_current_travel_type()
 	
 	# Show muzzle flash for all weapon types
@@ -921,6 +954,8 @@ func _fire_shotgun(damage: int, travel_type: int):
 	var pellet_damage = max(1, damage / pellet_count)  # Distribute damage across pellets
 	
 	print("FIRING SHOTGUN - ", pellet_count, " pellets, ", pellet_damage, " damage each, ", shotgun_spread, "° spread")
+	
+	# Note: Energy was already drained in _fire_bullet, so we don't drain again here
 	
 	# Fire each pellet
 	for i in range(pellet_count):
