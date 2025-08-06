@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3 uid="uid://bve1c16hhc63w"]
+
+[ext_resource type="PackedScene" uid="uid://ywau1wgwfrqr" path="res://scenes/enemies/BaseEnemy.tscn" id="1_rq0qw"]
+[ext_resource type="Script" uid="uid://b6clx7vs0vh6u" path="res://scripts/enemies/Artillery.gd" id="2_h22rp"]
+
+[node name="Artillery" instance=ExtResource("1_rq0qw")]
+script = ExtResource("2_h22rp")

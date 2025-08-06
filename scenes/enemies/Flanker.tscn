@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3 uid="uid://b68p688ky5jmb"]
+
+[ext_resource type="PackedScene" uid="uid://ywau1wgwfrqr" path="res://scenes/enemies/BaseEnemy.tscn" id="1_mrtbo"]
+[ext_resource type="Script" uid="uid://durf73hvnh8tn" path="res://scripts/enemies/Flanker.gd" id="2_pe2x0"]
+
+[node name="Flanker" instance=ExtResource("1_mrtbo")]
+script = ExtResource("2_pe2x0")

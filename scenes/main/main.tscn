@@ -1,8 +1,7 @@
-[gd_scene load_steps=18 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=17 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
-[ext_resource type="PackedScene" uid="uid://ck3rnw8kd0b7k" path="res://scenes/environment/enemy.tscn" id="2_iuonh"]
-[ext_resource type="Script" uid="uid://l7okr7pysr23" path="res://scripts/environment/EnemySpawner.gd" id="3_k2fmo"]
+[ext_resource type="Script" uid="uid://ds34v5q8x2hyw" path="res://scripts/enemies/EnemySpawner.gd" id="2_ow5a4"]
 [ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/GameUI.gd" id="4_l3cfh"]
 [ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="5_6q06x"]
 [ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
@@ -101,8 +100,9 @@ transform = Transform3D(1, 0, 0, 0, -0.988014, 0.154366, 0, -0.154366, -0.988014
 
 [node name="EnemySpawner" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.18013, -28.9532)
-script = ExtResource("3_k2fmo")
-enemy_scene = ExtResource("2_iuonh")
+script = ExtResource("2_ow5a4")
+enemy_type = 4
+spawn_radius = 20.0
 
 [node name="UI" type="CanvasLayer" parent="."]
 

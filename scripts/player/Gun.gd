@@ -31,6 +31,9 @@ enum FireMode {
 @export var screen_position := Vector3(0.15, -0.1, -0.4)  # Ideal gun position
 @export var auto_position := false  # Enable to automatically position gun
 
+@export_group("Aiming System")
+@export var focal_distance: float = 50.0  # Fixed distance for bullet convergence point
+
 @export_group("Firing System")
 @export var rapid_fire_rate_start: float = 0.5   # Pistol: slower single shots
 @export var rapid_fire_rate_min: float = 0.5     # Pistol: no acceleration
@@ -969,8 +972,9 @@ func _fire_shotgun(damage: int, travel_type: int):
 			_fire_shotgun_projectile_pellet(pellet_damage, pellet_direction)
 
 func _get_shotgun_pellet_direction(spread_degrees: float) -> Vector3:
-	"""Generate a random direction within shotgun spread cone."""
-	var base_direction = -camera.global_transform.basis.z.normalized()
+	"""Generate a random direction within shotgun spread cone using cursor aim."""
+	# Get base direction using same cursor aim logic as regular firing
+	var base_direction = get_firing_direction(false)  # Get base direction without spread
 	
 	if spread_degrees <= 0.0:
 		return base_direction
@@ -1200,13 +1204,28 @@ func get_muzzle_position() -> Vector3:
 	return muzzle_marker.global_position
 
 func get_firing_direction(apply_spread: bool = true) -> Vector3:
-	# Use camera's forward direction for accuracy
-	var base_direction = -camera.global_transform.basis.z.normalized()
+	# Get camera's aim raycast for cursor accuracy
+	var aim_raycast = camera.get_node_or_null("AimRayCast3D") as RayCast3D
+	if not aim_raycast:
+		print("WARNING: No AimRaycast found on camera! Falling back to camera forward direction.")
+		return -camera.global_transform.basis.z.normalized()
 	
-	print("GUN DIRECTION DEBUG:")
-	print("Camera position: ", camera.global_position)
-	print("Camera basis.z: ", camera.global_transform.basis.z)
-	print("Base direction (-z): ", base_direction)
+	# Force raycast update to get current aim direction
+	aim_raycast.force_raycast_update()
+	
+	# Always use a fixed focal point at focal_distance in the camera's aim direction
+	var camera_direction = -camera.global_transform.basis.z.normalized()
+	var focal_point = camera.global_position + (camera_direction * focal_distance)
+	
+	# If raycast hits something closer than focal distance, use that instead
+	if aim_raycast.is_colliding():
+		var hit_distance = camera.global_position.distance_to(aim_raycast.get_collision_point())
+		if hit_distance < focal_distance:
+			focal_point = aim_raycast.get_collision_point()
+	
+	# Calculate direction from gun muzzle to focal point
+	var muzzle_pos = get_muzzle_position()
+	var base_direction = (focal_point - muzzle_pos).normalized()
 	
 	if not apply_spread:
 		return base_direction

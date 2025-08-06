@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3 uid="uid://dlkkbauoaxwyf"]
+
+[ext_resource type="PackedScene" uid="uid://ywau1wgwfrqr" path="res://scenes/enemies/BaseEnemy.tscn" id="1_4r0mo"]
+[ext_resource type="Script" uid="uid://baaonn6d3y2t1" path="res://scripts/enemies/Rusher.gd" id="2_761lp"]
+
+[node name="Rusher" instance=ExtResource("1_4r0mo")]
+script = ExtResource("2_761lp")

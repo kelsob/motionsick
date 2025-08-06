@@ -30,9 +30,8 @@ current = true
 script = ExtResource("2_2gs60")
 
 [node name="Gun" type="Node3D" parent="Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.52744, -0.311281, -0.275679)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.912419, -0.47952, -0.716558)
 script = ExtResource("3_gmlin")
-rapid_fire_recoil = 0.1
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Camera3D/Gun"]
 mesh = SubResource("BoxMesh_gmlin")
@@ -41,8 +40,7 @@ mesh = SubResource("BoxMesh_gmlin")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.256268)
 
 [node name="AimRayCast3D" type="RayCast3D" parent="Camera3D"]
-target_position = Vector3(0, 0, -100)
-collision_mask = 0
+target_position = Vector3(0, 0, -1)
 
 [node name="PlayerActionTracker" type="Node" parent="."]
 script = ExtResource("4_lvxji")

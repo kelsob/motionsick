@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3 uid="uid://cfwk67g31368s"]
+
+[ext_resource type="PackedScene" uid="uid://ywau1wgwfrqr" path="res://scenes/enemies/BaseEnemy.tscn" id="1_vc3vq"]
+[ext_resource type="Script" uid="uid://cfkjn8e2f5q1p" path="res://scripts/enemies/Sniper.gd" id="2_1qpc2"]
+
+[node name="Sniper" instance=ExtResource("1_vc3vq")]
+script = ExtResource("2_1qpc2")
