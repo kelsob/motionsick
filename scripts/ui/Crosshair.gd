@@ -1,74 +1,79 @@
 extends Control
-class_name Crosshair
 
-# Crosshair elements
-@onready var center_dot: Control = $CenterDot
-@onready var top_line: Control = $TopLine
-@onready var bottom_line: Control = $BottomLine
-@onready var left_line: Control = $LeftLine
-@onready var right_line: Control = $RightLine
+@onready var up_pip = $TextureRect1
+@onready var right_pip = $TextureRect2
+@onready var down_pip = $TextureRect3
+@onready var left_pip = $TextureRect4
 
-# Crosshair properties
-var base_gap := 10.0
-var current_gap := 10.0
-var base_thickness := 2.0
-var line_length := 15.0
+# Animation settings
+@export var spread_distance: float = 10.0  # How far pips spread out
+@export var spread_duration: float = 0.1   # How long to spread out
+@export var return_duration: float = 0.3   # How long to return to center
 
-# Dynamic behavior
-var spread_amount := 0.0
-var max_spread := 30.0
-var spread_recovery_speed := 5.0
-
-# Colors
-var normal_color := Color.WHITE
-var hit_color := Color.RED
-var enemy_color := Color.ORANGE
+# Store original positions
+var original_positions: Dictionary = {}
+var gun_reference: Node3D = null
 
 func _ready():
-	# Center the crosshair
-	set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	setup_crosshair_elements()
+	# Store original positions of all pips
+	original_positions["up"] = up_pip.position
+	original_positions["right"] = right_pip.position
+	original_positions["down"] = down_pip.position
+	original_positions["left"] = left_pip.position
+	
+	# Connect to gun firing signal
+	_connect_to_gun()
 
-func _process(delta):
-	update_spread(delta)
-	update_crosshair_position()
-
-func setup_crosshair_elements():
-	# This will be called to set up the visual elements
-	# The actual visual setup will be done in the scene
-	pass
-
-func update_spread(delta):
-	# Recover spread over time
-	if spread_amount > 0:
-		spread_amount = max(0, spread_amount - spread_recovery_speed * delta)
-		current_gap = base_gap + spread_amount
-
-func update_crosshair_position():
-	if not center_dot or not top_line:
+func _connect_to_gun():
+	"""Find and connect to the gun's firing signal."""
+	var player = get_tree().get_first_node_in_group("player")
+	if not player:
+		print("Crosshair: Could not find player!")
 		return
 	
-	# Update line positions based on current gap
-	var half_gap = current_gap / 2.0
+	var camera = player.get_node("Camera3D")
+	if not camera:
+		print("Crosshair: Could not find camera!")
+		return
 	
-	# Position crosshair lines
-	if top_line:
-		top_line.position = Vector2(0, -half_gap - line_length/2)
-	if bottom_line:
-		bottom_line.position = Vector2(0, half_gap + line_length/2)
-	if left_line:
-		left_line.position = Vector2(-half_gap - line_length/2, 0)
-	if right_line:
-		right_line.position = Vector2(half_gap + line_length/2, 0)
+	var gun = camera.get_node("Gun")
+	if not gun:
+		print("Crosshair: Could not find gun!")
+		return
+	
+	gun_reference = gun
+	
+	# Connect to the fired_shot signal
+	if gun.has_signal("fired_shot"):
+		gun.fired_shot.connect(_on_gun_fired)
+		print("Crosshair: Connected to gun firing signal")
+	else:
+		print("Crosshair: Gun has no fired_shot signal!")
 
-func add_spread(amount: float):
-	spread_amount = min(max_spread, spread_amount + amount)
+func _on_gun_fired(damage: int):
+	"""Called when the gun fires - animate crosshair spread."""
+	animate_crosshair_spread()
 
-func show_hit_indicator():
-	# Flash red when hitting an enemy
+func animate_crosshair_spread():
+	"""Animate the crosshair pips spreading out and returning."""
+	# Calculate spread positions
+	var up_spread = original_positions["up"] + Vector2(0, -spread_distance)
+	var right_spread = original_positions["right"] + Vector2(spread_distance, 0)
+	var down_spread = original_positions["down"] + Vector2(0, spread_distance)
+	var left_spread = original_positions["left"] + Vector2(-spread_distance, 0)
+	
+	# Create tween for animation
 	var tween = create_tween()
-	modulate = hit_color
-	tween.tween_property(self, "modulate", normal_color, 0.2)
-
-func set_crosshair_color(color: Color):
-	modulate = color 
+	tween.set_parallel(true)  # Allow multiple properties to animate simultaneously
+	
+	# Spread out phase
+	tween.tween_property(up_pip, "position", up_spread, spread_duration)
+	tween.tween_property(right_pip, "position", right_spread, spread_duration)
+	tween.tween_property(down_pip, "position", down_spread, spread_duration)
+	tween.tween_property(left_pip, "position", left_spread, spread_duration)
+	
+	# Return phase (starts after spread completes)
+	tween.tween_property(up_pip, "position", original_positions["up"], return_duration).set_delay(spread_duration)
+	tween.tween_property(right_pip, "position", original_positions["right"], return_duration).set_delay(spread_duration)
+	tween.tween_property(down_pip, "position", original_positions["down"], return_duration).set_delay(spread_duration)
+	tween.tween_property(left_pip, "position", original_positions["left"], return_duration).set_delay(spread_duration)

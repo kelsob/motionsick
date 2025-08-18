@@ -1,9 +1,8 @@
-[gd_scene load_steps=19 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=18 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
-[ext_resource type="Texture2D" uid="uid://bxpc2ma6gsowc" path="res://assets/ui/crosshair-thread.png" id="4_b1x3f"]
+[ext_resource type="Script" uid="uid://ds34v5q8x2hyw" path="res://scripts/enemies/EnemySpawner.gd" id="2_ow5a4"]
 [ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/UI.gd" id="4_l3cfh"]
-[ext_resource type="Script" uid="uid://b8rqy2kqwh2qi" path="res://scripts/ui/AmmoIndicator.gd" id="4_yyfjg"]
 [ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="5_6q06x"]
 [ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
 [ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="7_hujxm"]
@@ -100,6 +99,12 @@ transform = Transform3D(1, 0, 0, 0, -0.988014, 0.154366, 0, -0.154366, -0.988014
 
 [node name="PlayerBullets" type="Node3D" parent="."]
 
+[node name="EnemySpawner" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.18013, -28.9532)
+script = ExtResource("2_ow5a4")
+enemy_type = 4
+spawn_radius = 20.0
+
 [node name="UI" type="CanvasLayer" parent="."]
 script = ExtResource("4_l3cfh")
 
@@ -119,97 +124,46 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -10.5
-offset_top = -10.5
-offset_right = 29.5
-offset_bottom = 29.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
 grow_horizontal = 2
 grow_vertical = 2
-scale = Vector2(0.5, 0.5)
 mouse_filter = 2
 script = ExtResource("5_6q06x")
 
-[node name="TextureRect1" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -9.0
-offset_top = -48.0
-offset_right = 10.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("4_b1x3f")
-flip_v = true
-
-[node name="TextureRect2" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = 49.0
-offset_top = -10.0
-offset_right = 68.0
-offset_bottom = 38.0
-grow_horizontal = 2
-grow_vertical = 2
-rotation = 1.5708
-texture = ExtResource("4_b1x3f")
-flip_v = true
-
-[node name="TextureRect3" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -9.0
-offset_right = 10.0
-offset_bottom = 48.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("4_b1x3f")
-
-[node name="TextureRect4" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = 1.0
-offset_top = -10.0
-offset_right = 20.0
-offset_bottom = 38.0
-grow_horizontal = 2
-grow_vertical = 2
-rotation = 1.5708
-texture = ExtResource("4_b1x3f")
-
-[node name="AmmoIndicator" type="HBoxContainer" parent="UI/Control"]
-modulate = Color(1, 1, 1, 0.52549)
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -20.0
-offset_top = 106.0
-offset_right = 20.0
-offset_bottom = 146.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="CenterDot" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
 mouse_filter = 2
-script = ExtResource("4_yyfjg")
+
+[node name="TopLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="BottomLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="LeftLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="RightLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 
 [node name="ActionHistoryPanel" type="Panel" parent="UI/Control"]
-visible = false
 custom_minimum_size = Vector2(200, 120)
 layout_mode = 1
 anchors_preset = 2
@@ -260,33 +214,5 @@ grow_horizontal = 2
 grow_vertical = 0
 script = ExtResource("7_hujxm")
 
-[node name="ScoreLabel" type="Label" parent="UI/Control"]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -20.0
-offset_top = 8.0
-offset_right = 20.0
-offset_bottom = 31.0
-grow_horizontal = 2
-text = "0"
-horizontal_alignment = 1
-
 [node name="DeathScreen" parent="UI" instance=ExtResource("7_yyfjg")]
 visible = false
-
-[node name="SpawnMarkers" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-
-[node name="SpawnPoint1" type="Marker3D" parent="SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 1, 25)
-
-[node name="SpawnPoint2" type="Marker3D" parent="SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 1, 25)
-
-[node name="SpawnPoint3" type="Marker3D" parent="SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 1, -25)
-
-[node name="SpawnPoint4" type="Marker3D" parent="SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 1, -25)

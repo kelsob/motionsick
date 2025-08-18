@@ -1,0 +1,53 @@
+[gd_scene load_steps=4 format=3 uid="uid://c0rry5w76w12g"]
+
+[ext_resource type="Script" uid="uid://cgph7t4mn8i5s" path="res://scripts/ui/BulletIndicator.gd" id="1_qqjsh"]
+[ext_resource type="Texture2D" uid="uid://cge8nj6nh6ydh" path="res://assets/ui/bullet-frame.png" id="2_76o5q"]
+[ext_resource type="Texture2D" uid="uid://bdmq6n8tc0lo2" path="res://assets/ui/bullet.png" id="3_636fb"]
+
+[node name="BulletIndicator" type="Control"]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_qqjsh")
+
+[node name="Frame" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_76o5q")
+
+[node name="Bullet" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_636fb")

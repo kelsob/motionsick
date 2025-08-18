@@ -21,5 +21,8 @@ func _ready():
 	enemy_color = Color.DARK_GREEN
 	size_scale = 1.3
 	
+	# Piercing resistance
+	piercability = 2.0  # High piercability - hard to pierce through
+	
 	# Call parent ready
 	super()

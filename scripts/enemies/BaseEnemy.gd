@@ -11,6 +11,7 @@ class_name BaseEnemy
 @export var detection_range: float = 20.0
 @export var attack_range: float = 10.0
 @export var turn_speed: float = 5.0
+@export var piercability: float = 1.0  # How much piercing power this enemy absorbs
 
 @export_group("Behavior Configuration")
 @export var movement_behavior_type: MovementBehavior.Type = MovementBehavior.Type.CHASE
@@ -25,6 +26,12 @@ var current_health: int
 var player: Node3D = null
 var is_dead: bool = false
 var is_attacking: bool = false
+
+# Death animation state
+var is_dying: bool = false
+var death_fade_timer: float = 0.0
+var death_fade_duration: float = 1.0
+var original_color: Color
 
 # Behavior components
 var movement_behavior: MovementBehavior
@@ -112,6 +119,11 @@ func _setup_appearance():
 		mesh.material_override = material
 
 func _physics_process(delta):
+	# Handle death fade animation
+	if is_dying:
+		_update_death_fade(delta)
+		return
+		
 	if is_dead or not player:
 		return
 	
@@ -137,7 +149,12 @@ func _update_player_tracking():
 func _update_movement(delta):
 	"""Update movement using the assigned movement behavior."""
 	if movement_behavior:
-		movement_direction = movement_behavior.get_movement_direction(delta)
+		# Check if time is frozen - if so, don't update movement direction
+		var is_frozen = time_affected and time_affected.is_time_frozen()
+		if is_frozen:
+			movement_direction = Vector3.ZERO  # Reset movement when frozen
+		else:
+			movement_direction = movement_behavior.get_movement_direction(delta)
 
 func _update_attack_logic(delta):
 	"""Update attack logic using the assigned attack behavior."""
@@ -148,15 +165,27 @@ func _update_attack_logic(delta):
 func _apply_movement(delta):
 	"""Apply movement to the enemy."""
 	if movement_direction.length() > 0:
-		# Face movement direction
-		var target_rotation = Vector3.FORWARD.cross(movement_direction.normalized())
-		if target_rotation.length() > 0.001:
-			var target_transform = global_transform.looking_at(global_position + movement_direction.normalized())
+		# Face movement direction - keep enemy upright by only rotating around Y-axis
+		var flat_direction = Vector3(movement_direction.x, 0, movement_direction.z).normalized()
+		if flat_direction.length() > 0.001:
+			var target_transform = global_transform.looking_at(global_position + flat_direction, Vector3.UP)
 			global_transform = global_transform.interpolate_with(target_transform, turn_speed * delta)
 		
 		# Apply movement with time scaling
 		var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+		
+		# Safety check: prevent extreme movement speeds
+		effective_time_scale = clamp(effective_time_scale, 0.1, 5.0)  # Limit time scale effects
+		
+		# Additional safety: if time was recently frozen, limit movement
+		if time_affected and time_affected.is_time_frozen():
+			effective_time_scale = min(effective_time_scale, 1.0)  # Don't allow speed boost after freeze
+		
 		velocity = movement_direction * movement_speed * effective_time_scale
+		
+		# Debug: Check for extreme movement
+		if velocity.length() > 50.0:  # Very fast movement
+			print("WARNING: ", name, " moving very fast! Velocity: ", velocity.length(), " Time scale: ", effective_time_scale)
 	else:
 		velocity = Vector3.ZERO
 	
@@ -164,7 +193,13 @@ func _apply_movement(delta):
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta  # Simple gravity
 	
+	var old_pos = global_position
 	move_and_slide()
+	
+	# Debug: Check for large position changes
+	var pos_change = global_position.distance_to(old_pos)
+	if pos_change > 10.0:  # Large position change
+		print("WARNING: ", name, " moved ", pos_change, " units in one frame! From ", old_pos, " to ", global_position)
 
 func _start_attack():
 	"""Initiate an attack."""
@@ -217,12 +252,69 @@ func _die():
 	is_dead = true
 	print(name, " died!")
 	
+	# Add score for killing this enemy
+	var score_manager = get_node_or_null("/root/ScoreManager")
+	if score_manager:
+		# Get enemy type from the class name
+		var enemy_type = get_enemy_type_name()
+		score_manager.add_score(enemy_type)
+	else:
+		print("WARNING: ScoreManager not found!")
+	
 	enemy_died.emit(self)
 	
-	# Simple death effect - fade out
-	var tween = get_tree().create_tween()
-	tween.tween_property(mesh, "transparency", 1.0, 1.0)
-	tween.tween_callback(queue_free)
+	# Start manual death fade animation that respects time scale
+	is_dying = true
+	death_fade_timer = 0.0
+	
+	# Store original color and enable transparency
+	if mesh and mesh.material_override:
+		original_color = mesh.material_override.albedo_color
+		# Enable transparency on the material
+		mesh.material_override.flags_transparent = true
+	else:
+		original_color = enemy_color
+		
+	print(name, " starting death fade animation")
+
+func _update_death_fade(delta: float):
+	"""Update manual death fade animation that respects time scale."""
+	# Get time-adjusted delta
+	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
+	
+	# Update fade timer
+	death_fade_timer += time_delta
+	
+	# Calculate fade progress (0.0 to 1.0)
+	var fade_progress = death_fade_timer / death_fade_duration
+	fade_progress = clamp(fade_progress, 0.0, 1.0)
+	
+	# Fade alpha from 1.0 to 0.0
+	var alpha = 1.0 - fade_progress
+	var faded_color = Color(original_color.r, original_color.g, original_color.b, alpha)
+	
+	# Apply faded color
+	if mesh and mesh.material_override:
+		mesh.material_override.albedo_color = faded_color
+		print(faded_color)
+	
+	# Check if fade is complete
+	if fade_progress >= 1.0:
+		queue_free()
+
+func get_enemy_type_name() -> String:
+	"""Get the enemy type name for scoring purposes."""
+	# Extract enemy type from the class name or scene name
+	var scene_name = scene_file_path.get_file().get_basename()
+	if scene_name in ["Grunt", "Sniper", "Flanker", "Rusher", "Artillery"]:
+		return scene_name
+	
+	# Fallback to class name
+	return get_class()
+
+func get_piercability() -> float:
+	"""Get the piercability value for this enemy."""
+	return piercability
 
 # === PUBLIC API ===
 

@@ -7,10 +7,19 @@ extends CharacterBody3D
 @export var detection_range: float = 15.0
 @export var stop_distance: float = 2.0  # How close to get to player before stopping
 
+# === KNOCKBACK SYSTEM ===
+@export var knockback_resistance: float = 0.0  # 0.0 = no resistance, 1.0 = immune to knockback
+@export var knockback_recovery_time: float = 0.5  # How long knockback affects movement
+
 # === STATE ===
 var current_health: int
 var is_dead: bool = false
 var player_reference: Node3D = null
+
+# === KNOCKBACK STATE ===
+var knockback_velocity: Vector3 = Vector3.ZERO
+var knockback_timer: float = 0.0
+var is_knockback_active: bool = false
 
 # === PHYSICS ===
 @onready var GRAVITY: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -55,12 +64,23 @@ func _physics_process(delta):
 	# Get time-adjusted delta
 	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
 	
-	# Apply gravity
-	if not is_on_floor():
-		position.y -= GRAVITY * time_delta
+	# Check if time is effectively stopped (very small time scale)
+	var time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+	if time_scale < 0.01:
+		# Time is stopped - freeze all movement
+		velocity = Vector3.ZERO
+		return
 	
-	# Move towards player
-	handle_movement_towards_player(time_delta)
+	# Handle knockback
+	handle_knockback(time_delta)
+	
+	# Apply gravity using velocity for proper acceleration
+	if not is_on_floor():
+		velocity.y -= GRAVITY * time_delta
+	
+	# Move towards player (only if not in knockback)
+	if not is_knockback_active:
+		handle_movement_towards_player(time_delta)
 	
 	# Apply movement
 	move_and_slide()
@@ -94,6 +114,43 @@ func handle_movement_towards_player(delta):
 		# Stop horizontal movement if player is too far or too close
 		velocity.x = lerp(velocity.x, 0.0, 5.0 * delta)
 		velocity.z = lerp(velocity.z, 0.0, 5.0 * delta)
+
+func handle_knockback(delta):
+	"""Handle knockback physics and recovery."""
+	if is_knockback_active:
+		# Apply knockback velocity
+		velocity += knockback_velocity * delta
+		
+		# Decay knockback velocity over time
+		knockback_velocity = knockback_velocity.lerp(Vector3.ZERO, delta * 3.0)
+		
+		# Update knockback timer
+		knockback_timer -= delta
+		
+		# Check if knockback should end
+		if knockback_timer <= 0.0 or knockback_velocity.length() < 0.1:
+			is_knockback_active = false
+			knockback_velocity = Vector3.ZERO
+			knockback_timer = 0.0
+
+func apply_knockback(direction: Vector3, force: float):
+	"""Apply knockback to the enemy."""
+	if is_dead or knockback_resistance >= 1.0:
+		return
+	
+	# Calculate effective knockback force (reduced by resistance)
+	var effective_force = force * (1.0 - knockback_resistance)
+	
+	# Apply knockback velocity (only horizontal component)
+	var knockback_dir = direction
+	knockback_dir.y = 0  # Keep knockback horizontal
+	knockback_dir = knockback_dir.normalized()
+	
+	knockback_velocity = knockback_dir * effective_force
+	knockback_timer = knockback_recovery_time
+	is_knockback_active = true
+	
+	print("Enemy knockback applied: Force=", effective_force, " Direction=", knockback_dir)
 
 func take_damage(damage: int):
 	if is_dead:
@@ -184,4 +241,14 @@ func reset_health():
 	is_dead = false
 	collision_shape.disabled = false
 	scale = Vector3.ONE
-	health_changed.emit(current_health, max_health) 
+	health_changed.emit(current_health, max_health)
+
+# === KNOCKBACK API ===
+func is_in_knockback() -> bool:
+	return is_knockback_active
+
+func get_knockback_velocity() -> Vector3:
+	return knockback_velocity
+
+func set_knockback_resistance(resistance: float):
+	knockback_resistance = clamp(resistance, 0.0, 1.0) 

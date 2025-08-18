@@ -21,5 +21,8 @@ func _ready():
 	enemy_color = Color.ORANGE_RED
 	size_scale = 1.0
 	
+	# Piercing resistance
+	piercability = 1.0  # Standard piercability
+	
 	# Call parent ready
 	super()

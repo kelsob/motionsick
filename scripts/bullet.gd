@@ -1,4 +1,4 @@
-extends RigidBody3D
+extends Area3D
 
 # === TRAVEL BEHAVIOR TYPES ===
 enum TravelType {
@@ -13,18 +13,21 @@ enum TravelType {
 }
 
 # === CONFIGURATION ===
-@export var base_speed: float = 40.0
+@export var base_speed: float = 20.0  # Reduced from 40.0
 @export var lifetime: float = 2.0
 @export var travel_type: TravelType = TravelType.CONSTANT_FAST
 
 # Time system integration
 @export var time_resistance: float = 0.0  # 0.0 = fully affected by time, 1.0 = immune
 
+# Visual properties
+@export var tracer_color: Color = Color.YELLOW  # Default tracer color
+
 # === TRAVEL BEHAVIOR SETTINGS ===
-var max_speed: float = 80.0
-var min_speed: float = 10.0
-var acceleration_rate: float = 120.0  # units/second^2
-var deceleration_rate: float = 60.0
+var max_speed: float = 40.0  # Reduced from 80.0
+var min_speed: float = 5.0   # Reduced from 10.0
+var acceleration_rate: float = 60.0  # Reduced from 120.0 (units/second^2)
+var deceleration_rate: float = 30.0  # Reduced from 60.0
 var pulse_frequency: float = 3.0  # pulses per second
 var hitscan_delay: float = 0.1  # seconds before hitscan
 
@@ -34,6 +37,7 @@ var has_been_fired: bool = false
 var gun_reference: Node3D = null
 var muzzle_marker: Node3D = null
 var damage: int = 25  # Default damage value
+var knockback: float = 1.0  # Default knockback value
 var has_hit_target: bool = false  # Prevent multiple hits
 
 # Time system
@@ -47,6 +51,10 @@ var is_explosive: bool = false
 var explosion_radius: float = 0.0
 var explosion_damage: int = 0
 
+# Piercing properties
+var piercing_value: float = 0.0  # How much piercing power the bullet has
+var has_pierced: bool = false  # Track if bullet has pierced through anything
+
 # Travel behavior state
 var current_speed: float = 0.0
 var travel_direction: Vector3 = Vector3.ZERO
@@ -59,22 +67,12 @@ var hitscan_timer: float = 0.0
 @onready var forward_raycast : RayCast3D = $ForwardRaycast
 @onready var backward_raycast : RayCast3D = $BackwardRaycast
 
+# === SELF-ANIMATING EFFECTS SYSTEM ===
+# Effects now animate themselves using timers instead of relying on bullet's _process
+
 func _ready():
-	# Ensure bullet starts with proper physics settings
-	sleeping = false
-	freeze = false
-	gravity_scale = 0.0  # Disable built-in gravity, we'll apply it manually with time scaling
-	
-	# Set bouncy physics for bullets using physics material
-	var physics_material = PhysicsMaterial.new()
-	physics_material.bounce = 0.8
-	physics_material.friction = 0.1
-	physics_material_override = physics_material
-	
-	# Connect collision signal - RigidBody3D uses body_entered when contact_monitor is enabled
-	contact_monitor = true
-	max_contacts_reported = 10
-	body_entered.connect(_on_body_entered)
+	# Add to bullets group for pickup detection
+	add_to_group("bullets")
 	
 	# Add time system component
 	time_affected = TimeAffected.new()
@@ -84,6 +82,9 @@ func _ready():
 	# Register with tracer system
 	if TracerManager:
 		tracer_id = TracerManager.register_bullet(self)
+	
+	# DON'T connect collision signal yet - wait until bullet is fired
+	# This prevents prepared bullets from being destroyed by spawning enemies
 	
 	# Bullet ready with bouncy physics and time system
 
@@ -99,9 +100,6 @@ func _physics_process(delta):
 		# Use time-adjusted delta for lifetime and travel behavior
 		var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
 		
-		# Handle time-stop physics freezing
-		_handle_time_freeze()
-		
 		life_timer += time_delta
 		if life_timer > lifetime:
 			_cleanup_bullet()
@@ -110,30 +108,13 @@ func _physics_process(delta):
 		# Handle travel behavior with time-adjusted delta
 		_update_travel_behavior(time_delta)
 		
-		# Apply manual gravity using time-adjusted delta (built-in gravity disabled)
-		linear_velocity.y -= GRAVITY * time_delta
+		# Manual movement for Area3D
+		if travel_type != TravelType.HITSCAN:
+			var time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+			var movement = travel_direction * current_speed * time_scale * time_delta
+			global_position += movement
 
-func _handle_time_freeze():
-	"""Freeze bullet physics when time is stopped to prevent player collision interference."""
-	if time_affected:
-		var time_scale = time_affected.get_effective_time_scale()
-		
-		# Consider time "stopped" when scale is very close to 0
-		if time_scale < 0.01:
-			# Time is stopped - freeze the bullet completely
-			if not freeze:
-				freeze = true
-				# Store current velocity to restore later
-				if not has_meta("stored_velocity"):
-					set_meta("stored_velocity", linear_velocity)
-		else:
-			# Time is running - unfreeze the bullet
-			if freeze:
-				freeze = false
-				# Restore velocity if we had stored it
-				if has_meta("stored_velocity"):
-					linear_velocity = get_meta("stored_velocity")
-					remove_meta("stored_velocity")
+
 
 func set_gun_reference(gun: Node3D, muzzle: Node3D):
 	gun_reference = gun
@@ -142,11 +123,19 @@ func set_gun_reference(gun: Node3D, muzzle: Node3D):
 func set_damage(new_damage: int):
 	damage = new_damage
 
+func set_knockback(new_knockback: float):
+	knockback = new_knockback
+
 func set_explosion_properties(radius: float, explosion_dmg: int):
 	is_explosive = true
 	explosion_radius = radius
 	explosion_damage = explosion_dmg
 	#print("Bullet configured as explosive - Radius: ", radius, " Damage: ", explosion_dmg)
+
+func set_piercing_properties(piercing: float):
+	"""Set piercing properties for this bullet."""
+	piercing_value = piercing
+	has_pierced = false
 
 func set_time_resistance(resistance: float):
 	"""Set time resistance for this bullet."""
@@ -161,6 +150,10 @@ func fire(direction: Vector3):
 	travel_direction = direction.normalized()
 	initial_position = global_position
 	
+	# NOW connect collision signal - bullet is active and should detect collisions
+	if not body_entered.is_connected(_on_body_entered):
+		body_entered.connect(_on_body_entered)
+	
 	# Bullet fired and configured
 	
 	# Initialize travel behavior based on type
@@ -171,25 +164,18 @@ func fire(direction: Vector3):
 			_fire_hitscan()
 		TravelType.CONSTANT_SLOW:
 			current_speed = min_speed
-			linear_velocity = travel_direction * current_speed * initial_time_scale
 		TravelType.CONSTANT_FAST:
 			current_speed = max_speed
-			linear_velocity = travel_direction * current_speed * initial_time_scale
 		TravelType.SLOW_ACCELERATE:
 			current_speed = min_speed
-			linear_velocity = travel_direction * current_speed * initial_time_scale
 		TravelType.FAST_DECELERATE:
 			current_speed = max_speed
-			linear_velocity = travel_direction * current_speed * initial_time_scale
 		TravelType.CURVE_ACCELERATE:
 			current_speed = min_speed
-			linear_velocity = travel_direction * current_speed * initial_time_scale
 		TravelType.PULSE_SPEED:
 			current_speed = base_speed
-			linear_velocity = travel_direction * current_speed * initial_time_scale
 		TravelType.DELAYED_HITSCAN:
 			current_speed = 0.0
-			linear_velocity = Vector3.ZERO
 			hitscan_timer = 0.0
 	
 	# Orient the bullet to face its travel direction
@@ -224,7 +210,7 @@ func set_travel_config(type: TravelType, config: Dictionary = {}):
 
 func _update_travel_behavior(time_delta: float):
 	"""Update bullet movement based on travel type with time-adjusted delta."""
-	# Get current time scale for velocity scaling
+	# Get current time scale for speed scaling
 	var time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
 	
 	match travel_type:
@@ -232,25 +218,21 @@ func _update_travel_behavior(time_delta: float):
 			# Already handled in _fire_hitscan()
 			pass
 		TravelType.CONSTANT_SLOW, TravelType.CONSTANT_FAST:
-			# Apply time scale to velocity for smooth slowdown/speedup
-			linear_velocity = travel_direction * current_speed * time_scale
+			# Speed is already set in fire() function
+			pass
 		TravelType.SLOW_ACCELERATE:
 			current_speed = min(max_speed, current_speed + acceleration_rate * time_delta)
-			linear_velocity = travel_direction * current_speed * time_scale
 		TravelType.FAST_DECELERATE:
 			current_speed = max(min_speed, current_speed - deceleration_rate * time_delta)
-			linear_velocity = travel_direction * current_speed * time_scale
 		TravelType.CURVE_ACCELERATE:
 			# Smooth acceleration curve using easing
 			var progress = min(1.0, life_timer / 1.0)  # 1 second to reach max speed
 			var ease_factor = ease_out_cubic(progress)
 			current_speed = lerp(min_speed, max_speed, ease_factor)
-			linear_velocity = travel_direction * current_speed * time_scale
 		TravelType.PULSE_SPEED:
 			# Pulsing speed pattern
 			var pulse_factor = 0.5 + 0.5 * sin(life_timer * pulse_frequency * TAU)
 			current_speed = lerp(min_speed, max_speed, pulse_factor)
-			linear_velocity = travel_direction * current_speed * time_scale
 		TravelType.DELAYED_HITSCAN:
 			hitscan_timer += time_delta
 			if hitscan_timer >= hitscan_delay:
@@ -456,11 +438,18 @@ func _animate_tracer_fadeout(tracer: MeshInstance3D):
 	"""Animate tracer line fade out over 3 seconds."""
 	if not tracer or not is_instance_valid(tracer):
 		return
+	
+	# Get current time scale to adjust animation speed
+	var time_manager = get_node_or_null("/root/TimeManager")
+	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
+	
+	# Scale animation duration by time scale (slower when time is slowed)
+	var fade_duration = 3.0 * time_scale
 		
 	var tween = get_tree().create_tween()
 	
 	# Scale down to zero so it completely disappears
-	tween.tween_property(tracer, "scale", Vector3.ZERO, 3.0)
+	tween.tween_property(tracer, "scale", Vector3.ZERO, fade_duration)
 	
 	# Remove after animation with safer callback
 	tween.tween_callback(_safe_cleanup_tracer.bind(tracer))
@@ -472,11 +461,19 @@ func _animate_impact_fadeout(impact: MeshInstance3D):
 	if not impact or not is_instance_valid(impact):
 		return
 	
+	# Get current time scale to adjust animation speed
+	var time_manager = get_node_or_null("/root/TimeManager")
+	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
+	
+	# Scale animation durations by time scale (slower when time is slowed)
+	var burst_duration = 0.1 * time_scale
+	var shrink_duration = 0.5 * time_scale
+	
 	var tween = get_tree().create_tween()
 	
 	# Big burst then shrink - no material manipulation
-	tween.tween_property(impact, "scale", Vector3.ONE * 3.0, 0.1)
-	tween.tween_property(impact, "scale", Vector3.ZERO, 0.5)
+	tween.tween_property(impact, "scale", Vector3.ONE * 3.0, burst_duration)
+	tween.tween_property(impact, "scale", Vector3.ZERO, shrink_duration)
 	
 	# Safe removal
 	tween.tween_callback(_safe_cleanup_impact.bind(impact))
@@ -511,6 +508,8 @@ func _safe_cleanup_impact(impact: MeshInstance3D):
 	if is_instance_valid(impact):
 		impact.queue_free()
 
+
+
 func _cleanup_bullet():
 	"""Clean up bullet resources including tracer registration."""
 	# Unregister from tracer system
@@ -519,32 +518,128 @@ func _cleanup_bullet():
 		tracer_id = -1
 
 func _on_body_entered(body):
-	# Check if we hit an enemy
+	# Calculate proper impact position using raycast
+	var impact_position = _get_surface_impact_position(body)
+	
+	print("=== BULLET COLLISION ===")
+	print("Hit body: ", body.name)
+	print("Body type: ", body.get_class())
+	print("Body collision layer: ", body.collision_layer)
+	print("Impact position: ", impact_position)
+	print("Bullet position: ", global_position)
+	
+	# Check if we hit an enemy (has take_damage method)
 	if body.has_method("take_damage"):
-		#print("Bullet hit enemy for ", damage, " damage")
+		print("Bullet hit enemy for ", damage, " damage")
 		body.take_damage(damage)
+		
+		# Apply knockback if enemy supports it
+		if body.has_method("apply_knockback"):
+			var knockback_direction = travel_direction.normalized()
+			body.apply_knockback(knockback_direction, knockback)
+		
 		has_hit_target = true
+		
+		# Handle piercing logic
+		if piercing_value > 0.0:
+			_handle_piercing(body, impact_position)
+		else:
+			# No piercing - create explosion and destroy bullet
+			if is_explosive:
+				_create_bullet_explosion(impact_position)
+			_cleanup_bullet()
+			queue_free()
+	
+	# Check if we hit environment (walls/floor) - bullets ALWAYS stop at environment
+	elif _is_environment(body):
+		print("Bullet hit environment: ", body.name)
+		
+		# Create impact effect
+		_create_environment_impact_effect(impact_position)
 		
 		# Create explosion if this bullet is explosive
 		if is_explosive:
-			_create_bullet_explosion(global_position)
+			_create_bullet_explosion(impact_position)
 		
 		_cleanup_bullet()
 		queue_free()
-	# Check if we hit environment (walls/floor) - let bullets bounce naturally
-	elif body != get_tree().get_first_node_in_group("player"):
-		#print("Bullet bounced off ", body.name)
-		
-		# Create explosion if this bullet is explosive (even on environment hits)
+	
+	# Ignore any other collisions (player, etc.)
+
+func _is_environment(body: Node3D) -> bool:
+	"""Check if the body is environment (walls, floors, etc.) based on collision layer."""
+	# Environment should be on collision layer 3 (bit value 4)
+	return (body.collision_layer & 4) != 0
+
+func _get_surface_impact_position(hit_body: Node3D) -> Vector3:
+	"""Calculate the actual surface impact position using raycast."""
+	# Cast a ray from slightly behind the bullet to slightly ahead to find surface intersection
+	var space_state = get_world_3d().direct_space_state
+	var ray_start = global_position - travel_direction * 0.5  # Start slightly behind bullet
+	var ray_end = global_position + travel_direction * 0.5    # End slightly ahead
+	
+	var query = PhysicsRayQueryParameters3D.create(ray_start, ray_end)
+	query.collision_mask = hit_body.collision_layer  # Only hit the specific body
+	query.exclude = [self]  # Don't hit the bullet itself
+	
+	var result = space_state.intersect_ray(query)
+	
+	if result and result.collider == hit_body:
+		# Found the exact surface hit point
+		print("Surface impact found via raycast: ", result.position)
+		return result.position
+	else:
+		# Fallback: move bullet position slightly back along travel direction
+		var fallback_position = global_position - travel_direction.normalized() * 0.1
+		print("Using fallback impact position: ", fallback_position)
+		return fallback_position
+
+func _handle_piercing(enemy: Node3D, impact_position: Vector3):
+	"""Handle piercing logic when bullet hits an enemy."""
+	print("=== PIERCING LOGIC ===")
+	print("Bullet piercing value: ", piercing_value)
+	
+	# Get enemy piercability
+	var enemy_piercability = 1.0  # Default
+	if enemy.has_method("get_piercability"):
+		enemy_piercability = enemy.get_piercability()
+	elif enemy.has("piercability"):
+		enemy_piercability = enemy.piercability
+	
+	print("Enemy piercability: ", enemy_piercability)
+	
+	# Reduce piercing value by enemy's piercability
+	piercing_value = max(0.0, piercing_value - enemy_piercability)
+	has_pierced = true
+	
+	print("Piercing value after hit: ", piercing_value)
+	
+	# Create piercing impact effect (red to distinguish from regular impacts)
+	if TracerManager:
+		TracerManager.create_impact(impact_position, Color.RED, 0.15)
+	
+	# Check if piercing is exhausted
+	if piercing_value <= 0.0:
+		print("Bullet stopped - piercing exhausted")
 		if is_explosive:
-			_create_bullet_explosion(global_position)
-			_cleanup_bullet()
-			queue_free()  # Explosive bullets don't bounce
-		else:
-			# Let RigidBody3D physics handle the bounce automatically
-			# Don't destroy bullet on environment hits
-			pass
-	# Ignore player collisions
+			_create_bullet_explosion(impact_position)
+		_cleanup_bullet()
+		queue_free()
+	else:
+		print("Bullet continues with ", piercing_value, " piercing power remaining")
+		# Area3D naturally passes through - no additional code needed
+
+func _create_environment_impact_effect(position: Vector3):
+	"""Create impact effect when bullet hits environment (walls, floor, etc.)."""
+	print("Creating impact effect at: ", position)
+	
+	# Use TracerManager to create impact effect
+	if TracerManager:
+		TracerManager.create_impact(position, Color.YELLOW, 0.25)
+	
+	print("Impact effect created and should be visible!")
+
+
 
 func _create_bullet_explosion(position: Vector3):
 	"""Create explosion effect from bullet impact."""
@@ -584,51 +679,17 @@ func _apply_bullet_explosion_damage(explosion_pos: Vector3):
 			#print("Bullet explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
 			enemy.take_damage(final_damage)
 
+
+
 func _create_bullet_explosion_visual(position: Vector3):
 	"""Create visual explosion effect at bullet impact position."""
-	var explosion = MeshInstance3D.new()
-	get_tree().current_scene.add_child(explosion)
-	
-	# Create sphere mesh for explosion
-	var sphere = SphereMesh.new()
-	sphere.radius = explosion_radius * 0.3  # Start smaller
-	sphere.height = explosion_radius * 0.6
-	explosion.mesh = sphere
-	explosion.global_position = position
-	
-	# Create bright explosion material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.ORANGE_RED
-	material.emission_enabled = true
-	material.emission = Color.ORANGE_RED
-	material.emission_energy = 5.0
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	explosion.material_override = material
-	
-	# Animate explosion
-	_animate_bullet_explosion_effect(explosion)
+	# Use TracerManager to create explosion effect
+	if TracerManager:
+		TracerManager.create_explosion(position, explosion_radius)
 
-func _animate_bullet_explosion_effect(explosion: MeshInstance3D):
-	"""Animate bullet explosion - rapid expansion then fade."""
-	if not explosion or not is_instance_valid(explosion):
-		return
-	
-	var tween = get_tree().create_tween()
-	tween.set_parallel(true)
-	
-	# Rapid expansion
-	explosion.scale = Vector3.ZERO
-	tween.tween_property(explosion, "scale", Vector3.ONE, 0.2)
-	
-	# Color fade (from bright orange to dark red)
-	var material = explosion.material_override as StandardMaterial3D
-	if material:
-		tween.tween_method(
-			func(energy): material.emission_energy = energy,
-			5.0, 0.0, 0.4
-		).set_delay(0.1)
-		tween.tween_property(material, "albedo_color", Color.DARK_RED, 0.4).set_delay(0.1)
-	
-	# Scale down and remove
-	tween.tween_property(explosion, "scale", Vector3.ZERO, 0.3).set_delay(0.3)
-	tween.tween_callback(func(): if is_instance_valid(explosion): explosion.queue_free()).set_delay(0.6)
+
+
+# === UTILITY FUNCTIONS ===
+func get_tracer_color() -> Color:
+	"""Get the tracer color for this bullet."""
+	return tracer_color

@@ -11,6 +11,9 @@ var custom_time_scale: float = 1.0
 @export var freeze_duration: float = 0.4  # Time to freeze when player starts moving
 @export var unfreeze_duration: float = 1.0  # Time to unfreeze when player stops
 
+# Damage prevention threshold
+@export var damage_prevention_threshold: float = 0.5  # Below this time scale, damage is prevented
+
 # State tracking
 var target_time_scale: float = 1.0
 var is_transitioning: bool = false
@@ -28,13 +31,22 @@ signal time_unfreeze_started()
 func _ready():
 	# Find player reference
 	call_deferred("_find_player")
+	
+	# Connect to GameManager for restart events
+	var game_manager = get_node_or_null("/root/GameManager")
+	if game_manager:
+		game_manager.game_restart_requested.connect(_on_game_restart_requested)
+		print("TimeManager connected to GameManager")
+	else:
+		print("WARNING: TimeManager can't find GameManager")
 
 func _find_player():
 	player = get_tree().get_first_node_in_group("player")
-	if player:
+	if player and is_instance_valid(player):
 		print("TimeManager connected to player")
 	else:
 		print("TimeManager: Player not found!")
+		player = null
 
 func _process(delta: float):
 	# Update time scale smoothly
@@ -43,7 +55,15 @@ func _process(delta: float):
 
 func _update_time_scale(delta):
 	# Use movement intent instead of velocity percentage to avoid turning issues
-	var movement_intent = player.get_movement_intent() if player else 0.0
+	var movement_intent = 0.0
+	if player and is_instance_valid(player):
+		movement_intent = player.get_movement_intent()
+	else:
+		# If player is null or invalid, try to find it again (but not every frame)
+		if not player and Engine.get_process_frames() % 30 == 0:  # Try every 30 frames
+			_find_player()
+		movement_intent = 0.0
+	
 	custom_time_scale = 1.0 - movement_intent
 	
 	if custom_time_scale < 0.01:
@@ -70,9 +90,33 @@ func is_time_normal() -> bool:
 	"""Check if time is at normal speed (above 0.9 threshold)."""
 	return custom_time_scale > 0.9
 
+func is_damage_prevented() -> bool:
+	"""Check if damage should be prevented due to time dilation."""
+	var prevented = custom_time_scale < damage_prevention_threshold
+	if prevented:
+		print("TimeManager: Damage prevented - Time scale: ", "%.2f" % custom_time_scale, " < ", "%.2f" % damage_prevention_threshold)
+	return prevented
+
+func get_damage_prevention_threshold() -> float:
+	"""Get the current damage prevention threshold."""
+	return damage_prevention_threshold
+
+func set_damage_prevention_threshold(threshold: float):
+	"""Set the damage prevention threshold (0.0 to 1.0)."""
+	damage_prevention_threshold = clamp(threshold, 0.0, 1.0)
+	print("TimeManager: Damage prevention threshold set to ", damage_prevention_threshold)
+
 func get_player_moving_state() -> bool:
 	"""Get current player movement state."""
 	return player_is_moving
+
+func _on_game_restart_requested():
+	"""Called when game is restarting - reset player reference."""
+	print("TimeManager: Game restarting, resetting player reference")
+	player = null
+	# Reset time scale to normal
+	custom_time_scale = 1.0
+	time_scale_changed.emit(custom_time_scale)
 
 # === DEBUG API ===
 
@@ -93,4 +137,6 @@ func print_time_state():
 	print("Transitioning: ", is_transitioning)
 	if is_transitioning:
 		print("Transition speed: ", "%.2f" % transition_speed)
+	print("Damage prevention threshold: ", "%.2f" % damage_prevention_threshold)
+	print("Damage prevented: ", is_damage_prevented())
 	print("==========================")

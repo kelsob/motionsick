@@ -1,0 +1,214 @@
+[gd_scene load_steps=17 format=3 uid="uid://d4m8gqa7quqc8"]
+
+[ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
+[ext_resource type="Script" uid="uid://ds34v5q8x2hyw" path="res://scripts/enemies/EnemySpawner.gd" id="2_ow5a4"]
+[ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/GameUI.gd" id="4_l3cfh"]
+[ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="5_6q06x"]
+[ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
+[ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="7_hujxm"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_vom5j"]
+size = Vector3(160, 10, 160)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_ow5a4"]
+points = PackedVector3Array(81.2686, 6.42857, 81.238, -81.2698, -6.26984, -81.238, -81.2698, -6.26984, 81.238, -81.2698, 6.42857, -81.238, 81.2686, -6.26984, -81.238, -81.2698, 6.42857, 81.238, 81.2686, -6.26984, 81.238, 81.2686, 6.42857, -81.238)
+
+[sub_resource type="BoxMesh" id="BoxMesh_hyk8p"]
+size = Vector3(160, 4, 1)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_hujxm"]
+points = PackedVector3Array(-80.3404, -2.34043, 0.521277, 80.3404, 2.42553, 0.521277, -80.3404, 2.42553, 0.521277, 80.3404, -2.34043, 0.521277)
+
+[sub_resource type="BoxMesh" id="BoxMesh_iuonh"]
+size = Vector3(160, 4, 1)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_yyfjg"]
+points = PackedVector3Array(-80.3404, -2.34043, 0.521277, 80.3404, 2.42553, 0.521277, -80.3404, 2.42553, 0.521277, 80.3404, -2.34043, 0.521277)
+
+[sub_resource type="BoxMesh" id="BoxMesh_k2fmo"]
+size = Vector3(1, 4, 160)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_b1x3f"]
+points = PackedVector3Array(-0.840426, 2.42553, 80.3404, -0.840426, -2.34043, -80.3404, -0.840426, -2.34043, 80.3404, -0.840426, 2.42553, -80.3404)
+
+[sub_resource type="BoxMesh" id="BoxMesh_l3cfh"]
+size = Vector3(1, 4, 160)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_a8run"]
+points = PackedVector3Array(-0.840426, 2.42553, 80.3404, -0.840426, -2.34043, -80.3404, -0.840426, -2.34043, 80.3404, -0.840426, 2.42553, -80.3404)
+
+[node name="Main" type="Node3D"]
+
+[node name="Environment" type="Node3D" parent="."]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Environment"]
+collision_layer = 4
+
+[node name="Floor" type="MeshInstance3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -5, 0)
+mesh = SubResource("BoxMesh_vom5j")
+skeleton = NodePath("../..")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -5, 0)
+shape = SubResource("ConvexPolygonShape3D_ow5a4")
+
+[node name="Wall1" type="MeshInstance3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -80)
+mesh = SubResource("BoxMesh_hyk8p")
+skeleton = NodePath("../..")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -80)
+shape = SubResource("ConvexPolygonShape3D_hujxm")
+
+[node name="Wall2" type="MeshInstance3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 80)
+mesh = SubResource("BoxMesh_iuonh")
+skeleton = NodePath("../..")
+
+[node name="CollisionShape3D3" type="CollisionShape3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 80)
+shape = SubResource("ConvexPolygonShape3D_yyfjg")
+
+[node name="Wall3" type="MeshInstance3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -80, 2, 0)
+mesh = SubResource("BoxMesh_k2fmo")
+skeleton = NodePath("../..")
+
+[node name="CollisionShape3D4" type="CollisionShape3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -80, 2, 0)
+shape = SubResource("ConvexPolygonShape3D_b1x3f")
+
+[node name="Wall4" type="MeshInstance3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 80, 2, 0)
+mesh = SubResource("BoxMesh_l3cfh")
+skeleton = NodePath("../..")
+
+[node name="CollisionShape3D5" type="CollisionShape3D" parent="Environment/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 80, 2, 0)
+shape = SubResource("ConvexPolygonShape3D_a8run")
+
+[node name="Lights" type="Node3D" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, -0.988014, 0.154366, 0, -0.154366, -0.988014, 0, 24.9759, 0)
+
+[node name="Player" parent="." instance=ExtResource("1_hyk8p")]
+
+[node name="PlayerBullets" type="Node3D" parent="."]
+
+[node name="EnemySpawner" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.18013, -28.9532)
+script = ExtResource("2_ow5a4")
+enemy_type = 4
+spawn_radius = 20.0
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Control" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_l3cfh")
+
+[node name="Crosshair" type="Control" parent="UI/Control"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_6q06x")
+
+[node name="CenterDot" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="TopLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="BottomLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="LeftLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="RightLine" type="Control" parent="UI/Control/Crosshair"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="ActionHistoryPanel" type="Panel" parent="UI/Control"]
+custom_minimum_size = Vector2(200, 120)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+offset_right = 40.0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("6_ow5a4")
+
+[node name="MarginContainer" type="MarginContainer" parent="UI/Control/ActionHistoryPanel"]
+layout_mode = 2
+offset_right = 200.0
+offset_bottom = 120.0
+size_flags_vertical = 3
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/Control/ActionHistoryPanel/MarginContainer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TitleLabel" type="Label" parent="UI/Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Recent Actions"
+
+[node name="ActionContainer" type="VBoxContainer" parent="UI/Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="EnergyBar" type="ProgressBar" parent="UI/Control"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -70.0
+offset_right = 300.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 0
+script = ExtResource("7_hujxm")

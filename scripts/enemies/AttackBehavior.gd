@@ -97,7 +97,7 @@ func is_player_in_range(range: float) -> bool:
 		return enemy.is_player_in_range(range)
 	return false
 
-func create_bullet() -> RigidBody3D:
+func create_bullet() -> Area3D:
 	"""Create a bullet using the same system as the player."""
 	var bullet_scene = preload("res://scenes/bullet.tscn")
 	var bullet = bullet_scene.instantiate()
@@ -105,9 +105,11 @@ func create_bullet() -> RigidBody3D:
 	
 	# Configure bullet for enemy use
 	bullet.collision_layer = 256  # Enemy bullets layer (bit 9)
-	bullet.collision_mask = 5     # Environment (4) + Player (1) = 5
-	bullet.contact_monitor = true
-	bullet.max_contacts_reported = 10
+	bullet.collision_mask = 5     # Environment (bit 3=4) + Player (bit 1=1) = 5
+	# Area3D automatically handles collision detection
+	
+	# Set enemy bullet color (different from player bullets)
+	bullet.tracer_color = Color.RED  # Enemy bullets are red
 	
 	return bullet
 

@@ -1,15 +1,15 @@
 extends CharacterBody3D
 
 # === MOVEMENT CONSTANTS ===
-const WALK_SPEED := 10.0
-const SPRINT_SPEED := 20.0
-const CROUCH_SPEED := 5.0
-const SLIDE_SPEED := 25.0
-const JUMP_VELOCITY := 8.5
-const DOUBLE_JUMP_VELOCITY := 8.5
+const WALK_SPEED := 7.5   # Reduced by 25% from 10.0
+const SPRINT_SPEED := 15.0  # Reduced by 25% from 20.0
+const CROUCH_SPEED := 3.75  # Reduced by 25% from 5.0
+const SLIDE_SPEED := 18.75  # Reduced by 25% from 25.0
+const JUMP_VELOCITY := 8.5  # Keep jump velocity the same
+const DOUBLE_JUMP_VELOCITY := 8.5  # Keep jump velocity the same
 
 # Dash systemLOL
-const DASH_SPEED := 20.0
+const DASH_SPEED := 15.0  # Reduced by 25% from 20.0
 const DASH_DURATION := 0.25
 const DASH_COOLDOWN := 0.5
 
@@ -61,6 +61,10 @@ var movement_intent: float = 0.0  # 0.0 to 1.0, based on input not velocity
 # Time system integration
 var time_manager: Node = null
 var time_energy_manager: Node = null
+
+# Bullet pickup system
+@export var pickup_range: float = 5.0
+@export var pickup_time_threshold: float = 0.5
 
 # === SIGNALS FOR GUN SYSTEM ===
 signal movement_started
@@ -117,6 +121,11 @@ func _input(event):
 	# Handle dash input
 	if event.is_action_pressed("action_dash") and can_dash():
 		perform_dash()
+	
+	# Handle bullet pickup input
+	if event.is_action_pressed("action_pickup"):
+		print("action_pickup pressed - attempting bullet pickup")
+		_try_pickup_bullet()
 
 func _physics_process(delta):
 	update_timers(delta)
@@ -449,4 +458,135 @@ func _on_energy_depleted():
 func _on_energy_restored():
 	"""Called when energy is restored after depletion."""
 	print("Player received energy restored signal")
-	# Could add visual/audio feedback here 
+	# Could add visual/audio feedback here
+
+# === DAMAGE SYSTEM ===
+signal player_died
+
+func take_damage(damage: int):
+	"""Player takes damage - any damage kills the player."""
+	# Check if damage should be prevented due to time dilation
+	var time_manager = get_node_or_null("/root/TimeManager")
+	if time_manager and time_manager.is_damage_prevented():
+		print("Player: Damage prevented due to time dilation (", time_manager.get_time_scale(), ")")
+		return
+	
+	print("Player took damage: ", damage, " - Player dies!")
+	
+	# Emit death signal
+	print("Player: Emitting player_died signal")
+	player_died.emit()
+	print("Player: player_died signal emitted")
+	
+	# Stop all movement
+	velocity = Vector3.ZERO
+	
+	# Disable gun completely
+	if gun:
+		gun.set_process(false)
+		gun.set_physics_process(false)
+		# Also disable gun input handling
+		if gun.has_method("set_enabled"):
+			gun.set_enabled(false)
+		# Disable gun's input processing
+		gun.set_process_input(false)
+	
+	# Disable player input processing
+	set_process_input(false)
+	set_process(false)
+	set_physics_process(false)
+	
+	# Disable camera input as well
+	if camera:
+		camera.set_process_input(false)
+	
+	# Optional: Add death visual/audio effects here
+	# For now, just print death message
+	print("PLAYER DIED - Game Over!")
+
+# === BULLET PICKUP SYSTEM ===
+
+func _try_pickup_bullet():
+	"""Try to pick up nearby bullets."""
+	print("=== BULLET PICKUP ATTEMPT ===")
+	
+	# Check time conditions
+	if not time_manager:
+		print("No time manager found")
+		return false
+	
+	var current_time_scale = time_manager.get_time_scale()
+	print("Current time scale: ", current_time_scale, " | Threshold: ", pickup_time_threshold)
+	if current_time_scale > pickup_time_threshold:
+		print("Time not slowed enough: ", current_time_scale, " > ", pickup_time_threshold)
+		return false
+	
+	# Check ammo capacity
+	if gun and gun.get_current_ammo() >= gun.get_max_ammo():
+		print("Ammo full: ", gun.get_current_ammo(), "/", gun.get_max_ammo())
+		return false
+	
+	print("Current ammo: ", gun.get_current_ammo() if gun else "no gun", "/", gun.get_max_ammo() if gun else "no gun")
+	
+	# Find bullets in range
+	var bullets = get_tree().get_nodes_in_group("bullets")
+	print("Total bullets in scene: ", bullets.size())
+	
+	var closest_bullet: Area3D = null
+	var closest_distance = INF
+	
+	for i in range(bullets.size()):
+		var bullet = bullets[i]
+		print("Bullet ", i, ": ", bullet.name if bullet else "null", " | Valid: ", is_instance_valid(bullet), " | Type: ", bullet.get_class() if bullet else "null")
+		
+		if bullet is Area3D and is_instance_valid(bullet):
+			# Only consider bullets that have been fired
+			var is_fired = bullet.has_been_fired if "has_been_fired" in bullet else true
+			print("  Has been fired: ", is_fired)
+			
+			if not is_fired:
+				print("  -> Skipping unfired bullet")
+				continue
+				
+			var distance = global_position.distance_to(bullet.global_position)
+			print("  Distance: ", "%.1f" % distance, " | Pickup range: ", pickup_range)
+			if distance <= pickup_range and distance < closest_distance:
+				closest_distance = distance
+				closest_bullet = bullet
+				print("  -> New closest bullet!")
+	
+	if closest_bullet:
+		print("FOUND PICKUP TARGET: ", closest_bullet.name, " at distance: ", "%.1f" % closest_distance)
+		print("Bullet position: ", closest_bullet.global_position)
+		print("Player position: ", global_position)
+		
+		# Tell gun to add ammo
+		if gun and gun.has_method("pickup_bullet"):
+			print("Gun has pickup_bullet method, calling it...")
+			var pickup_success = gun.pickup_bullet()
+			print("Gun pickup_bullet returned: ", pickup_success)
+			
+			if pickup_success:
+				print("SUCCESS! Removing bullet from scene...")
+				print("Bullet before queue_free - valid: ", is_instance_valid(closest_bullet))
+				print("Bullet before queue_free - in tree: ", closest_bullet.is_inside_tree())
+				
+				# Remove the bullet
+				print("CALLING queue_free() on bullet: ", closest_bullet.name)
+				closest_bullet.queue_free()
+				print("queue_free() called - bullet should be marked for deletion")
+				
+				print("queue_free() called on bullet!")
+				print("Bullet after queue_free - valid: ", is_instance_valid(closest_bullet))
+				print("Bullet after queue_free - in tree: ", closest_bullet.is_inside_tree())
+				
+				return true
+			else:
+				print("Gun pickup_bullet failed!")
+		else:
+			print("Gun pickup_bullet method not found")
+	else:
+		print("No bullets in range (", pickup_range, " units)")
+	
+	print("=== END PICKUP ATTEMPT ===\n")
+	return false 

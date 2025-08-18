@@ -147,6 +147,35 @@ enum FireMode {
 @export var dash_attack_shotgun_spread: float = 20.0   # Shotgun: wide pellet spread
 @export var jump_burst_shotgun_spread: float = 0.0     # Triple shot: not shotgun
 @export var slow_fire_shotgun_spread: float = 0.0      # Rocket launcher: not shotgun
+
+@export_group("Piercing Properties")
+@export var rapid_fire_piercing: float = 5.0           # Pistol: no piercing
+@export var charge_blast_piercing: float = 0.0         # Assault rifle: no piercing
+@export var dash_attack_piercing: float = 0.0          # Shotgun: no piercing
+@export var jump_burst_piercing: float = 0.0           # Triple shot: no piercing
+@export var slow_fire_piercing: float = 3.0            # Rocket launcher: high piercing for testing
+@export var fast_fire_piercing: float = 0.0            # Unused
+@export var heavy_blast_piercing: float = 0.0          # Unused
+@export var triple_shot_piercing: float = 0.0          # Unused
+@export var auto_charge_piercing: float = 0.0          # Unused
+
+@export_group("Ammo System")
+@export var max_ammo: int = 30                          # Maximum ammo capacity
+@export var starting_ammo: int = 15                     # Starting ammo amount
+
+@export_group("Firing Effects")
+@export var velocity_loss_on_firing: float = 0.6        # Percentage of velocity lost when firing (0.0-1.0)
+
+@export_group("Knockback System")
+@export var rapid_fire_knockback: float = 2.0          # Pistol: light knockback
+@export var charge_blast_knockback: float = 1.5        # Assault rifle: very light knockback
+@export var dash_attack_knockback: float = 8.0         # Shotgun: heavy knockback
+@export var jump_burst_knockback: float = 3.0          # Triple shot: medium knockback
+@export var slow_fire_knockback: float = 15.0          # Rocket launcher: massive knockback
+@export var fast_fire_knockback: float = 1.0           # Unused
+@export var heavy_blast_knockback: float = 12.0        # Unused
+@export var triple_shot_knockback: float = 6.0         # Unused
+@export var auto_charge_knockback: float = 10.0        # Unused
 @export var fast_fire_shotgun_spread: float = 0.0      # Unused
 @export var heavy_blast_shotgun_spread: float = 0.0    # Unused
 @export var triple_shot_shotgun_spread: float = 15.0   # Unused
@@ -176,6 +205,9 @@ var charge_timer: Timer
 var burst_shots_remaining: int = 0
 var is_firing_active: bool = false  # For testing mode
 
+# === AMMO SYSTEM ===
+var current_ammo: int = 0
+
 # === RECOIL STATE ===
 var is_recoiling: bool = false
 var recoil_timer: float = 0.0
@@ -194,16 +226,125 @@ var time_energy_manager: Node = null
 @onready var muzzle_flash: MeshInstance3D = create_muzzle_flash_node()
 
 # === BULLET PRE-SPAWN SYSTEM ===
-var prepared_bullet: RigidBody3D = null  # Bullet that is spawned ahead of time and ready to fire
+var prepared_bullet: Area3D = null  # Bullet that is spawned ahead of time and ready to fire
 
 # === SIGNALS ===
 signal state_changed(new_state: State)
 signal fire_mode_changed(new_mode: FireMode)
 signal charge_level_changed(level: float)
 signal fired_shot(damage: int)
+signal ammo_changed(current: int, max: int)
 
-func _process(delta):
+# === MANUAL ANIMATION SYSTEM ===
+var active_muzzle_flashes: Array[Dictionary] = []
+var active_tracers: Array[Dictionary] = []
+
+func _process(delta: float):
+	"""Update all manual animations with time-adjusted delta."""
+	# Update recoil
 	_update_recoil(delta)
+	
+	# Get time-adjusted delta like TracerManager does
+	var time_manager = get_node_or_null("/root/TimeManager")
+	var time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0) if time_manager else delta
+	
+	# Update muzzle flashes
+	var flashes_to_remove: Array[int] = []
+	for i in range(active_muzzle_flashes.size()):
+		var flash_data = active_muzzle_flashes[i]
+		if _update_muzzle_flash_animation(flash_data, time_adjusted_delta):
+			flashes_to_remove.append(i)
+	
+	for i in range(flashes_to_remove.size() - 1, -1, -1):
+		active_muzzle_flashes.remove_at(flashes_to_remove[i])
+	
+	# Update tracers
+	var tracers_to_remove: Array[int] = []
+	for i in range(active_tracers.size()):
+		var tracer_data = active_tracers[i]
+		if _update_tracer_animation(tracer_data, time_adjusted_delta):
+			tracers_to_remove.append(i)
+	
+	for i in range(tracers_to_remove.size() - 1, -1, -1):
+		active_tracers.remove_at(tracers_to_remove[i])
+
+
+
+func _update_muzzle_flash_animation(flash_data: Dictionary, time_adjusted_delta: float) -> bool:
+	"""Update a single muzzle flash animation. Returns true if animation is complete."""
+	var muzzle_flash = flash_data.get("muzzle_flash")
+	var age = flash_data.get("age", 0.0)
+	var total_duration = flash_data.get("total_duration", 0.2)
+	var phase = flash_data.get("phase", "grow")  # grow, shrink
+	
+	if not is_instance_valid(muzzle_flash):
+		return true  # Remove invalid flashes
+	
+	# Age the flash using UNSCALED delta - muzzle flash should always proceed at normal speed
+	age += get_process_delta_time()  # Use unscaled delta time
+	flash_data["age"] = age
+	
+	# Calculate progress
+	var progress = age / total_duration
+	
+	match phase:
+		"grow":
+			# Grow phase (0.0 to 0.25 of total time)
+			var grow_progress = min(1.0, progress / 0.25)
+			muzzle_flash.scale = Vector3.ONE * (0.5 + grow_progress * 0.7)  # Scale from 0.5 to 1.2
+			
+			if grow_progress >= 1.0:
+				phase = "shrink"
+				flash_data["phase"] = phase
+		
+		"shrink":
+			# Shrink and hide phase (0.25 to 1.0 of total time)
+			var shrink_progress = (progress - 0.25) / 0.75
+			if shrink_progress >= 1.0:
+				shrink_progress = 1.0
+			
+			muzzle_flash.scale = Vector3.ONE * (1.2 - shrink_progress * 1.2)  # Scale from 1.2 to 0.0
+			
+			if shrink_progress >= 1.0:
+				# Animation complete
+				muzzle_flash.visible = false
+				return true
+	
+	return false
+
+func _update_tracer_animation(tracer_data: Dictionary, time_adjusted_delta: float) -> bool:
+	"""Update a single tracer animation. Returns true if animation is complete."""
+	var tracer = tracer_data.get("tracer")
+	var age = tracer_data.get("age", 0.0)
+	var total_duration = tracer_data.get("total_duration", 0.0)
+	var original_height = tracer_data.get("original_height", 0.0)
+	var impact_end = tracer_data.get("impact_end", Vector3.ZERO)
+	var line_direction = tracer_data.get("line_direction", Vector3.ZERO)
+	
+	if not is_instance_valid(tracer):
+		return true  # Remove invalid tracers
+	
+	# Age the tracer
+	age += time_adjusted_delta
+	tracer_data["age"] = age
+	
+	# Calculate progress
+	var progress = age / total_duration
+	
+	if progress >= 1.0:
+		# Animation complete
+		tracer.queue_free()
+		return true
+	
+	# Update tracer height and position
+	var new_height = original_height * (1.0 - progress)
+	if new_height < 0.01:
+		new_height = 0.01  # Prevent zero height
+	
+	tracer.mesh.height = new_height
+	tracer.global_position = impact_end - line_direction * (new_height / 2.0)
+	
+	return false
 
 func _ready():
 	# Initialize timers
@@ -233,6 +374,10 @@ func _ready():
 	# Set initial state
 	_change_state(State.IDLE)
 	
+	# Initialize ammo system
+	current_ammo = starting_ammo
+	ammo_changed.emit(current_ammo, max_ammo)
+	
 	# Apply auto-positioning if enabled
 	if auto_position:
 		position = screen_position
@@ -259,6 +404,10 @@ func _ready():
 		print("================================\n")
 
 func _input(event):
+	# Don't process input if gun is disabled
+	if not is_processing_input():
+		return
+		
 	if testing_mode:
 		_handle_testing_input(event)
 	elif movement_based:
@@ -601,6 +750,11 @@ func _fire_burst_shot():
 
 # === BULLET SPAWNING ===
 func _prepare_next_bullet():
+	# Only prepare a bullet if we have ammo remaining
+	if current_ammo <= 0:
+		print("Not preparing bullet - no ammo remaining")
+		return
+		
 	# Instantiate a bullet ahead of time so it's ready when we need to fire
 	prepared_bullet = bullet_scene.instantiate()
 	# Add directly to main scene since bullets are now scene children
@@ -608,6 +762,7 @@ func _prepare_next_bullet():
 	
 	# Setup the bullet after it's added to the scene
 	_setup_prepared_bullet.call_deferred()
+	print("Prepared next bullet - ammo remaining: ", current_ammo)
 
 func _setup_prepared_bullet():
 	if not prepared_bullet:
@@ -620,14 +775,14 @@ func _setup_prepared_bullet():
 	# Position the bullet at the muzzle (it will continue tracking via script)
 	prepared_bullet.global_position = get_muzzle_position()
 	
-	# Keep the bullet inactive until fired
-	if prepared_bullet is RigidBody3D:
-		prepared_bullet.freeze = true
-		prepared_bullet.sleeping = true
-		prepared_bullet.linear_velocity = Vector3.ZERO
-		prepared_bullet.angular_velocity = Vector3.ZERO
+
 
 func _fire_bullet(damage: int):
+	# Check if we have ammo
+	if current_ammo <= 0:
+		print("Cannot fire - no ammo remaining!")
+		return
+	
 	# Check if firing is allowed by energy system
 	if time_energy_manager and not time_energy_manager.can_fire():
 		print("Firing blocked - insufficient energy or in forced recharge")
@@ -639,6 +794,14 @@ func _fire_bullet(damage: int):
 		if not energy_drained:
 			print("Firing blocked - energy drain failed")
 			return
+	
+	# Consume ammo
+	current_ammo -= 1
+	ammo_changed.emit(current_ammo, max_ammo)
+	print("Ammo: ", current_ammo, "/", max_ammo)
+	
+	# Apply velocity loss to player when firing
+	_apply_firing_velocity_loss()
 	
 	var travel_type = get_current_travel_type()
 	
@@ -707,7 +870,7 @@ func _fire_projectile(damage: int):
 	var spawn_position = get_muzzle_position()
 	var fire_direction = get_firing_direction()
 	
-	var bullet: RigidBody3D
+	var bullet: Area3D
 	if prepared_bullet:
 		bullet = prepared_bullet
 		prepared_bullet = null
@@ -718,26 +881,31 @@ func _fire_projectile(damage: int):
 		if bullet.has_method("set_gun_reference"):
 			bullet.set_gun_reference(self, muzzle_marker)
 	
-	# Bullet is already in scene root, just activate physics
+	# Bullet is already in scene root, just activate it
 	bullet.global_position = spawn_position
-	bullet.freeze = false
-	bullet.sleeping = false
+	# Area3D doesn't have freeze/sleeping properties
 	
 	# Configure bullet collision
 	bullet.collision_layer = 2  # Bullets layer  
-	bullet.collision_mask = 133  # Environment + Enemy + Player
+	bullet.collision_mask = 132  # Environment (bit 3=4) + Enemy (bit 8=128) = 132 (NO player layer)
 	
-	# Ensure contact monitoring is enabled for collision detection
-	bullet.contact_monitor = true
-	bullet.max_contacts_reported = 10
+	# Area3D automatically handles collision detection
 	
 	# Pass damage value if bullet script supports it
 	if bullet.has_method("set_damage"):
 		bullet.set_damage(damage)
 	
+	# Pass knockback value if bullet script supports it
+	if bullet.has_method("set_knockback"):
+		bullet.set_knockback(get_current_knockback())
+	
 	# Pass explosion properties if this weapon is explosive
 	if is_current_mode_explosive() and bullet.has_method("set_explosion_properties"):
 		bullet.set_explosion_properties(get_current_explosion_radius(), get_current_explosion_damage())
+	
+	# Pass piercing properties if bullet script supports it
+	if bullet.has_method("set_piercing_properties"):
+		bullet.set_piercing_properties(get_current_piercing())
 	
 	# Configure travel behavior before firing (for projectiles only)
 	if bullet.has_method("set_travel_config"):
@@ -752,6 +920,7 @@ func _fire_projectile(damage: int):
 		bullet.set_direction(fire_direction)
 	
 	# Prepare the next bullet
+	_prepare_next_bullet()
 
 func create_muzzle_flash_node() -> MeshInstance3D:
 	"""Create and setup the muzzle flash node attached to the gun."""
@@ -788,17 +957,17 @@ func _show_muzzle_flash():
 	
 	muzzle_flash.visible = true
 	
-	# Quick scale animation
-	var tween = get_tree().create_tween()
-	tween.set_parallel(true)
-	
-	# Flash grows then shrinks
+	# Start with small scale
 	muzzle_flash.scale = Vector3(0.5, 0.5, 0.5)
-	tween.tween_property(muzzle_flash, "scale", Vector3(1.2, 1.2, 1.2), 0.05)
-	tween.tween_property(muzzle_flash, "scale", Vector3.ZERO, 0.15).set_delay(0.05)
 	
-	# Hide after animation
-	tween.tween_callback(func(): muzzle_flash.visible = false).set_delay(0.2)
+	# Add to active muzzle flashes list for manual animation
+	var flash_data = {
+		"muzzle_flash": muzzle_flash,
+		"age": 0.0,
+		"total_duration": 0.2,
+		"phase": "grow"
+	}
+	active_muzzle_flashes.append(flash_data)
 
 func _create_hitscan_effects(start_pos: Vector3, end_pos: Vector3):
 	"""Create visual effects for hitscan weapons."""
@@ -866,46 +1035,41 @@ func _create_hitscan_tracer(start_pos: Vector3, end_pos: Vector3):
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	tracer.material_override = material
 	
-	# Animate fadeout proportional to length
-	_animate_hitscan_tracer_fadeout(tracer, line_length, end_pos, line_direction)
+	# Add to active tracers list for manual animation
+	var tracer_data = {
+		"tracer": tracer,
+		"age": 0.0,
+		"total_duration": line_length / 16.0,
+		"original_height": line_length,
+		"impact_end": end_pos,
+		"line_direction": line_direction
+	}
+	active_tracers.append(tracer_data)
 
 func _create_impact_effect(pos: Vector3):
 	"""Create impact effect at hit location."""
-	var impact = MeshInstance3D.new()
-	get_tree().current_scene.add_child(impact)
-	
-	# Create small sphere for impact
-	var sphere = SphereMesh.new()
-	sphere.radius = 0.2
-	sphere.height = 0.4
-	impact.mesh = sphere
-	
-	# Position at impact point
-	impact.global_position = pos
-	
-	# Create bright orange material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.ORANGE
-	material.emission_enabled = true
-	material.emission = Color.ORANGE
-	material.emission_energy = 4.0
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	impact.material_override = material
-	
-	# Animate fadeout
-	_animate_impact_fadeout(impact)
+	# Use TracerManager to create impact effect
+	if TracerManager:
+		TracerManager.create_impact(pos, Color.ORANGE, 0.2)
 
 func _animate_hitscan_tracer_fadeout(tracer: MeshInstance3D, tracer_length: float, impact_end: Vector3, line_dir: Vector3):
 	"""Animate hitscan tracer fade out with consistent shrink rate."""
 	if not tracer or not is_instance_valid(tracer):
 		return
 	
+	# Get current time scale to adjust animation speed
+	var time_manager = get_node_or_null("/root/TimeManager")
+	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
+	
 	# Calculate duration based on length for consistent shrink rate
 	# Shrink rate: 400 units per second (adjust this value to taste)
 	var shrink_rate = 400.0  # units per second
 
 	
-	var duration = tracer_length / 16.0
+	var base_duration = tracer_length / 16.0
+	
+	# Scale duration by time scale (slower when time is slowed)
+	var duration = base_duration * time_scale
 	
 	# Animate the cylinder height and position to shrink from gun end
 	var original_height = tracer.mesh.height
@@ -937,16 +1101,25 @@ func _animate_impact_fadeout(impact: MeshInstance3D):
 	"""Animate impact effect fade out."""
 	if not impact or not is_instance_valid(impact):
 		return
+	
+	# Get current time scale to adjust animation speed
+	var time_manager = get_node_or_null("/root/TimeManager")
+	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
+	
+	# Scale animation durations by time scale (slower when time is slowed)
+	var scale_up_duration = 0.1 * time_scale
+	var scale_down_duration = 0.4 * time_scale
+	var total_duration = 0.5 * time_scale
 		
 	var tween = get_tree().create_tween()
 	tween.set_parallel(true)
 	
 	# Scale up then down
-	tween.tween_property(impact, "scale", Vector3(2.0, 2.0, 2.0), 0.1)
-	tween.tween_property(impact, "scale", Vector3.ZERO, 0.4).set_delay(0.1)
+	tween.tween_property(impact, "scale", Vector3(2.0, 2.0, 2.0), scale_up_duration)
+	tween.tween_property(impact, "scale", Vector3.ZERO, scale_down_duration).set_delay(scale_up_duration)
 	
 	# Remove after animation
-	tween.tween_callback(func(): if is_instance_valid(impact): impact.queue_free()).set_delay(0.5)
+	tween.tween_callback(func(): if is_instance_valid(impact): impact.queue_free()).set_delay(total_duration)
 	_prepare_next_bullet()
 
 # === SHOTGUN SYSTEM ===
@@ -1045,16 +1218,13 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 	
 	# Setup bullet
 	bullet.global_position = spawn_position
-	bullet.freeze = false
-	bullet.sleeping = false
+	# Area3D doesn't have freeze/sleeping properties
 	
 	# Configure bullet collision
 	bullet.collision_layer = 2  # Bullets layer  
-	bullet.collision_mask = 133  # Environment + Enemy + Player
+	bullet.collision_mask = 132  # Environment (bit 3=4) + Enemy (bit 8=128) = 132 (NO player layer)
 	
-	# Ensure contact monitoring is enabled for collision detection
-	bullet.contact_monitor = true
-	bullet.max_contacts_reported = 10
+	# Area3D automatically handles collision detection
 	
 	# Pass damage value
 	if bullet.has_method("set_damage"):
@@ -1063,6 +1233,10 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 	# Pass explosion properties if this weapon is explosive
 	if is_current_mode_explosive() and bullet.has_method("set_explosion_properties"):
 		bullet.set_explosion_properties(get_current_explosion_radius(), get_current_explosion_damage())
+	
+	# Pass piercing properties if bullet script supports it
+	if bullet.has_method("set_piercing_properties"):
+		bullet.set_piercing_properties(get_current_piercing())
 	
 	# Configure travel behavior
 	if bullet.has_method("set_travel_config"):
@@ -1076,37 +1250,11 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 
 func _create_shotgun_impact_effect(position: Vector3):
 	"""Create smaller impact effect for shotgun pellets."""
-	var impact = MeshInstance3D.new()
-	get_tree().current_scene.add_child(impact)
+	# Use TracerManager to create smaller impact effect
+	if TracerManager:
+		TracerManager.create_impact(position, Color.ORANGE, 0.1)
 	
-	# Create small sphere for impact (smaller than normal impacts)
-	var sphere = SphereMesh.new()
-	sphere.radius = 0.1  # Smaller than normal 0.2
-	sphere.height = 0.2  # Smaller than normal 0.4
-	impact.mesh = sphere
-	
-	# Position at impact point
-	impact.global_position = position
-	
-	# Create bright orange material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.ORANGE
-	material.emission_enabled = true
-	material.emission = Color.ORANGE
-	material.emission_energy = 2.0  # Less bright than normal impacts
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	impact.material_override = material
-	
-	# Quick fadeout
-	var tween = get_tree().create_tween()
-	tween.set_parallel(true)
-	
-	# Scale up then down (faster than normal)
-	tween.tween_property(impact, "scale", Vector3(1.5, 1.5, 1.5), 0.05)
-	tween.tween_property(impact, "scale", Vector3.ZERO, 0.2).set_delay(0.05)
-	
-	# Remove after animation
-	tween.tween_callback(func(): if is_instance_valid(impact): impact.queue_free()).set_delay(0.3)
+
 
 # === EXPLOSION SYSTEM ===
 func _create_explosion(position: Vector3):
@@ -1152,52 +1300,46 @@ func _apply_explosion_damage(explosion_pos: Vector3, radius: float, damage: int)
 
 func _create_explosion_visual(position: Vector3, radius: float):
 	"""Create visual explosion effect at position."""
-	var explosion = MeshInstance3D.new()
-	get_tree().current_scene.add_child(explosion)
-	
-	# Create sphere mesh for explosion
-	var sphere = SphereMesh.new()
-	sphere.radius = radius * 0.3  # Start smaller
-	sphere.height = radius * 0.6
-	explosion.mesh = sphere
-	explosion.global_position = position
-	
-	# Create bright explosion material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.ORANGE_RED
-	material.emission_enabled = true
-	material.emission = Color.ORANGE_RED
-	material.emission_energy = 5.0
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	explosion.material_override = material
-	
-	# Animate explosion
-	_animate_explosion_effect(explosion, radius)
+	# Use TracerManager to create explosion effect
+	if TracerManager:
+		TracerManager.create_explosion(position, radius)
 
 func _animate_explosion_effect(explosion: MeshInstance3D, max_radius: float):
 	"""Animate explosion - rapid expansion then fade."""
 	if not explosion or not is_instance_valid(explosion):
 		return
 	
+	# Get current time scale to adjust animation speed
+	var time_manager = get_node_or_null("/root/TimeManager")
+	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
+	
+	# Scale animation durations by time scale (slower when time is slowed)
+	var expansion_duration = 0.2 * time_scale
+	var fade_duration = 0.4 * time_scale
+	var scale_down_duration = 0.3 * time_scale
+	var delay_1 = 0.1 * time_scale
+	var delay_2 = 0.3 * time_scale
+	var total_duration = 0.6 * time_scale
+	
 	var tween = get_tree().create_tween()
 	tween.set_parallel(true)
 	
 	# Rapid expansion
 	explosion.scale = Vector3.ZERO
-	tween.tween_property(explosion, "scale", Vector3.ONE, 0.2)
+	tween.tween_property(explosion, "scale", Vector3.ONE, expansion_duration)
 	
 	# Color fade (from bright orange to dark red)
 	var material = explosion.material_override as StandardMaterial3D
 	if material:
 		tween.tween_method(
 			func(energy): material.emission_energy = energy,
-			5.0, 0.0, 0.4
-		).set_delay(0.1)
-		tween.tween_property(material, "albedo_color", Color.DARK_RED, 0.4).set_delay(0.1)
+			5.0, 0.0, fade_duration
+		).set_delay(delay_1)
+		tween.tween_property(material, "albedo_color", Color.DARK_RED, fade_duration).set_delay(delay_1)
 	
 	# Scale down and remove
-	tween.tween_property(explosion, "scale", Vector3.ZERO, 0.3).set_delay(0.3)
-	tween.tween_callback(func(): if is_instance_valid(explosion): explosion.queue_free()).set_delay(0.6)
+	tween.tween_property(explosion, "scale", Vector3.ZERO, scale_down_duration).set_delay(delay_2)
+	tween.tween_callback(func(): if is_instance_valid(explosion): explosion.queue_free()).set_delay(total_duration)
 
 func get_muzzle_position() -> Vector3:
 	# Calculate exact world position of muzzle
@@ -1460,6 +1602,52 @@ func get_current_shotgun_spread() -> float:
 		_:
 			return 0.0
 
+func get_current_piercing() -> float:
+	match current_fire_mode:
+		FireMode.RAPID_FIRE:
+			return rapid_fire_piercing
+		FireMode.CHARGE_BLAST:
+			return charge_blast_piercing
+		FireMode.DASH_ATTACK:
+			return dash_attack_piercing
+		FireMode.JUMP_BURST:
+			return jump_burst_piercing
+		FireMode.SLOW_FIRE:
+			return slow_fire_piercing
+		FireMode.FAST_FIRE:
+			return fast_fire_piercing
+		FireMode.HEAVY_BLAST:
+			return heavy_blast_piercing
+		FireMode.TRIPLE_SHOT:
+			return triple_shot_piercing
+		FireMode.AUTO_CHARGE:
+			return auto_charge_piercing
+		_:
+			return 0.0
+
+func get_current_knockback() -> float:
+	match current_fire_mode:
+		FireMode.RAPID_FIRE:
+			return rapid_fire_knockback
+		FireMode.CHARGE_BLAST:
+			return charge_blast_knockback
+		FireMode.DASH_ATTACK:
+			return dash_attack_knockback
+		FireMode.JUMP_BURST:
+			return jump_burst_knockback
+		FireMode.SLOW_FIRE:
+			return slow_fire_knockback
+		FireMode.FAST_FIRE:
+			return fast_fire_knockback
+		FireMode.HEAVY_BLAST:
+			return heavy_blast_knockback
+		FireMode.TRIPLE_SHOT:
+			return triple_shot_knockback
+		FireMode.AUTO_CHARGE:
+			return auto_charge_knockback
+		_:
+			return 1.0
+
 func get_current_travel_type() -> int:
 	match current_fire_mode:
 		FireMode.RAPID_FIRE:
@@ -1489,23 +1677,23 @@ func get_travel_config_for_mode() -> Dictionary:
 	
 	match current_fire_mode:
 		FireMode.RAPID_FIRE:
-			config = {"max_speed": 50.0, "min_speed": 50.0}
+			config = {"max_speed": 25.0, "min_speed": 25.0}  # Reduced from 50.0
 		FireMode.CHARGE_BLAST:
 			config = {}  # Hitscan needs no config
 		FireMode.DASH_ATTACK:
 			config = {"hitscan_delay": 0.15}  # Brief delay before instant travel
 		FireMode.JUMP_BURST:
-			config = {"max_speed": 60.0, "min_speed": 5.0, "acceleration_rate": 100.0}
+			config = {"max_speed": 30.0, "min_speed": 3.0, "acceleration_rate": 50.0}  # Reduced speeds and acceleration
 		FireMode.SLOW_FIRE:
-			config = {"max_speed": 20.0, "min_speed": 20.0}
+			config = {"max_speed": 15.0, "min_speed": 15.0}  # Reduced from 20.0
 		FireMode.FAST_FIRE:
-			config = {"max_speed": 80.0, "min_speed": 30.0, "pulse_frequency": 4.0}
+			config = {"max_speed": 40.0, "min_speed": 15.0, "pulse_frequency": 4.0}  # Reduced from 80.0/30.0
 		FireMode.HEAVY_BLAST:
 			config = {}  # Hitscan needs no config
 		FireMode.TRIPLE_SHOT:
-			config = {"max_speed": 70.0, "min_speed": 15.0}
+			config = {"max_speed": 35.0, "min_speed": 8.0}  # Reduced from 70.0/15.0
 		FireMode.AUTO_CHARGE:
-			config = {"max_speed": 90.0, "min_speed": 25.0, "deceleration_rate": 45.0}
+			config = {"max_speed": 45.0, "min_speed": 12.0, "deceleration_rate": 22.0}  # Reduced from 90.0/25.0/45.0
 	
 	return config
 
@@ -1670,4 +1858,64 @@ func print_recoil_settings():
 	for mode_name in settings:
 		print(mode_name, ": ", "%.1f" % settings[mode_name], "°")
 	print("Randomness: ", "%.1f" % recoil_randomness)
-	print("================================\n") 
+	print("================================\n")
+
+# === AMMO MANAGEMENT ===
+
+func pickup_bullet():
+	"""Called by player when a bullet is picked up."""
+	if current_ammo >= max_ammo:
+		return false
+	
+	var was_empty = (current_ammo == 0)
+	current_ammo += 1
+	ammo_changed.emit(current_ammo, max_ammo)
+	print("Bullet picked up! Ammo: ", current_ammo, "/", max_ammo)
+	
+	# If we were empty and now have ammo, prepare a bullet
+	if was_empty and not prepared_bullet:
+		print("Was empty, preparing first bullet")
+		_prepare_next_bullet()
+	
+	return true
+
+func get_current_ammo() -> int:
+	"""Get current ammo count."""
+	return current_ammo
+
+func get_max_ammo() -> int:
+	"""Get maximum ammo capacity."""
+	return max_ammo
+
+func add_ammo(amount: int):
+	"""Add ammo (used for pickups or cheats)."""
+	current_ammo = min(max_ammo, current_ammo + amount)
+	ammo_changed.emit(current_ammo, max_ammo)
+
+# === FIRING VELOCITY EFFECTS ===
+
+func _apply_firing_velocity_loss():
+	"""Reduce player velocity when firing to create brief time flow moments."""
+	if velocity_loss_on_firing <= 0.0:
+		return  # No velocity loss configured
+	
+	# Get player reference
+	if not player or not is_instance_valid(player):
+		return
+	
+	# Apply velocity reduction (clamp to prevent negative values)
+	var velocity_multiplier = 1.0 - clamp(velocity_loss_on_firing, 0.0, 1.0)
+	var old_velocity = player.velocity
+	var old_movement_intent = player.movement_intent
+	
+	# Reduce horizontal velocity (preserve vertical for jumping/gravity)
+	player.velocity.x *= velocity_multiplier
+	player.velocity.z *= velocity_multiplier
+	
+	# CRITICAL: Also reduce movement_intent which drives the time system
+	player.movement_intent *= velocity_multiplier
+	
+	print("Firing velocity loss:")
+	print("  Velocity: ", old_velocity, " -> ", player.velocity)
+	print("  Movement intent: ", old_movement_intent, " -> ", player.movement_intent)
+	print("  Reduction: ", velocity_loss_on_firing * 100, "%") 
