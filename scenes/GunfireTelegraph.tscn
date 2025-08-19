@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3 uid="uid://dliqhn782b7vn"]
+
+[ext_resource type="Script" uid="uid://c8k3vn2rp7m4j" path="res://scripts/ui/GunfireTelegraph.gd" id="1_i5f5j"]
+
+[sub_resource type="TorusMesh" id="TorusMesh_24aga"]
+inner_radius = 1.9
+outer_radius = 2.0
+rings = 32
+ring_segments = 16
+
+[node name="GunfireTelegraph" type="Node3D"]
+script = ExtResource("1_i5f5j")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("TorusMesh_24aga")

@@ -137,6 +137,13 @@ class FlankingMovement extends MovementBehavior:
 	var flank_distance: float = 6.0
 	var flank_angle: float = 0.0
 	var flank_speed: float = 2.0
+	var player_has_camera_method: bool = false  # Cache the method check
+	var method_checked: bool = false
+	
+	# Cache camera direction to avoid expensive transform calculations every frame
+	var cached_camera_direction: Vector3 = Vector3.FORWARD
+	var camera_cache_timer: float = 0.0
+	var camera_cache_interval: float = 0.1  # Update camera direction every 0.1 seconds
 	
 	func _on_setup():
 		behavior_name = "Flanking"
@@ -151,11 +158,22 @@ class FlankingMovement extends MovementBehavior:
 		var player = enemy.get_player()
 		var player_pos = player.global_position
 		
-		# Calculate flanking position behind player
-		var player_forward = -player.get_camera_direction() if player.has_method("get_camera_direction") else Vector3.FORWARD
+		# Cache the method check - only do it once
+		if not method_checked:
+			player_has_camera_method = player.has_method("get_camera_direction")
+			method_checked = true
 		
-		# Gradually move the flank angle toward behind the player
-		var target_angle = atan2(player_forward.x, player_forward.z) + PI
+		# Update cached camera direction periodically instead of every frame
+		camera_cache_timer += delta
+		if camera_cache_timer >= camera_cache_interval:
+			camera_cache_timer = 0.0
+			if player_has_camera_method:
+				cached_camera_direction = -player.get_camera_direction()
+			else:
+				cached_camera_direction = Vector3.FORWARD
+		
+		# Calculate flanking position behind player using cached direction
+		var target_angle = atan2(cached_camera_direction.x, cached_camera_direction.z) + PI
 		flank_angle = lerp_angle(flank_angle, target_angle, flank_speed * delta)
 		
 		# Calculate target position

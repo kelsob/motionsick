@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=21 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
 [ext_resource type="Texture2D" uid="uid://bxpc2ma6gsowc" path="res://assets/ui/crosshair-thread.png" id="4_b1x3f"]
@@ -8,6 +8,8 @@
 [ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
 [ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="7_hujxm"]
 [ext_resource type="PackedScene" uid="uid://bocrtujbrxx4h" path="res://scenes/UI/DeathScreen.tscn" id="7_yyfjg"]
+[ext_resource type="Script" path="res://scripts/ui/TimerLabel.gd" id="8_a8run"]
+[ext_resource type="Script" path="res://scripts/ui/RealTimerLabel.gd" id="9_ouso4"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_vom5j"]
 size = Vector3(160, 10, 160)
@@ -260,18 +262,33 @@ grow_horizontal = 2
 grow_vertical = 0
 script = ExtResource("7_hujxm")
 
-[node name="ScoreLabel" type="Label" parent="UI/Control"]
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/Control"]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -20.0
-offset_top = 8.0
 offset_right = 20.0
-offset_bottom = 31.0
+offset_bottom = 50.0
 grow_horizontal = 2
+
+[node name="ScoreLabel" type="Label" parent="UI/Control/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
 text = "0"
 horizontal_alignment = 1
+
+[node name="TimerLabel" type="Label" parent="UI/Control/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
+text = "0"
+script = ExtResource("8_a8run")
+
+[node name="RealTimerLabel" type="Label" parent="UI/Control/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
+text = "0"
+script = ExtResource("9_ouso4")
 
 [node name="DeathScreen" parent="UI" instance=ExtResource("7_yyfjg")]
 visible = false

@@ -42,6 +42,9 @@ var target_position: Vector3
 var movement_direction: Vector3
 var distance_to_player: float
 
+# Performance optimization for signal emission
+var player_detection_signaled: bool = false
+
 # Time system integration
 var time_manager: Node = null
 var time_affected: TimeAffected = null
@@ -130,6 +133,7 @@ func _physics_process(delta):
 	# Get time-adjusted delta for time system integration
 	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
 	
+	# Full enemy logic - optimized movement system
 	_update_player_tracking()
 	_update_movement(time_delta)
 	_update_attack_logic(time_delta)
@@ -142,9 +146,14 @@ func _update_player_tracking():
 		
 	distance_to_player = global_position.distance_to(player.global_position)
 	
-	# Check if player is in detection range
+	# Check if player is in detection range - only emit signal once per detection
 	if distance_to_player <= detection_range:
-		player_detected.emit(player)
+		if not player_detection_signaled:
+			player_detected.emit(player)
+			player_detection_signaled = true
+	else:
+		# Reset signal flag when player moves out of range
+		player_detection_signaled = false
 
 func _update_movement(delta):
 	"""Update movement using the assigned movement behavior."""
@@ -165,41 +174,47 @@ func _update_attack_logic(delta):
 func _apply_movement(delta):
 	"""Apply movement to the enemy."""
 	if movement_direction.length() > 0:
-		# Face movement direction - keep enemy upright by only rotating around Y-axis
-		var flat_direction = Vector3(movement_direction.x, 0, movement_direction.z).normalized()
-		if flat_direction.length() > 0.001:
-			var target_transform = global_transform.looking_at(global_position + flat_direction, Vector3.UP)
-			global_transform = global_transform.interpolate_with(target_transform, turn_speed * delta)
-		
-		# Apply movement with time scaling
+		# Direct position movement instead of expensive move_and_slide()
 		var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+		var movement = movement_direction * movement_speed * effective_time_scale * delta
 		
-		# Safety check: prevent extreme movement speeds
-		effective_time_scale = clamp(effective_time_scale, 0.1, 5.0)  # Limit time scale effects
+		# Lightweight collision checks before moving
+		var new_position = global_position + movement
 		
-		# Additional safety: if time was recently frozen, limit movement
-		if time_affected and time_affected.is_time_frozen():
-			effective_time_scale = min(effective_time_scale, 1.0)  # Don't allow speed boost after freeze
+		# 1. Ground detection with raycast to handle variable terrain
+		var space_state = get_world_3d().direct_space_state
+		var ground_query = PhysicsRayQueryParameters3D.create(
+			new_position + Vector3.UP * 1.0,  # Start 1 unit above new position
+			new_position + Vector3.DOWN * 5.0,  # Cast down 5 units below new position
+			4  # Environment layer only (bit 3 = value 4)
+		)
+		ground_query.exclude = [self]  # Don't hit self
 		
-		velocity = movement_direction * movement_speed * effective_time_scale
+		var ground_result = space_state.intersect_ray(ground_query)
+		if ground_result:
+			# Found ground - place enemy on surface
+			new_position.y = ground_result.position.y + 2.0  # +1.0 to account for mesh center being at enemy's center
+		else:
+			# No ground found - use fallback constraint
+			if new_position.y < 2.0:
+				new_position.y = 2.0
 		
-		# Debug: Check for extreme movement
-		if velocity.length() > 50.0:  # Very fast movement
-			print("WARNING: ", name, " moving very fast! Velocity: ", velocity.length(), " Time scale: ", effective_time_scale)
-	else:
-		velocity = Vector3.ZERO
-	
-	# Apply gravity
-	if not is_on_floor():
-		velocity.y -= 20.0 * delta  # Simple gravity
-	
-	var old_pos = global_position
-	move_and_slide()
-	
-	# Debug: Check for large position changes
-	var pos_change = global_position.distance_to(old_pos)
-	if pos_change > 10.0:  # Large position change
-		print("WARNING: ", name, " moved ", pos_change, " units in one frame! From ", old_pos, " to ", global_position)
+		# 2. Simple enemy separation - avoid overlapping with other enemies
+		var enemies = get_tree().get_nodes_in_group("enemies")
+		for other_enemy in enemies:
+			if other_enemy == self or not is_instance_valid(other_enemy):
+				continue
+			var distance = new_position.distance_to(other_enemy.global_position)
+			if distance < 2.0:  # Too close to another enemy
+				var push_direction = (new_position - other_enemy.global_position).normalized()
+				new_position += push_direction * (2.0 - distance)  # Push away
+		
+		global_position = new_position
+		
+		# Simple rotation to face movement direction - Y-axis only
+		if movement_direction.length() > 0.01:
+			var target_angle = atan2(movement_direction.x, movement_direction.z)
+			global_rotation.y = lerp_angle(global_rotation.y, target_angle, turn_speed * delta)
 
 func _start_attack():
 	"""Initiate an attack."""
@@ -336,21 +351,33 @@ func is_player_in_range(range: float) -> bool:
 	"""Check if player is within specified range."""
 	return distance_to_player <= range
 
+# Visibility check optimization
+var visibility_cache: bool = true
+var visibility_check_timer: float = 0.0
+var visibility_check_interval: float = 0.1  # Check every 0.1 seconds instead of every frame
+
 func is_player_visible() -> bool:
-	"""Check if player is visible (no obstacles blocking line of sight)."""
+	"""Check if player is visible (cached for performance)."""
 	if not player:
 		return false
 	
-	var space_state = get_world_3d().direct_space_state
-	var query = PhysicsRayQueryParameters3D.create(
-		global_position + Vector3.UP * 0.5,  # Start slightly above ground
-		player.global_position + Vector3.UP * 0.5,
-		4  # Environment layer only
-	)
-	query.exclude = [self]
+	# Only do expensive raycast every 0.1 seconds
+	visibility_check_timer += get_physics_process_delta_time()
+	if visibility_check_timer >= visibility_check_interval:
+		visibility_check_timer = 0.0
+		
+		var space_state = get_world_3d().direct_space_state
+		var query = PhysicsRayQueryParameters3D.create(
+			global_position + Vector3.UP * 0.5,  # Start slightly above ground
+			player.global_position + Vector3.UP * 0.5,
+			4  # Environment layer only
+		)
+		query.exclude = [self]
+		
+		var result = space_state.intersect_ray(query)
+		visibility_cache = result.is_empty()  # True if no obstacles
 	
-	var result = space_state.intersect_ray(query)
-	return result.is_empty()  # True if no obstacles
+	return visibility_cache
 
 func set_target_position(pos: Vector3):
 	"""Set a target position for movement behaviors."""

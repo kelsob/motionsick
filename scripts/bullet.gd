@@ -14,7 +14,7 @@ enum TravelType {
 
 # === CONFIGURATION ===
 @export var base_speed: float = 20.0  # Reduced from 40.0
-@export var lifetime: float = 2.0
+@export var lifetime: float = 30.0  # Very long lifetime so bullets don't disappear while player catches up
 @export var travel_type: TravelType = TravelType.CONSTANT_FAST
 
 # Time system integration

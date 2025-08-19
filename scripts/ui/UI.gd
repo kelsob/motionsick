@@ -4,7 +4,9 @@ class_name UI
 # UI components
 @onready var crosshair: Control = $Control/Crosshair
 @onready var action_history_panel: Control = $Control/ActionHistoryPanel
-@onready var score_label: Label = $Control/ScoreLabel
+@onready var score_label: Label = $Control/VBoxContainer/ScoreLabel
+@onready var timer_label: Label = $Control/VBoxContainer/TimerLabel
+@onready var real_timer_label: Label = $Control/VBoxContainer/RealTimerLabel
 
 # Player reference
 var player: CharacterBody3D

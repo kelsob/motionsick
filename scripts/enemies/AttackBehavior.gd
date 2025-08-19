@@ -21,6 +21,10 @@ var attack_cooldown: float = 0.0
 var is_on_cooldown: bool = false
 var last_attack_time: float = 0.0
 
+# Gunfire telegraph system
+var gunfire_telegraph_scene: PackedScene = preload("res://scenes/GunfireTelegraph.tscn")
+var telegraph_duration: float = 1.0  # Short, snappy telegraph
+
 # === FACTORY METHOD ===
 static func create(type: Type) -> AttackBehavior:
 	"""Factory method to create specific attack behaviors."""
@@ -97,6 +101,82 @@ func is_player_in_range(range: float) -> bool:
 		return enemy.is_player_in_range(range)
 	return false
 
+func create_gunfire_telegraph(fire_position: Vector3, callback: Callable, total_time_to_fire: float = 3.0):
+	"""Create a telegraph that times perfectly with when the bullet will fire."""
+	print("Creating telegraph on enemy: ", enemy.name, " for ", total_time_to_fire, " seconds")
+	
+	# Create a simple Node3D with MeshInstance3D
+	var telegraph = Node3D.new()
+	var mesh_instance = MeshInstance3D.new()
+	telegraph.add_child(mesh_instance)
+	
+	# Create animated torus - start big and VERY thin
+	var torus = TorusMesh.new()
+	var start_outer = 4.0
+	var start_inner = 3.98  # EXTREMELY thin at start
+	var end_outer = 1.0
+	var end_inner = 0.5    # Thicker at end
+	
+	torus.inner_radius = start_inner
+	torus.outer_radius = start_outer
+	mesh_instance.mesh = torus
+	
+	# Create bright orange material - start completely invisible
+	var material = StandardMaterial3D.new()
+	material.albedo_color = Color.ORANGE
+	material.albedo_color.a = 0.0  # Start completely invisible
+	material.emission_enabled = true
+	material.emission = Color.ORANGE
+	material.emission_energy = 2.0
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh_instance.material_override = material
+	
+	# Add to enemy
+	enemy.add_child(telegraph)
+	telegraph.position = Vector3.UP * 0.5  # Just above enemy
+	telegraph.rotation_degrees.x = 90  # Rotate to face forward instead of lying flat
+	
+	print("Telegraph created and added to enemy")
+	
+	# Animate for the exact time until firing using TimeManager
+	var time_manager = enemy.get_node_or_null("/root/TimeManager")
+	var elapsed_time = 0.0
+	
+	while elapsed_time < total_time_to_fire:
+		await enemy.get_tree().process_frame
+		
+		# Use TimeManager-adjusted delta
+		var frame_delta = enemy.get_process_delta_time()
+		if time_manager:
+			frame_delta *= time_manager.get_time_scale()
+		
+		elapsed_time += frame_delta
+		
+		var progress = elapsed_time / total_time_to_fire
+		progress = clamp(progress, 0.0, 1.0)
+		
+		# Use exponential ease-in interpolation for dramatic effect
+		var eased_progress = progress * progress * progress  # Cubic ease-in
+		
+		# Animate size (shrink from big to small) with easing
+		var current_outer = lerp(start_outer, end_outer, eased_progress)
+		var current_inner = lerp(start_inner, end_inner, eased_progress)
+		torus.outer_radius = current_outer
+		torus.inner_radius = current_inner
+		
+		# Animate visibility (fade in) with different easing for urgency
+		var alpha_progress = progress * progress  # Quadratic ease-in for alpha
+		var alpha = lerp(0.0, 0.9, alpha_progress)
+		material.albedo_color.a = alpha
+	
+	print("Telegraph complete - callback firing!")
+	callback.call()
+	
+	# Remove telegraph
+	telegraph.queue_free()
+	
+	return telegraph
+
 func create_bullet() -> Area3D:
 	"""Create a bullet using the same system as the player."""
 	var bullet_scene = preload("res://scenes/bullet.tscn")
@@ -168,8 +248,14 @@ class RangedAttack extends AttackBehavior:
 		if not enemy or not enemy.get_player():
 			return
 		
-		print(enemy.name, " fires ranged shot!")
+		print(enemy.name, " telegraphs ranged shot!")
 		
+		# Telegraph the gunfire first
+		var fire_position = enemy.global_position + Vector3.UP * 0.5
+		create_gunfire_telegraph(fire_position, _execute_ranged_shot)
+	
+	func _execute_ranged_shot():
+		"""Called after telegraph completes - fire the actual ranged bullet."""
 		# Create and fire bullet
 		var bullet = create_bullet()
 		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
@@ -206,6 +292,12 @@ class BurstAttack extends AttackBehavior:
 	var current_burst_count: int = 0
 	var burst_timer: Timer
 	
+	# Cache method checks for performance
+	var bullet_has_set_damage: bool = false
+	var bullet_has_set_travel_config: bool = false
+	var bullet_has_fire: bool = false
+	var methods_checked: bool = false
+	
 	func _on_setup():
 		behavior_name = "Burst"
 		
@@ -224,8 +316,6 @@ class BurstAttack extends AttackBehavior:
 		if not enemy or not enemy.get_player():
 			return
 		
-		print(enemy.name, " starts burst attack!")
-		
 		current_burst_count = 0
 		_fire_burst_shot()
 	
@@ -234,15 +324,28 @@ class BurstAttack extends AttackBehavior:
 			enemy._finish_attack()
 			return
 		
+		# Telegraph the gunfire first
+		var fire_position = enemy.global_position + Vector3.UP * 0.5
+		create_gunfire_telegraph(fire_position, _execute_actual_shot)
+	
+	func _execute_actual_shot():
+		"""Called after telegraph completes - fire the actual bullet."""
 		# Create and fire bullet
 		var bullet = create_bullet()
 		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
 		
-		# Set bullet properties
-		if bullet.has_method("set_damage"):
+		# Cache method checks on first bullet creation
+		if not methods_checked:
+			bullet_has_set_damage = bullet.has_method("set_damage")
+			bullet_has_set_travel_config = bullet.has_method("set_travel_config")  
+			bullet_has_fire = bullet.has_method("fire")
+			methods_checked = true
+		
+		# Set bullet properties using cached checks
+		if bullet_has_set_damage:
 			bullet.set_damage(burst_damage)
 		
-		if bullet.has_method("set_travel_config"):
+		if bullet_has_set_travel_config:
 			bullet.set_travel_config(2, {"max_speed": burst_speed, "min_speed": burst_speed})
 		
 		# Fire toward player with slight spread
@@ -250,7 +353,7 @@ class BurstAttack extends AttackBehavior:
 		var spread_angle = (randf() - 0.5) * 0.2  # Small spread
 		direction = direction.rotated(Vector3.UP, spread_angle).normalized()
 		
-		if bullet.has_method("fire"):
+		if bullet_has_fire:
 			bullet.fire(direction)
 		
 		current_burst_count += 1
@@ -273,7 +376,7 @@ class ChargedAttack extends AttackBehavior:
 	"""Charge up then fire powerful shot."""
 	
 	var charged_damage: int = 50
-	var charge_time: float = 1.5
+	var charge_time: float = 0.5
 	var projectile_speed: float = 40.0
 	var cooldown_time: float = 4.0
 	var max_range: float = 20.0
@@ -300,12 +403,20 @@ class ChargedAttack extends AttackBehavior:
 		if not enemy or not enemy.get_player():
 			return
 		
-		print(enemy.name, " charging attack...")
+		print(enemy.name, " starting charge with telegraph...")
 		
+		# Telegraph for ONLY the charge time (1.5 seconds)
+		var fire_position = enemy.global_position + Vector3.UP * 0.5
+		create_gunfire_telegraph(fire_position, _fire_charged_shot, charge_time)
+		
+		# Set charging state immediately so we don't attack again
+		is_charging = true
+	
+	func _start_charging():
+		"""DEPRECATED: No longer used since telegraph handles full timing."""
+		print(enemy.name, " starting charge phase...")
 		is_charging = true
 		charge_timer.start()
-		
-		# TODO: Add charging visual effect
 	
 	func _fire_charged_shot():
 		if not is_charging:

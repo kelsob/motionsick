@@ -23,3 +23,6 @@ shape = SubResource("ConvexPolygonShape3D_koma5")
 [node name="AttackTimer" type="Timer" parent="."]
 
 [node name="StateTimer" type="Timer" parent="."]
+
+[node name="RayCast3D" type="RayCast3D" parent="."]
+target_position = Vector3(0, 0, -3)

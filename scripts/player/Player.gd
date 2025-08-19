@@ -508,85 +508,41 @@ func take_damage(damage: int):
 
 func _try_pickup_bullet():
 	"""Try to pick up nearby bullets."""
-	print("=== BULLET PICKUP ATTEMPT ===")
-	
 	# Check time conditions
 	if not time_manager:
-		print("No time manager found")
 		return false
 	
 	var current_time_scale = time_manager.get_time_scale()
-	print("Current time scale: ", current_time_scale, " | Threshold: ", pickup_time_threshold)
 	if current_time_scale > pickup_time_threshold:
-		print("Time not slowed enough: ", current_time_scale, " > ", pickup_time_threshold)
 		return false
 	
 	# Check ammo capacity
 	if gun and gun.get_current_ammo() >= gun.get_max_ammo():
-		print("Ammo full: ", gun.get_current_ammo(), "/", gun.get_max_ammo())
 		return false
-	
-	print("Current ammo: ", gun.get_current_ammo() if gun else "no gun", "/", gun.get_max_ammo() if gun else "no gun")
 	
 	# Find bullets in range
 	var bullets = get_tree().get_nodes_in_group("bullets")
-	print("Total bullets in scene: ", bullets.size())
-	
 	var closest_bullet: Area3D = null
 	var closest_distance = INF
 	
-	for i in range(bullets.size()):
-		var bullet = bullets[i]
-		print("Bullet ", i, ": ", bullet.name if bullet else "null", " | Valid: ", is_instance_valid(bullet), " | Type: ", bullet.get_class() if bullet else "null")
-		
+	for bullet in bullets:
 		if bullet is Area3D and is_instance_valid(bullet):
 			# Only consider bullets that have been fired
 			var is_fired = bullet.has_been_fired if "has_been_fired" in bullet else true
-			print("  Has been fired: ", is_fired)
-			
 			if not is_fired:
-				print("  -> Skipping unfired bullet")
 				continue
 				
 			var distance = global_position.distance_to(bullet.global_position)
-			print("  Distance: ", "%.1f" % distance, " | Pickup range: ", pickup_range)
 			if distance <= pickup_range and distance < closest_distance:
 				closest_distance = distance
 				closest_bullet = bullet
-				print("  -> New closest bullet!")
 	
 	if closest_bullet:
-		print("FOUND PICKUP TARGET: ", closest_bullet.name, " at distance: ", "%.1f" % closest_distance)
-		print("Bullet position: ", closest_bullet.global_position)
-		print("Player position: ", global_position)
-		
 		# Tell gun to add ammo
 		if gun and gun.has_method("pickup_bullet"):
-			print("Gun has pickup_bullet method, calling it...")
 			var pickup_success = gun.pickup_bullet()
-			print("Gun pickup_bullet returned: ", pickup_success)
-			
 			if pickup_success:
-				print("SUCCESS! Removing bullet from scene...")
-				print("Bullet before queue_free - valid: ", is_instance_valid(closest_bullet))
-				print("Bullet before queue_free - in tree: ", closest_bullet.is_inside_tree())
-				
-				# Remove the bullet
-				print("CALLING queue_free() on bullet: ", closest_bullet.name)
 				closest_bullet.queue_free()
-				print("queue_free() called - bullet should be marked for deletion")
-				
-				print("queue_free() called on bullet!")
-				print("Bullet after queue_free - valid: ", is_instance_valid(closest_bullet))
-				print("Bullet after queue_free - in tree: ", closest_bullet.is_inside_tree())
-				
 				return true
-			else:
-				print("Gun pickup_bullet failed!")
-		else:
-			print("Gun pickup_bullet method not found")
-	else:
-		print("No bullets in range (", pickup_range, " units)")
 	
-	print("=== END PICKUP ATTEMPT ===\n")
 	return false 
