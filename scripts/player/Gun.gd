@@ -219,7 +219,8 @@ var time_manager: Node = null
 var time_energy_manager: Node = null
 
 # === COMPONENTS ===
-@onready var bullet_scene = preload("res://scenes/bullet.tscn")
+# Player bullet scene (you'll create this)
+@export var player_bullet_scene: PackedScene = preload("res://scenes/bullet.tscn")
 @onready var camera = get_parent()  # Gun is now child of camera
 @onready var player = camera.get_parent()  # Player is camera's parent
 @onready var muzzle_marker = $Marker3D
@@ -756,7 +757,7 @@ func _prepare_next_bullet():
 		return
 		
 	# Instantiate a bullet ahead of time so it's ready when we need to fire
-	prepared_bullet = bullet_scene.instantiate()
+	prepared_bullet = player_bullet_scene.instantiate()
 	# Add directly to main scene since bullets are now scene children
 	get_tree().current_scene.add_child.call_deferred(prepared_bullet)
 	
@@ -771,6 +772,10 @@ func _setup_prepared_bullet():
 	# Give the bullet reference to gun and muzzle so it can track position
 	if prepared_bullet.has_method("set_gun_reference"):
 		prepared_bullet.set_gun_reference(self, muzzle_marker)
+	
+	# Mark as player bullet (enables recall ability)
+	if prepared_bullet.has_method("set_as_player_bullet"):
+		prepared_bullet.set_as_player_bullet()
 	
 	# Position the bullet at the muzzle (it will continue tracking via script)
 	prepared_bullet.global_position = get_muzzle_position()
@@ -876,10 +881,13 @@ func _fire_projectile(damage: int):
 		prepared_bullet = null
 	else:
 		# Fallback if no prepared bullet
-		bullet = bullet_scene.instantiate()
+		bullet = player_bullet_scene.instantiate()
 		get_tree().current_scene.add_child(bullet)
 		if bullet.has_method("set_gun_reference"):
 			bullet.set_gun_reference(self, muzzle_marker)
+		# Mark as player bullet (enables recall ability)
+		if bullet.has_method("set_as_player_bullet"):
+			bullet.set_as_player_bullet()
 	
 	# Bullet is already in scene root, just activate it
 	bullet.global_position = spawn_position
@@ -906,6 +914,10 @@ func _fire_projectile(damage: int):
 	# Pass piercing properties if bullet script supports it
 	if bullet.has_method("set_piercing_properties"):
 		bullet.set_piercing_properties(get_current_piercing())
+	
+	# Mark as player bullet (enables recall ability)
+	if bullet.has_method("set_as_player_bullet"):
+		bullet.set_as_player_bullet()
 	
 	# Configure travel behavior before firing (for projectiles only)
 	if bullet.has_method("set_travel_config"):
@@ -1213,7 +1225,7 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 	var spawn_position = get_muzzle_position()
 	
 	# Create bullet
-	var bullet = bullet_scene.instantiate()
+	var bullet = player_bullet_scene.instantiate()
 	get_tree().current_scene.add_child(bullet)
 	
 	# Setup bullet
@@ -1237,6 +1249,10 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 	# Pass piercing properties if bullet script supports it
 	if bullet.has_method("set_piercing_properties"):
 		bullet.set_piercing_properties(get_current_piercing())
+	
+	# Mark as player bullet (enables recall ability)
+	if bullet.has_method("set_as_player_bullet"):
+		bullet.set_as_player_bullet()
 	
 	# Configure travel behavior
 	if bullet.has_method("set_travel_config"):

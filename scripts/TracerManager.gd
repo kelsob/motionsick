@@ -27,6 +27,9 @@ var active_explosions: Array = []
 var active_impacts: Array = []
 var next_bullet_id: int = 0
 
+# === BULLET RECALL SYSTEM ===
+var fired_bullets_queue: Array = []  # Array of bullet_ids in firing order (most recent last)
+
 # === TIME SYSTEM INTEGRATION ===
 var time_manager: Node = null
 
@@ -46,8 +49,10 @@ class TracerData:
 		# Get tracer color from bullet if available
 		if bullet.has_method("get_tracer_color"):
 			tracer_color = bullet.get_tracer_color()
-		elif bullet.has_signal("tracer_color"):
+		elif "tracer_color" in bullet:
 			tracer_color = bullet.tracer_color
+		else:
+			tracer_color = Color.YELLOW  # Fallback color
 
 func _ready():
 	print("TracerManager initialized")
@@ -171,6 +176,9 @@ func unregister_bullet(bullet_id: int):
 		return
 	
 	var tracer_data = active_tracers[bullet_id]
+	
+	# Remove from recall queue
+	_remove_from_recall_queue(bullet_id)
 	
 	# Mark bullet as destroyed but don't clean up visuals immediately
 	tracer_data.bullet_destroyed = true
@@ -670,6 +678,64 @@ func reset_tracer_system():
 	# Try to recreate tracer container immediately
 	_setup_tracer_container()
 	print("TracerManager: Tracer system reset complete")
+
+# === BULLET RECALL SYSTEM ===
+
+func notify_bullet_fired(bullet_id: int):
+	"""Notify that a bullet was fired (add to recall queue)."""
+	if bullet_id >= 0 and active_tracers.has(bullet_id):
+		fired_bullets_queue.append(bullet_id)
+		print("TracerManager: Bullet ", bullet_id, " added to recall queue (queue size: ", fired_bullets_queue.size(), ")")
+
+func recall_most_recent_bullet() -> bool:
+	"""Recall the most recently fired bullet that's still active."""
+	# Remove invalid bullets from the end of the queue
+	while fired_bullets_queue.size() > 0:
+		var bullet_id = fired_bullets_queue[-1]  # Most recent bullet
+		
+		# Check if bullet still exists and is recallable
+		if active_tracers.has(bullet_id) and active_tracers[bullet_id].bullet:
+			var bullet = active_tracers[bullet_id].bullet
+			if is_instance_valid(bullet) and bullet.has_method("recall_to_player"):
+				if bullet.recall_to_player():
+					# Successfully recalled - remove from queue
+					fired_bullets_queue.pop_back()
+					print("TracerManager: Successfully recalled bullet ", bullet_id)
+					return true
+				else:
+					print("TracerManager: Bullet ", bullet_id, " could not be recalled")
+					fired_bullets_queue.pop_back()
+			else:
+				print("TracerManager: Bullet ", bullet_id, " is invalid or doesn't support recall")
+				fired_bullets_queue.pop_back()
+		else:
+			print("TracerManager: Bullet ", bullet_id, " no longer exists, removing from queue")
+			fired_bullets_queue.pop_back()
+	
+	print("TracerManager: No bullets available for recall")
+	return false
+
+func _remove_from_recall_queue(bullet_id: int):
+	"""Remove a bullet from the recall queue."""
+	var index = fired_bullets_queue.find(bullet_id)
+	if index >= 0:
+		fired_bullets_queue.remove_at(index)
+		print("TracerManager: Removed bullet ", bullet_id, " from recall queue")
+
+func update_bullet_color(bullet_id: int):
+	"""Update tracer color for a bullet (call after bullet configuration)."""
+	if not active_tracers.has(bullet_id):
+		return
+	
+	var tracer_data = active_tracers[bullet_id]
+	if not tracer_data.bullet or not is_instance_valid(tracer_data.bullet):
+		return
+	
+	# Re-read the bullet's color
+	if tracer_data.bullet.has_method("get_tracer_color"):
+		tracer_data.tracer_color = tracer_data.bullet.get_tracer_color()
+	elif "tracer_color" in tracer_data.bullet:
+		tracer_data.tracer_color = tracer_data.bullet.tracer_color
 
 # === DEBUG ===
 

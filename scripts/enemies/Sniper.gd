@@ -9,8 +9,8 @@ func _ready():
 	# Configure as long-range marksman
 	max_health = 60
 	movement_speed = 3.0
-	detection_range = 25.0
-	attack_range = 20.0
+	detection_range = 999.0  # Unlimited detection range
+	attack_range = 999.0     # Unlimited attack range
 	turn_speed = 3.0
 	
 	# Set behaviors

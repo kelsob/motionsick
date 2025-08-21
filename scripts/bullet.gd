@@ -21,7 +21,10 @@ enum TravelType {
 @export var time_resistance: float = 0.0  # 0.0 = fully affected by time, 1.0 = immune
 
 # Visual properties
-@export var tracer_color: Color = Color.YELLOW  # Default tracer color
+@export var tracer_color: Color = Color.YELLOW  # Default tracer color (gets overridden)
+@export var spin_speed: float = 720.0  # Degrees per second rotation around z-axis
+
+# Color constants removed - using different bullet scenes instead
 
 # === TRAVEL BEHAVIOR SETTINGS ===
 var max_speed: float = 40.0  # Reduced from 80.0
@@ -39,6 +42,9 @@ var muzzle_marker: Node3D = null
 var damage: int = 25  # Default damage value
 var knockback: float = 1.0  # Default knockback value
 var has_hit_target: bool = false  # Prevent multiple hits
+var is_player_bullet: bool = false  # Track if this bullet was fired by the player
+
+# Bullet type now determined by scene instead of enum
 
 # Time system
 var time_affected: TimeAffected = null
@@ -54,6 +60,12 @@ var explosion_damage: int = 0
 # Piercing properties
 var piercing_value: float = 0.0  # How much piercing power the bullet has
 var has_pierced: bool = false  # Track if bullet has pierced through anything
+
+# Bullet recall properties
+var is_being_recalled: bool = false  # True when bullet is returning to player
+var recall_speed_multiplier: float = 2.0  # How much faster bullet moves when recalled
+var recall_turn_speed: float = 0.8  # How fast bullet turns toward player (0-1, higher = faster turn)
+var recall_target_position: Vector3 = Vector3.ZERO  # Current target position (player)
 
 # Travel behavior state
 var current_speed: float = 0.0
@@ -111,8 +123,20 @@ func _physics_process(delta):
 		# Manual movement for Area3D
 		if travel_type != TravelType.HITSCAN:
 			var time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
-			var movement = travel_direction * current_speed * time_scale * time_delta
-			global_position += movement
+			
+			# Handle recalled bullet movement
+			if is_being_recalled:
+				_update_recalled_movement(time_scale, time_delta)
+			else:
+				# Normal bullet movement
+				var movement = travel_direction * current_speed * time_scale * time_delta
+				global_position += movement
+		
+		# Apply spinning rotation around z-axis (respects time scale)
+		if spin_speed > 0.0:
+			var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+			var spin_delta = deg_to_rad(spin_speed) * effective_time_scale * time_delta
+			rotate_object_local(Vector3.FORWARD, spin_delta)
 
 
 
@@ -142,6 +166,36 @@ func set_time_resistance(resistance: float):
 	time_resistance = clamp(resistance, 0.0, 1.0)
 	if time_affected:
 		time_affected.set_time_resistance(time_resistance)
+
+func set_spin_speed(speed: float):
+	"""Set the spinning speed for this bullet (degrees per second)."""
+	spin_speed = max(0.0, speed)
+
+func set_as_player_bullet():
+	"""Mark this bullet as fired by the player (enables recall ability)."""
+	is_player_bullet = true
+
+func set_as_enemy_bullet():
+	"""Mark this bullet as fired by an enemy."""
+	is_player_bullet = false
+
+func recall_to_player():
+	"""Start recalling this bullet back to the player."""
+	if not has_been_fired or has_hit_target or not is_player_bullet:
+		return false  # Can't recall unfired, already hit, or non-player bullets
+	
+	is_being_recalled = true
+	
+	# Find player position
+	var player = get_tree().get_first_node_in_group("player")
+	if player:
+		recall_target_position = player.global_position + Vector3(0, 1.0, 0)
+		print("Bullet recalled! Heading to player at: ", recall_target_position)
+		return true
+	else:
+		print("WARNING: Could not find player for bullet recall")
+		is_being_recalled = false
+		return false
 
 func fire(direction: Vector3):
 	# Mark as fired so it stops tracking muzzle
@@ -185,6 +239,10 @@ func fire(direction: Vector3):
 		if abs(travel_direction.dot(Vector3.UP)) > 0.99:
 			up_vector = Vector3.FORWARD
 		look_at(global_position + travel_direction, up_vector)
+	
+	# Notify TracerManager that bullet was fired (for recall system)
+	if TracerManager and tracer_id != -1:
+		TracerManager.notify_bullet_fired(tracer_id)
 	
 	# Clear references to avoid holding onto the gun
 	gun_reference = null
@@ -243,6 +301,49 @@ func ease_out_cubic(t: float) -> float:
 	"""Cubic ease-out function for smooth acceleration."""
 	return 1.0 - pow(1.0 - t, 3.0)
 
+func _update_recalled_movement(time_scale: float, time_delta: float):
+	"""Handle movement when bullet is being recalled to player."""
+	# Update player position continuously
+	var player = get_tree().get_first_node_in_group("player")
+	if player:
+		recall_target_position = player.global_position + Vector3(0, 1.0, 0)
+	else:
+		# Player not found, stop recall
+		is_being_recalled = false
+		return
+	
+	# Calculate direction to player
+	var to_player = (recall_target_position - global_position).normalized()
+	
+	# Turn toward player FAST
+	travel_direction = travel_direction.lerp(to_player, recall_turn_speed).normalized()
+	
+	# Move faster when recalled
+	var recall_speed = current_speed * recall_speed_multiplier
+	var movement = travel_direction * recall_speed * time_scale * time_delta
+	global_position += movement
+	
+	# Check if bullet reached player
+	var distance_to_player = global_position.distance_to(recall_target_position)
+	if distance_to_player < 1.5:
+		_handle_bullet_return_to_player()
+
+func _handle_bullet_return_to_player():
+	"""Handle what happens when recalled bullet reaches the player."""
+	print("Bullet returned to player!")
+	
+	# Give player back ammo
+	var player = get_tree().get_first_node_in_group("player")
+	if player and player.gun and player.gun.has_method("add_ammo"):
+		player.gun.add_ammo(1)
+		print("Returned 1 ammo to player")
+	else:
+		print("WARNING: Could not return ammo - gun not found")
+	
+	# Clean up and destroy bullet
+	_cleanup_bullet()
+	queue_free()
+
 func _fire_hitscan():
 	"""Instant travel implementation with visual effects."""
 	var start_pos = global_position
@@ -294,8 +395,7 @@ func _fire_hitscan():
 		end_pos = start_pos + travel_direction * 1000.0
 		global_position = end_pos
 	
-	# Create visual effects
-	_create_hitscan_visuals(start_pos, end_pos, hit_body != null)
+	# Visual effects handled by TracerManager
 	
 	# Handle collision if we hit something
 	if hit_body:
@@ -316,199 +416,9 @@ func _fire_hitscan():
 	
 	print("=== END HITSCAN DEBUG ===\n")
 
-func _create_hitscan_visuals(start_pos: Vector3, end_pos: Vector3, hit_target: bool):
-	"""Create visual effects for hitscan weapons."""
-	# Create tracer line
-	_create_tracer_line(start_pos, end_pos)
-	
-	# Muzzle flash now handled by Gun.gd
-	
-	# Create impact effect if we hit something
-	if hit_target:
-		_create_impact_effect(end_pos)
+# Tracer visuals handled by TracerManager
 
-func _create_tracer_line(start_pos: Vector3, end_pos: Vector3):
-	"""Create a bright tracer line that fades quickly."""
-	var tracer = MeshInstance3D.new()
-	get_tree().current_scene.add_child(tracer)
-	
-	# Use a simple cylinder mesh for the line
-	var cylinder_mesh = CylinderMesh.new()
-	var distance = start_pos.distance_to(end_pos)
-	cylinder_mesh.height = distance
-	cylinder_mesh.top_radius = 0.02
-	cylinder_mesh.bottom_radius = 0.02
-	tracer.mesh = cylinder_mesh
-	
-	# Position and orient the tracer
-	var center_pos = (start_pos + end_pos) / 2.0
-	var line_direction = (end_pos - start_pos).normalized()
-	
-	print("TRACER DEBUG:")
-	print("Start: ", start_pos)
-	print("End: ", end_pos)
-	print("Center: ", center_pos)
-	print("Line direction: ", line_direction)
-	
-	# Set position
-	tracer.global_position = center_pos
-	
-	# Create a transform that orients the cylinder along the line direction (Y-axis aligned)
-	if line_direction.length() > 0.001:
-		var new_y = line_direction.normalized()
-		var new_x = Vector3.RIGHT
-		
-		# Make sure X is perpendicular to Y
-		if abs(new_y.dot(new_x)) > 0.9:
-			new_x = Vector3.FORWARD
-		
-		new_x = (new_x - new_y * new_y.dot(new_x)).normalized()
-		var new_z = new_x.cross(new_y).normalized()
-		
-		# Additional safety checks to prevent singular matrix
-		if new_x.length() > 0.01 and new_y.length() > 0.01 and new_z.length() > 0.01:
-			var determinant = new_x.cross(new_y).dot(new_z)
-			if abs(determinant) > 0.001:  # Ensure non-singular matrix
-				var new_basis = Basis(new_x, new_y, new_z)
-				tracer.global_transform.basis = new_basis
-				print("Tracer oriented with manual basis")
-			else:
-				print("WARNING: Determinant too small, skipping basis assignment")
-		else:
-			print("WARNING: Invalid basis vectors, skipping orientation")
-	else:
-		print("WARNING: Zero length line direction!")
-	
-	# Create glowing material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.CYAN
-	material.emission_enabled = true
-	material.emission = Color.CYAN
-	material.emission_energy = 3.0
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.no_depth_test = true
-	tracer.material_override = material
-	
-	# Add fallback timer cleanup
-	var cleanup_timer = Timer.new()
-	cleanup_timer.wait_time = 4.0  # Longer than animation duration
-	cleanup_timer.one_shot = true
-	cleanup_timer.timeout.connect(_cleanup_tracer.bind(tracer, cleanup_timer))
-	get_tree().current_scene.add_child(cleanup_timer)
-	cleanup_timer.start()
-	
-	# Animate the tracer to fade out
-	_animate_tracer_fadeout(tracer)
-
-
-
-func _create_impact_effect(pos: Vector3):
-	"""Create impact effect at hit location."""
-	var impact = MeshInstance3D.new()
-	get_tree().current_scene.add_child(impact)
-	impact.global_position = pos
-	
-	# Create small bright sphere
-	var sphere_mesh = SphereMesh.new()
-	sphere_mesh.radius = 0.1
-	sphere_mesh.height = 0.2
-	impact.mesh = sphere_mesh
-	
-	# Bright impact material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.ORANGE
-	material.emission_enabled = true
-	material.emission = Color.ORANGE
-	material.emission_energy = 3.0
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	impact.material_override = material
-	
-	# Add fallback cleanup
-	var cleanup_timer = Timer.new()
-	cleanup_timer.wait_time = 2.5  # Longer than animation duration
-	cleanup_timer.one_shot = true
-	cleanup_timer.timeout.connect(_cleanup_impact.bind(impact, cleanup_timer))
-	get_tree().current_scene.add_child(cleanup_timer)
-	cleanup_timer.start()
-	
-	# Quick fade out
-	_animate_impact_fadeout(impact)
-
-func _animate_tracer_fadeout(tracer: MeshInstance3D):
-	"""Animate tracer line fade out over 3 seconds."""
-	if not tracer or not is_instance_valid(tracer):
-		return
-	
-	# Get current time scale to adjust animation speed
-	var time_manager = get_node_or_null("/root/TimeManager")
-	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
-	
-	# Scale animation duration by time scale (slower when time is slowed)
-	var fade_duration = 3.0 * time_scale
-		
-	var tween = get_tree().create_tween()
-	
-	# Scale down to zero so it completely disappears
-	tween.tween_property(tracer, "scale", Vector3.ZERO, fade_duration)
-	
-	# Remove after animation with safer callback
-	tween.tween_callback(_safe_cleanup_tracer.bind(tracer))
-
-
-
-func _animate_impact_fadeout(impact: MeshInstance3D):
-	"""Animate impact effect fade out over 2 seconds."""
-	if not impact or not is_instance_valid(impact):
-		return
-	
-	# Get current time scale to adjust animation speed
-	var time_manager = get_node_or_null("/root/TimeManager")
-	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
-	
-	# Scale animation durations by time scale (slower when time is slowed)
-	var burst_duration = 0.1 * time_scale
-	var shrink_duration = 0.5 * time_scale
-	
-	var tween = get_tree().create_tween()
-	
-	# Big burst then shrink - no material manipulation
-	tween.tween_property(impact, "scale", Vector3.ONE * 3.0, burst_duration)
-	tween.tween_property(impact, "scale", Vector3.ZERO, shrink_duration)
-	
-	# Safe removal
-	tween.tween_callback(_safe_cleanup_impact.bind(impact))
-
-func _cleanup_tracer(tracer: MeshInstance3D, timer: Timer):
-	"""Safe cleanup function for tracer effects."""
-	if is_instance_valid(tracer):
-		tracer.queue_free()
-	if is_instance_valid(timer):
-		timer.queue_free()
-
-
-	if is_instance_valid(timer):
-		timer.queue_free()
-
-func _cleanup_impact(impact: MeshInstance3D, timer: Timer):
-	"""Safe cleanup function for impact effects."""
-	if is_instance_valid(impact):
-		impact.queue_free()
-	if is_instance_valid(timer):
-		timer.queue_free()
-
-func _safe_cleanup_tracer(tracer: MeshInstance3D):
-	"""Safe cleanup for tween callbacks."""
-	if is_instance_valid(tracer):
-		tracer.queue_free()
-
-
-
-func _safe_cleanup_impact(impact: MeshInstance3D):
-	"""Safe cleanup for tween callbacks."""
-	if is_instance_valid(impact):
-		impact.queue_free()
-
-
+# Material configuration removed - using different bullet scenes instead
 
 func _cleanup_bullet():
 	"""Clean up bullet resources including tracer registration."""
@@ -539,6 +449,7 @@ func _on_body_entered(body):
 			body.apply_knockback(knockback_direction, knockback)
 		
 		has_hit_target = true
+		is_being_recalled = false  # Stop any active recall
 		
 		# Handle piercing logic
 		if piercing_value > 0.0:
@@ -553,6 +464,9 @@ func _on_body_entered(body):
 	# Check if we hit environment (walls/floor) - bullets ALWAYS stop at environment
 	elif _is_environment(body):
 		print("Bullet hit environment: ", body.name)
+		
+		has_hit_target = true
+		is_being_recalled = false  # Stop any active recall
 		
 		# Create impact effect
 		_create_environment_impact_effect(impact_position)

@@ -1,13 +1,59 @@
-[gd_scene load_steps=4 format=3 uid="uid://cpxampdsrq0tc"]
+[gd_scene load_steps=7 format=4 uid="uid://cpxampdsrq0tc"]
 
 [ext_resource type="Script" uid="uid://taqy1ylxyu1e" path="res://scripts/bullet.gd" id="1_mkf8s"]
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_mkf8s"]
-radius = 0.1
-height = 0.4
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qvcvq"]
+resource_name = "Material"
+cull_mode = 2
+albedo_color = Color(0.906332, 0.906332, 0.906332, 1)
+roughness = 0.5
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_68xfw"]
+_surfaces = [{
+"aabb": AABB(-2, -1.41421, -1.41421, 5.5, 2.82843, 2.82843),
+"format": 34359742465,
+"index_count": 42,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAAAAIABAADAAAAAQAFAAIAAgAFAAQAAwAFAAEABAAFAAMAAgAFAAUAAQAFAAUABAAFAAUAAwAFAAUABQAFAAUABQAFAAUA"),
+"name": "Material",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABgQAAAAAAAAACAAAAAAAAAAADzBLU/AAAAAPMEtT8AAACAAAAAAPMEtb8AAACAAAAAAAAAAADzBLW/AAAAwAAAAAAAAACA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_mkf8s"]
+resource_name = "bullet_Cube"
+_surfaces = [{
+"aabb": AABB(-2, -1.41421, -1.41421, 5.5, 2.82843, 2.82843),
+"attribute_data": PackedByteArray("AAAgPwAAAD8AAGA/AACAPgAAYD8AAAA/AAAgPwAAgD4AAMA+AAAAAAAAID8AAAAAAAAgPwAAQD8AAMA+AABAPwAAwD4AAEA/AAAgPwAAQD8AAAA+AAAAPwAAAD4AAIA+AADAPgAAgD4AAMA+AABAPwAAwD4AAAA/AAAgPwAAQD8AAMA+AACAPwAAID8AAEA/AAAgPwAAgD8AAMA+AABAPwAAwD4AAAAAAAAgPwAAAAAAACA/AAAAAAAAwD4AAAAAAAAAPgAAAD8AAAA+AACAPgAAAD4AAIA+AAAAPgAAAD8AAGA/AACAPgAAYD8AAAA/AABgPwAAAD8AAGA/AACAPg=="),
+"format": 34359742487,
+"index_count": 42,
+"index_data": PackedByteArray("AAABAAIAAwAEAAUABgAHAAgABgAJAAcACgALAAwADQAOAA8AEAARABIAEAATABEAFAAVABYAFAAXABUAGAAZABoAGAAbABkAHAAdAB4AHAAfAB0A"),
+"material": SubResource("StandardMaterial3D_qvcvq"),
+"name": "Material",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 32,
+"vertex_data": PackedByteArray("AABgQAAAAAAAAACAAAAAAAAAAADzBLU/AAAAAPMEtT8AAACAAABgQAAAAAAAAACAAAAAAPMEtb8AAACAAAAAAAAAAADzBLU/AAAAAPMEtT8AAACAAAAAwAAAAAAAAACAAAAAAAAAAADzBLW/AAAAwAAAAAAAAACAAAAAAAAAAADzBLW/AAAAAPMEtb8AAACAAABgQAAAAAAAAACAAAAAAAAAAADzBLW/AABgQAAAAAAAAACAAAAAAPMEtT8AAACAAAAAwAAAAAAAAACAAAAAwAAAAAAAAACAAAAAwAAAAAAAAACAAAAAwAAAAAAAAACAAAAAAPMEtb8AAACAAAAAwAAAAAAAAACAAAAAAAAAAADzBLU/AAAAwAAAAAAAAACAAAAAAAAAAADzBLW/AAAAwAAAAAAAAACAAAAAAPMEtb8AAACAAAAAwAAAAAAAAACAAAAAAAAAAADzBLU/AAAAwAAAAAAAAACAAAAAAPMEtT8AAACAAAAAwAAAAAAAAACAgpU9tdUkatKClT211SRq0oKVPbXVJGrSgpXBSv9//9+ClcFK/3//34KVwUr/f//fSC+Q3v///79IL5De////v0gvkN7///+/SC+Q3v///7/AyoMVKdtq0sDKgxUp22rSwMqDFSnbatLAynvq/3//38DKe+r/f//fwMp76v9//9//f///////v/9///////+//3///////7//f///////v5FetlD///8/kV62UP///z+RXrZQ////P5FetlD///8/SC9uIf///79IL24h////v0gvbiH///+/SC9uIf///7+RXkiv////P5FeSK////8/kV5Ir////z+RXkiv////Pw==")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_68xfw")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y25gk"]
+transparency = 1
+albedo_color = Color(0, 0.6, 1, 0.25098)
+roughness = 0.0
+emission_enabled = true
+emission = Color(0, 0.85, 1, 1)
+emission_energy_multiplier = 0.5
+clearcoat_enabled = true
+clearcoat_roughness = 0.0
+refraction_enabled = true
+refraction_scale = 0.2
 
 [sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_mkf8s"]
-points = PackedVector3Array(0.099768, 0.0951682, 0.00454733, -0.0969283, -0.119394, -0.0133212, -0.0965787, -0.118971, 0.0164429, -0.0856193, 0.150361, 0.0106033, -0.0133212, 0.119394, -0.0969283, 0.0699323, -0.136681, -0.0608063, 0.0223864, -0.12485, 0.0937335, -0.013271, 0.130884, 0.0938124, -0.0254757, -0.162356, -0.0735792, 0.0585571, 0.167948, -0.0433878, 0.0644792, -0.167773, 0.0345334, 0.0694757, 0.118052, 0.0694757, -0.0608084, -0.136685, 0.0699346, -0.0777897, 0.117585, -0.060144, -0.025878, 0.195322, -0.0136537, 0.0928406, -0.111836, 0.0339577, -0.0258184, -0.194898, 0.0167952, -0.0775178, 0.0995973, 0.0631071, 0.0689601, 0.105447, -0.0716332, -0.0250537, -0.106562, -0.0961027, 0.0467743, 0.180784, 0.0347232, 0.0281481, -0.100396, -0.0958787, 0.0931734, -0.118168, -0.0309012, 0.0349152, -0.187907, -0.0317406, -0.0777897, -0.117585, -0.060144, -0.0367052, -0.100188, 0.0929485, -0.0314606, 0.174316, 0.0586736, -0.0969247, 0.11939, -0.0133206, 0.0633796, -0.117737, 0.0751713, 0.0339577, 0.111836, 0.0928406, -0.025461, 0.174318, -0.0615189, -0.0558189, -0.181314, -0.0135062)
+points = PackedVector3Array(-0.000489593, 1.41421, 0, 3.5, 0, 0, -0.000489593, 0, -1.41421, -2, 0, 0, -0.000489593, 0, 1.41421, -0.000489593, -1.41421, 0)
 
 [node name="Bullet" type="Area3D"]
 collision_layer = 2
@@ -15,15 +61,19 @@ collision_mask = 132
 script = ExtResource("1_mkf8s")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1.91069e-15, 4.37114e-08, 1, 1, -4.37114e-08, 0, 4.37114e-08, 1, -4.37114e-08, 0, 0, 0)
-mesh = SubResource("CapsuleMesh_mkf8s")
+transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
+mesh = SubResource("ArrayMesh_mkf8s")
+skeleton = NodePath("")
+surface_material_override/0 = SubResource("StandardMaterial3D_y25gk")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1.91069e-15, 4.37114e-08, 1, 1, -4.37114e-08, 0, 4.37114e-08, 1, -4.37114e-08, 0, 0, 0)
+transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
 shape = SubResource("ConvexPolygonShape3D_mkf8s")
 
 [node name="ForwardRaycast" type="RayCast3D" parent="."]
+visible = false
 target_position = Vector3(0, 0, -1)
 
 [node name="BackwardRaycast" type="RayCast3D" parent="."]
+visible = false
 target_position = Vector3(0, 0, 1)

@@ -177,19 +177,26 @@ func create_gunfire_telegraph(fire_position: Vector3, callback: Callable, total_
 	
 	return telegraph
 
-func create_bullet() -> Area3D:
-	"""Create a bullet using the same system as the player."""
-	var bullet_scene = preload("res://scenes/bullet.tscn")
+func create_bullet(bullet_scene_path: String = "") -> Area3D:
+	"""Create a bullet using specified scene or fallback."""
+	var bullet_scene: PackedScene
+	
+	# Use provided scene path or fallback to default
+	if bullet_scene_path != "":
+		bullet_scene = load(bullet_scene_path)
+	else:
+		bullet_scene = preload("res://scenes/bullet.tscn")  # Default fallback
+	
 	var bullet = bullet_scene.instantiate()
 	enemy.get_tree().current_scene.add_child(bullet)
 	
 	# Configure bullet for enemy use
 	bullet.collision_layer = 256  # Enemy bullets layer (bit 9)
 	bullet.collision_mask = 5     # Environment (bit 3=4) + Player (bit 1=1) = 5
-	# Area3D automatically handles collision detection
 	
-	# Set enemy bullet color (different from player bullets)
-	bullet.tracer_color = Color.RED  # Enemy bullets are red
+	# Mark as enemy bullet
+	if bullet.has_method("set_as_enemy_bullet"):
+		bullet.set_as_enemy_bullet()
 	
 	return bullet
 
@@ -256,16 +263,9 @@ class RangedAttack extends AttackBehavior:
 	
 	func _execute_ranged_shot():
 		"""Called after telegraph completes - fire the actual ranged bullet."""
-		# Create and fire bullet
-		var bullet = create_bullet()
+		# Create and fire regular enemy bullet (you'll create this scene)
+		var bullet = create_bullet("res://scenes/enemies/regular_bullet.tscn")
 		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
-		
-		# Set bullet properties
-		if bullet.has_method("set_damage"):
-			bullet.set_damage(projectile_damage)
-		
-		if bullet.has_method("set_travel_config"):
-			bullet.set_travel_config(2, {"max_speed": projectile_speed, "min_speed": projectile_speed})
 		
 		# Fire toward player
 		var direction = get_direction_to_player()
@@ -330,8 +330,8 @@ class BurstAttack extends AttackBehavior:
 	
 	func _execute_actual_shot():
 		"""Called after telegraph completes - fire the actual bullet."""
-		# Create and fire bullet
-		var bullet = create_bullet()
+		# Create and fire close-range bullet (you'll create this scene)
+		var bullet = create_bullet("res://scenes/enemies/burst_bullet.tscn")
 		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
 		
 		# Cache method checks on first bullet creation
@@ -340,13 +340,6 @@ class BurstAttack extends AttackBehavior:
 			bullet_has_set_travel_config = bullet.has_method("set_travel_config")  
 			bullet_has_fire = bullet.has_method("fire")
 			methods_checked = true
-		
-		# Set bullet properties using cached checks
-		if bullet_has_set_damage:
-			bullet.set_damage(burst_damage)
-		
-		if bullet_has_set_travel_config:
-			bullet.set_travel_config(2, {"max_speed": burst_speed, "min_speed": burst_speed})
 		
 		# Fire toward player with slight spread
 		var direction = get_direction_to_player()
@@ -373,13 +366,13 @@ class BurstAttack extends AttackBehavior:
 
 # === CHARGED ATTACK ===
 class ChargedAttack extends AttackBehavior:
-	"""Charge up then fire powerful shot."""
+	"""Charge up then fire powerful shot. Used by Sniper for telegraphed long-range shots."""
 	
-	var charged_damage: int = 50
-	var charge_time: float = 0.5
-	var projectile_speed: float = 40.0
-	var cooldown_time: float = 4.0
-	var max_range: float = 20.0
+	var charged_damage: int = 75
+	var charge_time: float = 2.0  # Full 2-second telegraph
+	var projectile_speed: float = 100.0  # Ultra-fast bullets
+	var cooldown_time: float = 6.0  # Longer cooldown for sniper shots
+	var max_range: float = 999.0  # Unlimited range for snipers
 	
 	var is_charging: bool = false
 	var charge_timer: Timer
@@ -395,7 +388,8 @@ class ChargedAttack extends AttackBehavior:
 		enemy.add_child(charge_timer)
 	
 	func _can_attack() -> bool:
-		return is_player_in_range(max_range) and enemy.is_player_visible() and not is_charging
+		# Snipers can attack from any distance if they can see the player
+		return enemy.is_player_visible() and not is_charging
 	
 	func execute_attack():
 		super()
@@ -422,18 +416,11 @@ class ChargedAttack extends AttackBehavior:
 		if not is_charging:
 			return
 		
-		print(enemy.name, " fires charged shot!")
+		print(enemy.name, " fires SNIPER SHOT!")
 		
-		# Create and fire powerful bullet
-		var bullet = create_bullet()
+		# Create and fire sniper bullet (you'll create this scene)
+		var bullet = create_bullet("res://scenes/enemies/sniper_bullet.tscn")
 		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
-		
-		# Set bullet properties
-		if bullet.has_method("set_damage"):
-			bullet.set_damage(charged_damage)
-		
-		if bullet.has_method("set_travel_config"):
-			bullet.set_travel_config(2, {"max_speed": projectile_speed, "min_speed": projectile_speed})
 		
 		# Fire toward player
 		var direction = get_direction_to_player()
@@ -474,19 +461,13 @@ class ExplosiveAttack extends AttackBehavior:
 		
 		print(enemy.name, " fires explosive!")
 		
-		# Create and fire explosive bullet
-		var bullet = create_bullet()
+		# Create and fire explosive bullet (you'll create this scene)
+		var bullet = create_bullet("res://scenes/enemies/explosive_bullet.tscn")
 		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
 		
-		# Set bullet properties
-		if bullet.has_method("set_damage"):
-			bullet.set_damage(explosive_damage)
-		
+		# Set explosion properties
 		if bullet.has_method("set_explosion_properties"):
 			bullet.set_explosion_properties(explosion_radius, explosive_damage)
-		
-		if bullet.has_method("set_travel_config"):
-			bullet.set_travel_config(1, {"max_speed": projectile_speed, "min_speed": projectile_speed})
 		
 		# Fire toward player
 		var direction = get_direction_to_player()

@@ -8,8 +8,8 @@
 [ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
 [ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="7_hujxm"]
 [ext_resource type="PackedScene" uid="uid://bocrtujbrxx4h" path="res://scenes/UI/DeathScreen.tscn" id="7_yyfjg"]
-[ext_resource type="Script" path="res://scripts/ui/TimerLabel.gd" id="8_a8run"]
-[ext_resource type="Script" path="res://scripts/ui/RealTimerLabel.gd" id="9_ouso4"]
+[ext_resource type="Script" uid="uid://bqm8n2x7vwh3g" path="res://scripts/ui/TimerLabel.gd" id="8_a8run"]
+[ext_resource type="Script" uid="uid://c5riax4mp6ov2" path="res://scripts/ui/RealTimerLabel.gd" id="9_ouso4"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_vom5j"]
 size = Vector3(160, 10, 160)

@@ -126,6 +126,11 @@ func _input(event):
 	if event.is_action_pressed("action_pickup"):
 		print("action_pickup pressed - attempting bullet pickup")
 		_try_pickup_bullet()
+	
+	# Handle bullet recall input (right-click)
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			_try_recall_bullet()
 
 func _physics_process(delta):
 	update_timers(delta)
@@ -545,4 +550,17 @@ func _try_pickup_bullet():
 				closest_bullet.queue_free()
 				return true
 	
-	return false 
+	return false
+
+# === BULLET RECALL SYSTEM ===
+
+func _try_recall_bullet():
+	"""Try to recall the most recently fired bullet."""
+	if TracerManager:
+		var success = TracerManager.recall_most_recent_bullet()
+		if success:
+			print("Player: Bullet recall successful!")
+		else:
+			print("Player: No bullets available for recall")
+	else:
+		print("Player: TracerManager not found - cannot recall bullets") 

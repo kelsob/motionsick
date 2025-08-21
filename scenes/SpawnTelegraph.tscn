@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://b6t835f65p5ej"]
 
-[ext_resource type="Script" path="res://scripts/ui/SpawnTelegraph.gd" id="1_yp7pf"]
+[ext_resource type="Script" uid="uid://b2yavk4rn8m5h" path="res://scripts/ui/SpawnTelegraph.gd" id="1_yp7pf"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_xtip5"]
 radial_segments = 16
