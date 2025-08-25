@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://j1iq81o0mh22"]
+
+[ext_resource type="PackedScene" uid="uid://cpxampdsrq0tc" path="res://scenes/bullets/bullet.tscn" id="1_g64gn"]
+
+[node name="PlayerBullet" instance=ExtResource("1_g64gn")]
+tracer_color = Color(0, 1, 0.866667, 1)
+can_bounce = true

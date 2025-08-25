@@ -468,13 +468,13 @@ func _on_energy_restored():
 # === DAMAGE SYSTEM ===
 signal player_died
 
-func take_damage(damage: int):
-	"""Player takes damage - any damage kills the player."""
+func take_damage(damage: int) -> bool:
+	"""Player takes damage - any damage kills the player. Returns true if damage was taken."""
 	# Check if damage should be prevented due to time dilation
 	var time_manager = get_node_or_null("/root/TimeManager")
 	if time_manager and time_manager.is_damage_prevented():
 		print("Player: Damage prevented due to time dilation (", time_manager.get_time_scale(), ")")
-		return
+		return false  # Damage was prevented
 	
 	print("Player took damage: ", damage, " - Player dies!")
 	
@@ -485,6 +485,8 @@ func take_damage(damage: int):
 	
 	# Stop all movement
 	velocity = Vector3.ZERO
+	
+	return true  # Damage was taken
 	
 	# Disable gun completely
 	if gun:

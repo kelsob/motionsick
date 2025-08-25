@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=4 uid="uid://cpxampdsrq0tc"]
+[gd_scene load_steps=6 format=4 uid="uid://cpxampdsrq0tc"]
 
 [ext_resource type="Script" uid="uid://taqy1ylxyu1e" path="res://scripts/bullet.gd" id="1_mkf8s"]
 
@@ -40,18 +40,6 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_68xfw")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y25gk"]
-transparency = 1
-albedo_color = Color(0, 0.6, 1, 0.25098)
-roughness = 0.0
-emission_enabled = true
-emission = Color(0, 0.85, 1, 1)
-emission_energy_multiplier = 0.5
-clearcoat_enabled = true
-clearcoat_roughness = 0.0
-refraction_enabled = true
-refraction_scale = 0.2
-
 [sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_mkf8s"]
 points = PackedVector3Array(-0.000489593, 1.41421, 0, 3.5, 0, 0, -0.000489593, 0, -1.41421, -2, 0, 0, -0.000489593, 0, 1.41421, -0.000489593, -1.41421, 0)
 
@@ -64,16 +52,32 @@ script = ExtResource("1_mkf8s")
 transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
 mesh = SubResource("ArrayMesh_mkf8s")
 skeleton = NodePath("")
-surface_material_override/0 = SubResource("StandardMaterial3D_y25gk")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
 shape = SubResource("ConvexPolygonShape3D_mkf8s")
 
-[node name="ForwardRaycast" type="RayCast3D" parent="."]
-visible = false
-target_position = Vector3(0, 0, -1)
+[node name="Raycasts" type="Node3D" parent="."]
 
-[node name="BackwardRaycast" type="RayCast3D" parent="."]
-visible = false
+[node name="LeftRayCast3D" type="RayCast3D" parent="Raycasts"]
+target_position = Vector3(-1, 0, 0)
+collision_mask = 4
+
+[node name="RightRayCast3D" type="RayCast3D" parent="Raycasts"]
+target_position = Vector3(1, 0, 0)
+collision_mask = 4
+
+[node name="UpRayCast3D" type="RayCast3D" parent="Raycasts"]
+target_position = Vector3(0, 1, 0)
+collision_mask = 4
+
+[node name="DownRayCast3D" type="RayCast3D" parent="Raycasts"]
+collision_mask = 4
+
+[node name="ForwardRayCast3D" type="RayCast3D" parent="Raycasts"]
+target_position = Vector3(0, 0, -1)
+collision_mask = 4
+
+[node name="BackwardRayCast3D" type="RayCast3D" parent="Raycasts"]
 target_position = Vector3(0, 0, 1)
+collision_mask = 4

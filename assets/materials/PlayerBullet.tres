@@ -1,0 +1,13 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://drxv2vjdu3myu"]
+
+[resource]
+transparency = 1
+albedo_color = Color(0, 0.8, 0.901961, 0.4)
+metallic = 1.0
+roughness = 0.0
+emission_enabled = true
+emission = Color(0, 0.8, 0.901961, 1)
+emission_energy_multiplier = 0.5
+clearcoat_enabled = true
+clearcoat_roughness = 0.0
+refraction_enabled = true

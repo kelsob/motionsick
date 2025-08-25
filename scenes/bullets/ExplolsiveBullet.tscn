@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c3wunnm86tyfi"]
+
+[ext_resource type="PackedScene" uid="uid://cpxampdsrq0tc" path="res://scenes/bullets/bullet.tscn" id="1_772od"]
+
+[node name="ExplosiveBullet" instance=ExtResource("1_772od")]
+tracer_color = Color(1, 0.1, 1, 0.894118)

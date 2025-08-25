@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://3t75xve3pglw"]
+
+[ext_resource type="PackedScene" uid="uid://cpxampdsrq0tc" path="res://scenes/bullets/bullet.tscn" id="1_abl86"]
+
+[node name="SniperBullet" instance=ExtResource("1_abl86")]
+tracer_color = Color(1, 0.2, 0.6, 0.811765)

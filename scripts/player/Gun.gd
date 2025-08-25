@@ -220,7 +220,7 @@ var time_energy_manager: Node = null
 
 # === COMPONENTS ===
 # Player bullet scene (you'll create this)
-@export var player_bullet_scene: PackedScene = preload("res://scenes/bullet.tscn")
+@export var player_bullet_scene: PackedScene = preload("res://scenes/bullets/PlayerBullet.tscn")
 @onready var camera = get_parent()  # Gun is now child of camera
 @onready var player = camera.get_parent()  # Player is camera's parent
 @onready var muzzle_marker = $Marker3D

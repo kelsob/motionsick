@@ -185,10 +185,20 @@ func create_bullet(bullet_scene_path: String = "") -> Area3D:
 	if bullet_scene_path != "":
 		bullet_scene = load(bullet_scene_path)
 	else:
-		bullet_scene = preload("res://scenes/bullet.tscn")  # Default fallback
+		bullet_scene = preload("res://scenes/bullets/bullet.tscn")  # Default fallback
 	
+	print(bullet_scene_path)
 	var bullet = bullet_scene.instantiate()
 	enemy.get_tree().current_scene.add_child(bullet)
+	
+	# Position bullet at BulletSpawnPoint marker if available
+	var spawn_point = enemy.get_node_or_null("BulletSpawnPoint")
+	
+	if spawn_point and bullet.has_method("set_spawn_point"):
+		bullet.set_spawn_point(spawn_point)
+	else:
+		# Fallback to old positioning
+		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
 	
 	# Configure bullet for enemy use
 	bullet.collision_layer = 256  # Enemy bullets layer (bit 9)
@@ -197,6 +207,10 @@ func create_bullet(bullet_scene_path: String = "") -> Area3D:
 	# Mark as enemy bullet
 	if bullet.has_method("set_as_enemy_bullet"):
 		bullet.set_as_enemy_bullet()
+	
+	# Set shooter reference for self-collision detection
+	if bullet.has_method("set_shooter"):
+		bullet.set_shooter(enemy)
 	
 	return bullet
 
@@ -263,9 +277,8 @@ class RangedAttack extends AttackBehavior:
 	
 	func _execute_ranged_shot():
 		"""Called after telegraph completes - fire the actual ranged bullet."""
-		# Create and fire regular enemy bullet (you'll create this scene)
-		var bullet = create_bullet("res://scenes/enemies/regular_bullet.tscn")
-		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
+		# Create and fire regular enemy bullet (positioned automatically)
+		var bullet = create_bullet("res://scenes/bullets/RegularBullet.tscn")
 		
 		# Fire toward player
 		var direction = get_direction_to_player()
@@ -330,9 +343,8 @@ class BurstAttack extends AttackBehavior:
 	
 	func _execute_actual_shot():
 		"""Called after telegraph completes - fire the actual bullet."""
-		# Create and fire close-range bullet (you'll create this scene)
-		var bullet = create_bullet("res://scenes/enemies/burst_bullet.tscn")
-		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
+		# Create and fire close-range bullet (positioned automatically)
+		var bullet = create_bullet("res://scenes/bullets/BurstBullet.tscn")
 		
 		# Cache method checks on first bullet creation
 		if not methods_checked:
@@ -368,7 +380,7 @@ class BurstAttack extends AttackBehavior:
 class ChargedAttack extends AttackBehavior:
 	"""Charge up then fire powerful shot. Used by Sniper for telegraphed long-range shots."""
 	
-	var charged_damage: int = 75
+	var charged_damage: int = 100  # High damage to one-shot other enemies
 	var charge_time: float = 2.0  # Full 2-second telegraph
 	var projectile_speed: float = 100.0  # Ultra-fast bullets
 	var cooldown_time: float = 6.0  # Longer cooldown for sniper shots
@@ -419,8 +431,12 @@ class ChargedAttack extends AttackBehavior:
 		print(enemy.name, " fires SNIPER SHOT!")
 		
 		# Create and fire sniper bullet (you'll create this scene)
-		var bullet = create_bullet("res://scenes/enemies/sniper_bullet.tscn")
-		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
+		var bullet = create_bullet("res://scenes/bullets/SniperBullet.tscn")
+		# Position is already set by create_bullet() using BulletSpawnPoint
+		
+		# Set high damage for one-shot potential
+		if bullet.has_method("set_damage"):
+			bullet.set_damage(charged_damage)
 		
 		# Fire toward player
 		var direction = get_direction_to_player()
@@ -461,9 +477,8 @@ class ExplosiveAttack extends AttackBehavior:
 		
 		print(enemy.name, " fires explosive!")
 		
-		# Create and fire explosive bullet (you'll create this scene)
-		var bullet = create_bullet("res://scenes/enemies/explosive_bullet.tscn")
-		bullet.global_position = enemy.global_position + Vector3.UP * 0.5
+		# Create and fire explosive bullet (positioned automatically)
+		var bullet = create_bullet("res://scenes/bullets/ExplosiveBullet.tscn")
 		
 		# Set explosion properties
 		if bullet.has_method("set_explosion_properties"):
