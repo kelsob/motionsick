@@ -205,6 +205,10 @@ var charge_timer: Timer
 var burst_shots_remaining: int = 0
 var is_firing_active: bool = false  # For testing mode
 
+# === EQUIP STATE ===
+var is_gun_equipped: bool = false
+var equip_animation_active: bool = false
+
 # === AMMO SYSTEM ===
 var current_ammo: int = 0
 
@@ -244,6 +248,10 @@ func _process(delta: float):
 	"""Update all manual animations with time-adjusted delta."""
 	# Update recoil
 	_update_recoil(delta)
+	
+	# Update equip animation
+	if equip_animation_active:
+		_update_equip_animation(delta)
 	
 	# Get time-adjusted delta like TracerManager does
 	var time_manager = get_node_or_null("/root/TimeManager")
@@ -383,8 +391,8 @@ func _ready():
 	if auto_position:
 		position = screen_position
 	
-	# Prepare the first bullet
-	_prepare_next_bullet()
+	# Start unequipped (hidden) - player must find gun pickup
+	unequip_gun()
 	
 	print("Gun ready! Testing mode: ", testing_mode)
 	if testing_mode:
@@ -405,8 +413,8 @@ func _ready():
 		print("================================\n")
 
 func _input(event):
-	# Don't process input if gun is disabled
-	if not is_processing_input():
+	# Don't process input if gun is disabled or not equipped
+	if not is_processing_input() or not is_gun_equipped:
 		return
 		
 	if testing_mode:
@@ -1934,4 +1942,97 @@ func _apply_firing_velocity_loss():
 	print("Firing velocity loss:")
 	print("  Velocity: ", old_velocity, " -> ", player.velocity)
 	print("  Movement intent: ", old_movement_intent, " -> ", player.movement_intent)
-	print("  Reduction: ", velocity_loss_on_firing * 100, "%") 
+	print("  Reduction: ", velocity_loss_on_firing * 100, "%")
+
+# === GUN EQUIP/UNEQUIP SYSTEM ===
+
+func equip_gun():
+	"""Equip the gun with a simple animation."""
+	if is_gun_equipped or equip_animation_active:
+		return
+	
+	print("Equipping gun...")
+	equip_animation_active = true
+	is_gun_equipped = true
+	
+	# Make gun visible
+	visible = true
+	
+	# Start small and animate to normal size
+	scale = Vector3.ZERO
+	
+	# [[memory:6549429]] User prefers manual animations over tweens
+	# Simple scale animation without using Godot's tween system
+	_start_equip_animation()
+	
+	# Prepare the first bullet once equipped
+	call_deferred("_prepare_next_bullet")
+
+func unequip_gun():
+	"""Unequip the gun (hide it)."""
+	print("Unequipping gun...")
+	is_gun_equipped = false
+	equip_animation_active = false
+	visible = false
+	scale = Vector3.ONE
+	
+	# Stop any ongoing animations
+	if prepared_bullet:
+		prepared_bullet.queue_free()
+		prepared_bullet = null
+
+func _start_equip_animation():
+	"""Start the equip animation using simple delta-based timer."""
+	# Simple animation data with just what we need
+	set_meta("equip_animation", {
+		"elapsed": 0.0,
+		"duration": 0.3,
+		"bounce_factor": 1.2
+	})
+
+func _update_equip_animation(delta: float):
+	"""Update the equip animation using delta time and time manager."""
+	if not has_meta("equip_animation"):
+		return false
+	
+	var animation_data = get_meta("equip_animation")
+	var elapsed = animation_data.get("elapsed", 0.0)
+	var duration = animation_data.get("duration", 0.3)
+	var bounce_factor = animation_data.get("bounce_factor", 1.2)
+	
+	# Use time manager for proper time scaling if available
+	var effective_delta = delta
+	if time_manager:
+		effective_delta = time_manager.get_effective_delta(delta, 0.0)
+	
+	# Update elapsed time
+	elapsed += effective_delta
+	animation_data["elapsed"] = elapsed
+	
+	var progress = elapsed / duration
+	
+	if progress >= 1.0:
+		# Animation complete
+		scale = Vector3.ONE
+		equip_animation_active = false
+		remove_meta("equip_animation")
+		print("Gun equip animation complete")
+		return true
+	
+	# Calculate bouncy scale
+	var scale_value: float
+	if progress < 0.7:
+		# Growing phase with bounce
+		var bounce_progress = progress / 0.7
+		scale_value = bounce_progress * bounce_factor
+	else:
+		# Settling phase
+		var settle_progress = (progress - 0.7) / 0.3
+		scale_value = bounce_factor - (bounce_factor - 1.0) * settle_progress
+	
+	scale = Vector3.ONE * scale_value
+	return false
+
+func is_equipped() -> bool:
+	"""Check if the gun is currently equipped."""
+	return is_gun_equipped

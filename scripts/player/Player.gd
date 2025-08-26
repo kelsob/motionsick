@@ -122,10 +122,11 @@ func _input(event):
 	if event.is_action_pressed("action_dash") and can_dash():
 		perform_dash()
 	
-	# Handle bullet pickup input
+	# Handle pickup input (bullets and gun)
 	if event.is_action_pressed("action_pickup"):
-		print("action_pickup pressed - attempting bullet pickup")
-		_try_pickup_bullet()
+		print("action_pickup pressed - attempting pickup")
+		if not _try_pickup_gun():
+			_try_pickup_bullet()
 	
 	# Handle bullet recall input (right-click)
 	if event is InputEventMouseButton:
@@ -510,6 +511,25 @@ func take_damage(damage: int) -> bool:
 	# Optional: Add death visual/audio effects here
 	# For now, just print death message
 	print("PLAYER DIED - Game Over!")
+
+# === GUN PICKUP SYSTEM ===
+
+func _try_pickup_gun() -> bool:
+	"""Try to pick up a gun if player is colliding with one."""
+	# Check if we already have a gun equipped
+	if gun and gun.has_method("is_equipped") and gun.is_equipped():
+		return false
+	
+	# Find gun pickups that player is currently colliding with
+	var gun_pickups = get_tree().get_nodes_in_group("gun_pickups")
+	
+	for pickup in gun_pickups:
+		if pickup is Area3D and is_instance_valid(pickup):
+			# Check if this pickup can be picked up (it handles collision detection internally)
+			if pickup.has_method("try_pickup") and pickup.try_pickup(self):
+				return true
+	
+	return false
 
 # === BULLET PICKUP SYSTEM ===
 
