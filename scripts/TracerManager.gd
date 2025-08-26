@@ -43,6 +43,7 @@ class TracerData:
 	var is_active: bool = true
 	var bullet_destroyed: bool = false  # Track if bullet is gone but tracers should persist
 	var tracer_color: Color = Color.YELLOW  # Per-bullet tracer color
+	var last_known_bounces: int = 0  # Track bounces to detect when bullet bounces
 	
 	func _init(bullet_ref: Area3D):
 		bullet = bullet_ref
@@ -103,6 +104,7 @@ func _process(delta: float):
 	var time_adjusted_delta = delta
 	if time_manager:
 		time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0)  # No time resistance for tracers
+
 	
 	var current_time = Time.get_ticks_msec() / 1000.0
 	
@@ -209,6 +211,8 @@ func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float, current
 	if tracer_data.last_update_time < tracer_update_rate:
 		return
 	
+
+	
 	# Reset interval timer
 	tracer_data.last_update_time = 0.0
 	
@@ -218,15 +222,27 @@ func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float, current
 	var forward_raycast = tracer_data.bullet.get_node_or_null("ForwardRaycast")
 	var backward_raycast = tracer_data.bullet.get_node_or_null("BackwardRaycast")
 	
+	# Check if bullet has bounced since last tracer segment
+	var current_bounces = tracer_data.bullet.current_bounces if "current_bounces" in tracer_data.bullet else 0
+	
+	if current_bounces > tracer_data.last_known_bounces:
+		# Bullet has bounced! Clear segment history to avoid connecting across the bounce
+		tracer_data.segment_positions.clear()
+		tracer_data.last_known_bounces = current_bounces
+		print("TRACER: Bullet bounced! Clearing segment history to avoid cross-bounce connections.")
+	
 	if forward_raycast and backward_raycast:
 		# Use raycast to determine tracer start/end points
 		var forward_point = forward_raycast.global_position + forward_raycast.global_transform.basis.z * forward_raycast.target_position.z
 		var backward_point = backward_raycast.global_position + backward_raycast.global_transform.basis.z * backward_raycast.target_position.z
 		
+
+		
 		# Add new segment at bullet's current position
 		_add_tracer_segment(tracer_data, bullet_pos, bullet_rot)
 	else:
 		# Fallback: use bullet position directly
+
 		_add_tracer_segment(tracer_data, bullet_pos, bullet_rot)
 	
 	# Remove old segments
@@ -237,6 +253,8 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 	if not tracer_container:
 		return
 		
+
+	
 	# Add position to history first
 	tracer_data.segment_positions.append(position)
 	
@@ -244,6 +262,10 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 	if use_line_segments and tracer_data.segment_positions.size() >= 2:
 		# Create line segment from previous position to current position
 		var prev_pos = tracer_data.segment_positions[tracer_data.segment_positions.size() - 2]
+		var distance = prev_pos.distance_to(position)
+		
+
+		
 		var segment = _create_line_segment(prev_pos, position, tracer_data)
 		tracer_container.add_child(segment)
 		
@@ -252,6 +274,7 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 		segment.global_position = center_pos
 		
 		var line_direction = (position - prev_pos).normalized()
+		
 		if line_direction.length() > 0.001:
 			# Create proper orientation transform for cylinder
 			var up = Vector3.UP

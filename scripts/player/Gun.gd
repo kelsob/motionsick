@@ -166,6 +166,9 @@ enum FireMode {
 @export_group("Firing Effects")
 @export var velocity_loss_on_firing: float = 0.6        # Percentage of velocity lost when firing (0.0-1.0)
 
+@export_group("Visual Effects")
+@export var wall_ripple_scene: PackedScene = preload("res://scenes/effects/WallRipple.tscn")
+
 @export_group("Knockback System")
 @export var rapid_fire_knockback: float = 2.0          # Pistol: light knockback
 @export var charge_blast_knockback: float = 1.5        # Assault rifle: very light knockback
@@ -865,6 +868,9 @@ func _fire_hitscan(damage: int, travel_type: int):
 		# Deal direct damage if we hit an enemy
 		if result.collider.has_method("take_damage"):
 			result.collider.take_damage(damage)
+		else:
+			# Hit environment - create wall ripple effect
+			_create_wall_ripple(result.position, result.normal)
 		
 		# Create visual effects
 		_create_hitscan_effects(spawn_position, result.position)
@@ -1218,6 +1224,9 @@ func _fire_shotgun_hitscan_pellet(damage: int, travel_type: int, direction: Vect
 		# Deal direct damage if we hit an enemy
 		if result.collider.has_method("take_damage"):
 			result.collider.take_damage(damage)
+		else:
+			# Hit environment - create wall ripple effect
+			_create_wall_ripple(result.position, result.normal)
 		
 		# Create smaller visual effects for pellets (no tracer, just impact)
 		_create_shotgun_impact_effect(result.position)
@@ -1991,7 +2000,7 @@ func _start_equip_animation():
 	})
 
 func _update_equip_animation(delta: float):
-	"""Update the equip animation using delta time and time manager."""
+	"""Update the equip animation using normal delta time (ignores time scale)."""
 	if not has_meta("equip_animation"):
 		return false
 	
@@ -2000,13 +2009,8 @@ func _update_equip_animation(delta: float):
 	var duration = animation_data.get("duration", 0.3)
 	var bounce_factor = animation_data.get("bounce_factor", 1.2)
 	
-	# Use time manager for proper time scaling if available
-	var effective_delta = delta
-	if time_manager:
-		effective_delta = time_manager.get_effective_delta(delta, 0.0)
-	
-	# Update elapsed time
-	elapsed += effective_delta
+	# Use raw delta time - ignore time manager for consistent animation speed
+	elapsed += delta
 	animation_data["elapsed"] = elapsed
 	
 	var progress = elapsed / duration
@@ -2036,3 +2040,24 @@ func _update_equip_animation(delta: float):
 func is_equipped() -> bool:
 	"""Check if the gun is currently equipped."""
 	return is_gun_equipped
+
+# === WALL RIPPLE EFFECTS ===
+
+func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
+	"""Create wall ripple effect at impact position."""
+	if not wall_ripple_scene:
+		print("WARNING: No wall ripple scene assigned")
+		return
+	
+	# Instantiate the ripple effect
+	var ripple = wall_ripple_scene.instantiate()
+	get_tree().current_scene.add_child(ripple)
+	
+	# Setup the ripple position and orientation
+	if ripple.has_method("setup_ripple"):
+		ripple.setup_ripple(impact_position, surface_normal)
+	else:
+		# Fallback setup
+		ripple.global_position = impact_position
+	
+	print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)

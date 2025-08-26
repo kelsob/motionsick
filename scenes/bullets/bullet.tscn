@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=4 uid="uid://cpxampdsrq0tc"]
+[gd_scene load_steps=7 format=4 uid="uid://cpxampdsrq0tc"]
 
 [ext_resource type="Script" uid="uid://taqy1ylxyu1e" path="res://scripts/bullet.gd" id="1_mkf8s"]
 
@@ -40,8 +40,11 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_68xfw")
 
-[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_mkf8s"]
-points = PackedVector3Array(-0.000489593, 1.41421, 0, 3.5, 0, 0, -0.000489593, 0, -1.41421, -2, 0, 0, -0.000489593, 0, 1.41421, -0.000489593, -1.41421, 0)
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_2flq5"]
+points = PackedVector3Array(-1.65972, -0.218012, 0.0225972, 0.278749, 1.27983, 0.0217348, -0.0577133, 0.0228197, -1.35057, 3.36813, -0.148224, 0.113475, -0.0577133, -0.0575688, 1.31582, -0.0577133, -1.35057, 0.0228197, 3.45561, 0.113475, 0.113475, -1.82217, 0.103125, 0.0226189, -0.219892, 1.23586, 0.0228503, 3.28118, -0.148224, -0.148224, 3.36813, 0.113475, -0.148224, -0.0393048, 0.10097, 1.28544, 0.2014, -1.31119, 0.0216325, 0.2014, 0.0216325, -1.31119, 0.0542546, 1.25896, -0.133314, 0.0542546, -0.133314, 1.25896, 0.278749, 0.0217348, 1.27983, -0.0432794, -1.32675, -0.0568505, -1.83708, -0.0575998, -0.0575998, 0.218556, -0.0551616, -1.27073, -0.0432794, -0.0568505, -1.32675, 0.218556, -1.27073, -0.0551616, -0.0577133, 1.31582, -0.0575688, -1.65972, 0.0225972, -0.218012, -1.82217, 0.0226189, 0.103125, -0.0393048, 1.28544, 0.10097, 0.0542546, 0.0985654, -1.29371, 0.0542546, -1.29371, 0.0985654, 0.221584, 0.0958288, 1.22884, 0.221584, 1.22884, 0.0958288, -0.219892, 0.0228503, 1.23586, -1.77701, -0.0566658, 0.10101)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2flq5"]
+size = Vector3(0.3, 0.3, 1)
 
 [node name="Bullet" type="Area3D"]
 collision_layer = 2
@@ -50,14 +53,16 @@ script = ExtResource("1_mkf8s")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
+visible = false
 mesh = SubResource("ArrayMesh_mkf8s")
 skeleton = NodePath("")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
-shape = SubResource("ConvexPolygonShape3D_mkf8s")
+shape = SubResource("ConvexPolygonShape3D_2flq5")
 
 [node name="Raycasts" type="Node3D" parent="."]
+visible = false
 
 [node name="LeftRayCast3D" type="RayCast3D" parent="Raycasts"]
 target_position = Vector3(-1, 0, 0)
@@ -80,4 +85,10 @@ collision_mask = 4
 
 [node name="BackwardRayCast3D" type="RayCast3D" parent="Raycasts"]
 target_position = Vector3(0, 0, 1)
+collision_mask = 4
+
+[node name="ShapeCast3D" type="ShapeCast3D" parent="."]
+transform = Transform3D(0.707107, -0.707107, 0, 0.707107, 0.707107, 0, 0, 0, 1, 0, 0, 0)
+shape = SubResource("BoxShape3D_2flq5")
+target_position = Vector3(0, 0, -0.5)
 collision_mask = 4

@@ -20,6 +20,10 @@ enum EnemyType {
 @export var max_total_enemies: int = 50  # Absolute maximum enemies alive
 @export var telegraph_duration: float = 3.0  # Warning time before spawn
 
+# === DEBUG OPTIONS ===
+@export_group("Debug")
+@export var disable_spawning: bool = false  # Turn off all enemy spawning for testing
+
 # === ENEMY TYPE CONFIGURATION ===
 # Each enemy type has its own maximum count that increases over time
 var enemy_max_counts: Dictionary = {
@@ -168,24 +172,22 @@ func _on_spawn_timer_timeout():
 
 func _attempt_spawn():
 	"""Attempt to spawn an enemy if we're under the maximum."""
-	print("ArenaSpawnManager: _attempt_spawn called - enemies_alive: ", enemies_alive, "/", max_total_enemies)
+	# Check debug toggle first
+	if disable_spawning:
+		return
 	
 	# Don't spawn if we're at the absolute maximum
 	if enemies_alive >= max_total_enemies:
-		print("ArenaSpawnManager: At maximum total enemies")
 		return
 	
 	# Find which enemy type to spawn
 	var spawn_type = _select_spawn_type()
-	print("ArenaSpawnManager: Selected spawn type: ", spawn_type)
 	
 	if spawn_type == -1:  # Use -1 instead of null for no valid type
-		print("ArenaSpawnManager: No valid spawn type available")
 		return  # No valid spawn type
 	
 	# Check if we're under the maximum for this type
 	if enemies_by_type[spawn_type] >= enemy_max_counts[spawn_type]:
-		print("ArenaSpawnManager: At maximum for enemy type ", spawn_type, " (", enemies_by_type[spawn_type], "/", enemy_max_counts[spawn_type], ")")
 		return  # At maximum for this type
 	
 	# Start spawn telegraph instead of immediate spawn
@@ -296,21 +298,13 @@ func _spawn_enemy_at_position(type: int, spawn_pos: Vector3) -> BaseEnemy:
 
 func _start_spawn_telegraph(enemy_type: int):
 	"""Start a spawn telegraph effect before actually spawning the enemy."""
-	print("ArenaSpawnManager: Starting spawn telegraph for enemy type: ", enemy_type)
-	
 	var spawn_pos = _get_spawn_position()
-	print("ArenaSpawnManager: Spawn position: ", spawn_pos)
 	
 	# Create telegraph effect from your scene
-	print("ArenaSpawnManager: Instantiating telegraph scene")
 	var telegraph = telegraph_scene.instantiate()
-	print("ArenaSpawnManager: Telegraph created: ", telegraph != null)
 	
 	get_tree().current_scene.add_child(telegraph)
-	print("ArenaSpawnManager: Telegraph added to scene")
-	
 	telegraph.global_position = spawn_pos
-	print("ArenaSpawnManager: Telegraph positioned at: ", telegraph.global_position)
 	
 	# Configure telegraph colors based on enemy type
 	var telegraph_color = Color.RED

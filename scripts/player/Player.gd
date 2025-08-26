@@ -66,6 +66,13 @@ var time_energy_manager: Node = null
 @export var pickup_range: float = 5.0
 @export var pickup_time_threshold: float = 0.5
 
+# Bullet deflection system
+@export var deflect_range: float = 3.0
+@export var deflect_angle: float = 45.0  # Degrees
+@export var deflect_speed_boost: float = 1.5  # Multiplier for deflected bullet speed
+@export var deflect_cooldown: float = 0.5  # Seconds between deflections
+var deflect_cooldown_timer: float = 0.0
+
 # === SIGNALS FOR GUN SYSTEM ===
 signal movement_started
 signal movement_stopped
@@ -128,6 +135,15 @@ func _input(event):
 		if not _try_pickup_gun():
 			_try_pickup_bullet()
 	
+	# Handle bullet deflection input
+	if event.is_action_pressed("action_fire"):
+		# If no gun equipped, use left-click for deflection
+		if not gun or not gun.is_equipped():
+			_try_deflect_bullet()
+	elif event.is_action_pressed("action_deflect"):
+		# F key works regardless of gun state
+		_try_deflect_bullet()
+	
 	# Handle bullet recall input (right-click)
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
@@ -155,6 +171,10 @@ func update_timers(delta):
 		slide_timer -= delta
 		if slide_timer <= 0.0 or not Input.is_action_pressed("action_slide"):
 			end_slide()
+	
+	# Update deflection cooldown
+	if deflect_cooldown_timer > 0.0:
+		deflect_cooldown_timer -= delta
 
 func handle_movement_input(delta):
 	var input_dir = get_input_direction()
@@ -585,4 +605,96 @@ func _try_recall_bullet():
 		else:
 			print("Player: No bullets available for recall")
 	else:
-		print("Player: TracerManager not found - cannot recall bullets") 
+		print("Player: TracerManager not found - cannot recall bullets")
+
+# === BULLET DEFLECTION SYSTEM ===
+
+func _try_deflect_bullet():
+	"""Try to deflect a bullet in melee range."""
+	# Check cooldown
+	if deflect_cooldown_timer > 0.0:
+		print("Deflection on cooldown")
+		return false
+	
+	# Find the closest bullet in deflection range and view
+	var target_bullet = _find_deflectable_bullet()
+	if not target_bullet:
+		print("No deflectable bullet found")
+		return false
+	
+	# Get deflection direction (where player is looking)
+	var deflect_direction = -camera.global_transform.basis.z.normalized()
+	
+	# Deflect the bullet
+	target_bullet.deflect_bullet(deflect_direction, deflect_speed_boost)
+	
+	# Create deflection effect
+	_create_deflection_effect(target_bullet.global_position)
+	
+	# Start cooldown
+	deflect_cooldown_timer = deflect_cooldown
+	
+	print("Bullet deflected!")
+	return true
+
+func _find_deflectable_bullet() -> Node:
+	"""Find the closest bullet within deflection range and view angle."""
+	var all_bullets = get_tree().get_nodes_in_group("bullets")
+	var camera_forward = -camera.global_transform.basis.z.normalized()
+	var player_position = camera.global_position
+	
+	var closest_bullet = null
+	var closest_distance = INF
+	
+	for bullet in all_bullets:
+		if not bullet or not is_instance_valid(bullet):
+			continue
+		
+		# Check if bullet has been fired (don't deflect prepared bullets)
+		if not bullet.has_been_fired:
+			continue
+		
+		# Check distance
+		var distance = player_position.distance_to(bullet.global_position)
+		if distance > deflect_range:
+			continue
+		
+		# Check if bullet is in player's view angle
+		var to_bullet = (bullet.global_position - player_position).normalized()
+		var angle = rad_to_deg(camera_forward.angle_to(to_bullet))
+		
+		if angle > deflect_angle:
+			continue
+		
+		# This bullet is valid and closer
+		if distance < closest_distance:
+			closest_distance = distance
+			closest_bullet = bullet
+	
+	return closest_bullet
+
+func _create_deflection_effect(position: Vector3):
+	"""Create visual effect at deflection point."""
+	var deflect_scene = load("res://scenes/effects/BulletDeflect.tscn")
+	if not deflect_scene:
+		print("WARNING: Could not load BulletDeflect.tscn")
+		return
+	
+	var effect = deflect_scene.instantiate()
+	get_tree().current_scene.add_child(effect)
+	effect.global_position = position
+	
+	print("Deflection effect created at: ", position)
+
+# === TARGET POSITION FOR ENEMIES ===
+func get_camera_position() -> Vector3:
+	"""Get the camera position for enemy targeting - bullets aimed at player's head/camera level."""
+	if camera:
+		return camera.global_position - Vector3.UP * 1.0  # Lower by 1 unit
+	else:
+		# Fallback to player center if camera not found
+		return global_position
+
+func get_target_position() -> Vector3:
+	"""Get the position enemies should aim at - same as camera position."""
+	return get_camera_position()

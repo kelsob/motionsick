@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3 uid="uid://byvo1fsxqf6jy"]
+
+[ext_resource type="Script" uid="uid://bncru2n6gme33" path="res://scripts/effects/BulletDeflect.gd" id="1_btplx"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_btplx"]
+lifetime_randomness = 0.5
+
+[sub_resource type="SphereMesh" id="SphereMesh_btplx"]
+radius = 0.01
+height = 0.02
+
+[node name="BulletDeflect" type="Node3D"]
+script = ExtResource("1_btplx")
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 75
+lifetime = 0.5
+process_material = SubResource("ParticleProcessMaterial_btplx")
+draw_pass_1 = SubResource("SphereMesh_btplx")

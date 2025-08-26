@@ -144,7 +144,9 @@ func _update_player_tracking():
 	if not player:
 		return
 		
-	distance_to_player = global_position.distance_to(player.global_position)
+	# Calculate distance to player camera position for consistency
+	var target_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
+	distance_to_player = global_position.distance_to(target_position)
 	
 	# Check if player is in detection range - only emit signal once per detection
 	if distance_to_player <= detection_range:
@@ -342,9 +344,10 @@ func get_distance_to_player() -> float:
 	return distance_to_player
 
 func get_direction_to_player() -> Vector3:
-	"""Get normalized direction vector to player."""
+	"""Get normalized direction vector to player camera (head level)."""
 	if player:
-		return (player.global_position - global_position).normalized()
+		var target_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
+		return (target_position - global_position).normalized()
 	return Vector3.ZERO
 
 func is_player_in_range(range: float) -> bool:
@@ -367,9 +370,10 @@ func is_player_visible() -> bool:
 		visibility_check_timer = 0.0
 		
 		var space_state = get_world_3d().direct_space_state
+		var target_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
 		var query = PhysicsRayQueryParameters3D.create(
 			global_position + Vector3.UP * 0.5,  # Start slightly above ground
-			player.global_position + Vector3.UP * 0.5,
+			target_position,  # Aim at camera/head level
 			4  # Environment layer only
 		)
 		query.exclude = [self]
