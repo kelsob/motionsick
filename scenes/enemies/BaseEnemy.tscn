@@ -28,4 +28,4 @@ shape = SubResource("ConvexPolygonShape3D_koma5")
 target_position = Vector3(0, 0, 5)
 
 [node name="BulletSpawnPoint" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.914656, 1.11102)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00461638, 1.11102)

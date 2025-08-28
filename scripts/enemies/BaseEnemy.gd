@@ -343,11 +343,12 @@ func get_distance_to_player() -> float:
 	"""Get current distance to player."""
 	return distance_to_player
 
-func get_direction_to_player() -> Vector3:
+func get_direction_to_player(from_position: Vector3 = Vector3.ZERO) -> Vector3:
 	"""Get normalized direction vector to player camera (head level)."""
 	if player:
-		var target_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
-		return (target_position - global_position).normalized()
+		var start_pos = from_position if from_position != Vector3.ZERO else global_position
+		var target_position = player.get_target_position(start_pos) if player.has_method("get_target_position") else player.global_position
+		return (target_position - start_pos).normalized()
 	return Vector3.ZERO
 
 func is_player_in_range(range: float) -> bool:

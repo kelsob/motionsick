@@ -1,43 +1,59 @@
-[gd_scene load_steps=6 format=3 uid="uid://claa28uyy2hxw"]
+[gd_scene load_steps=8 format=3 uid="uid://claa28uyy2hxw"]
 
 [ext_resource type="Script" uid="uid://bbdctbra4iam4" path="res://scripts/effects/WallRipple.gd" id="1_kg0mk"]
 
-[sub_resource type="TorusMesh" id="TorusMesh_2ir2e"]
+[sub_resource type="TorusMesh" id="TorusMesh_xkmr1"]
+inner_radius = 0.8
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kg0mk"]
-transparency = 1
-albedo_color = Color(1, 1, 1, 0.266667)
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0t8uf"]
+albedo_color = Color(0, 1, 0.866667, 1)
+
+[sub_resource type="TorusMesh" id="TorusMesh_ukbyq"]
+inner_radius = 0.6
+outer_radius = 0.775
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2ir2e"]
-transparency = 1
-albedo_color = Color(1, 1, 1, 0.533333)
+albedo_color = Color(0, 1, 0.866667, 1)
+
+[sub_resource type="TorusMesh" id="TorusMesh_8ebux"]
+inner_radius = 0.4
+outer_radius = 0.575
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jrpq7"]
-transparency = 1
-albedo_color = Color(1, 1, 1, 0.752941)
+albedo_color = Color(0, 1, 0.866667, 1)
 
 [node name="WallRipple" type="Node3D"]
 script = ExtResource("1_kg0mk")
 ring1_max_scale = 2.0
-ring1_duration = 0.3
-ring2_max_scale = 1.0
-ring2_duration = 0.45
-ring3_duration = 0.6
+ring1_start_alpha = 1.0
+ring1_start_y_scale = 5.0
+ring1_max_y_scale = 0.0
+ring2_max_scale = 1.75
+ring2_duration = 0.4
+ring2_start_alpha = 1.0
+ring2_delay = 0.0
+ring2_start_y_scale = 2.0
+ring2_max_y_scale = 0.0
+ring3_max_scale = 1.5
+ring3_duration = 0.4
+ring3_delay = 0.0
+ring3_start_y_scale = 1.0
+ring3_max_y_scale = 0.0
 
 [node name="Ring1" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.25, 0, 0, 0, 1, 0, 0, 0)
 visible = false
-mesh = SubResource("TorusMesh_2ir2e")
-surface_material_override/0 = SubResource("StandardMaterial3D_kg0mk")
+mesh = SubResource("TorusMesh_xkmr1")
+surface_material_override/0 = SubResource("StandardMaterial3D_0t8uf")
 
 [node name="Ring2" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.15, 0, 0, 0, 1, 0, 0, 0)
 visible = false
-mesh = SubResource("TorusMesh_2ir2e")
+mesh = SubResource("TorusMesh_ukbyq")
 surface_material_override/0 = SubResource("StandardMaterial3D_2ir2e")
 
 [node name="Ring3" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.05, 0, 0, 0, 1, 0, 0, 0)
 visible = false
-mesh = SubResource("TorusMesh_2ir2e")
+mesh = SubResource("TorusMesh_8ebux")
 surface_material_override/0 = SubResource("StandardMaterial3D_jrpq7")

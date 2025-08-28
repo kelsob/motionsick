@@ -89,10 +89,12 @@ func cleanup():
 
 # === UTILITY METHODS ===
 
-func get_direction_to_player() -> Vector3:
-	"""Get direction to player."""
-	if enemy:
-		return enemy.get_direction_to_player()
+func get_direction_to_player(from_position: Vector3 = Vector3.ZERO) -> Vector3:
+	"""Get direction to player from a specific position (e.g., bullet spawn point)."""
+	if enemy and enemy.player:
+		var start_pos = from_position if from_position != Vector3.ZERO else enemy.global_position
+		var target_pos = enemy.player.get_target_position(start_pos)
+		return (target_pos - start_pos).normalized()
 	return Vector3.ZERO
 
 func is_player_in_range(range: float) -> bool:
@@ -280,8 +282,9 @@ class RangedAttack extends AttackBehavior:
 		# Create and fire regular enemy bullet (positioned automatically)
 		var bullet = create_bullet("res://scenes/bullets/RegularBullet.tscn")
 		
-		# Fire toward player
-		var direction = get_direction_to_player()
+		# Fire toward player using bullet's spawn position for accurate targeting
+		var spawn_pos = bullet.global_position
+		var direction = get_direction_to_player(spawn_pos)
 		if bullet.has_method("fire"):
 			bullet.fire(direction)
 		
@@ -353,8 +356,9 @@ class BurstAttack extends AttackBehavior:
 			bullet_has_fire = bullet.has_method("fire")
 			methods_checked = true
 		
-		# Fire toward player with slight spread
-		var direction = get_direction_to_player()
+		# Fire toward player with slight spread using bullet's spawn position
+		var spawn_pos = bullet.global_position
+		var direction = get_direction_to_player(spawn_pos)
 		var spread_angle = (randf() - 0.5) * 0.2  # Small spread
 		direction = direction.rotated(Vector3.UP, spread_angle).normalized()
 		
@@ -438,8 +442,9 @@ class ChargedAttack extends AttackBehavior:
 		if bullet.has_method("set_damage"):
 			bullet.set_damage(charged_damage)
 		
-		# Fire toward player
-		var direction = get_direction_to_player()
+		# Fire toward player using bullet's spawn position for precise targeting
+		var spawn_pos = bullet.global_position
+		var direction = get_direction_to_player(spawn_pos)
 		if bullet.has_method("fire"):
 			bullet.fire(direction)
 		
@@ -484,8 +489,9 @@ class ExplosiveAttack extends AttackBehavior:
 		if bullet.has_method("set_explosion_properties"):
 			bullet.set_explosion_properties(explosion_radius, explosive_damage)
 		
-		# Fire toward player
-		var direction = get_direction_to_player()
+		# Fire toward player using bullet's spawn position for accurate targeting
+		var spawn_pos = bullet.global_position
+		var direction = get_direction_to_player(spawn_pos)
 		if bullet.has_method("fire"):
 			bullet.fire(direction)
 		

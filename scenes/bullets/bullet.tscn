@@ -53,7 +53,6 @@ script = ExtResource("1_mkf8s")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
-visible = false
 mesh = SubResource("ArrayMesh_mkf8s")
 skeleton = NodePath("")
 

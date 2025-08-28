@@ -7,16 +7,22 @@ extends Node3D
 @export var ring1_max_scale: float = 1.0
 @export var ring1_duration: float = 0.4
 @export var ring1_start_alpha: float = 0.3
+@export var ring1_start_y_scale: float = 0.1
+@export var ring1_max_y_scale: float = 1.0
 
 @export var ring2_max_scale: float = 0.8
 @export var ring2_duration: float = 0.6
 @export var ring2_start_alpha: float = 0.6
 @export var ring2_delay: float = 0.1  # Delay before ring2 starts
+@export var ring2_start_y_scale: float = 0.1
+@export var ring2_max_y_scale: float = 0.8
 
 @export var ring3_max_scale: float = 0.6
 @export var ring3_duration: float = 0.8
 @export var ring3_start_alpha: float = 1.0
 @export var ring3_delay: float = 0.2  # Delay before ring3 starts
+@export var ring3_start_y_scale: float = 0.1
+@export var ring3_max_y_scale: float = 0.6
 
 @export var base_ring_scale: float = 0.1  # Starting scale for all rings
 
@@ -42,20 +48,21 @@ func _ready():
 func _setup_rings():
 	"""Initialize ring scales and materials."""
 	var rings = [
-		{"node": ring1, "start_alpha": ring1_start_alpha},
-		{"node": ring2, "start_alpha": ring2_start_alpha},
-		{"node": ring3, "start_alpha": ring3_start_alpha}
+		{"node": ring1, "start_alpha": ring1_start_alpha, "start_y_scale": ring1_start_y_scale},
+		{"node": ring2, "start_alpha": ring2_start_alpha, "start_y_scale": ring2_start_y_scale},
+		{"node": ring3, "start_alpha": ring3_start_alpha, "start_y_scale": ring3_start_y_scale}
 	]
 	
 	for ring_data in rings:
 		var ring = ring_data.node
 		var start_alpha = ring_data.start_alpha
+		var start_y_scale = ring_data.start_y_scale
 		
 		if not ring:
 			continue
 			
-		# Set initial scale (only X and Z axes, preserve Y from inspector)
-		ring.scale = Vector3(base_ring_scale, ring.scale.y, base_ring_scale)
+		# Set initial scale (X, Y, and Z axes with independent Y scaling)
+		ring.scale = Vector3(base_ring_scale, start_y_scale, base_ring_scale)
 		
 		# Set up material with initial alpha
 		if ring.material_override and ring.material_override is StandardMaterial3D:
@@ -74,6 +81,8 @@ func _start_ripple_animation():
 			"duration": ring1_duration,
 			"max_scale": ring1_max_scale,
 			"start_alpha": ring1_start_alpha,
+			"start_y_scale": ring1_start_y_scale,
+			"max_y_scale": ring1_max_y_scale,
 			"delay": 0.0,  # Ring1 starts immediately
 			"started": false
 		},
@@ -83,6 +92,8 @@ func _start_ripple_animation():
 			"duration": ring2_duration,
 			"max_scale": ring2_max_scale,
 			"start_alpha": ring2_start_alpha,
+			"start_y_scale": ring2_start_y_scale,
+			"max_y_scale": ring2_max_y_scale,
 			"delay": ring2_delay,
 			"started": false
 		},
@@ -92,6 +103,8 @@ func _start_ripple_animation():
 			"duration": ring3_duration,
 			"max_scale": ring3_max_scale,
 			"start_alpha": ring3_start_alpha,
+			"start_y_scale": ring3_start_y_scale,
+			"max_y_scale": ring3_max_y_scale,
 			"delay": ring3_delay,
 			"started": false
 		}
@@ -151,6 +164,8 @@ func _update_ring_animation(ring_data: Dictionary, delta: float) -> bool:
 	var duration = ring_data.get("duration", 1.0)
 	var max_scale = ring_data.get("max_scale", 1.0)
 	var start_alpha = ring_data.get("start_alpha", 1.0)
+	var start_y_scale = ring_data.get("start_y_scale", 0.1)
+	var max_y_scale = ring_data.get("max_y_scale", 1.0)
 	
 	if not ring or not is_instance_valid(ring):
 		return true  # Remove invalid rings
@@ -167,22 +182,14 @@ func _update_ring_animation(ring_data: Dictionary, delta: float) -> bool:
 		ring.visible = false
 		return true
 	
-	# Update scale (ease out for natural expansion) - only X and Z axes, preserve Y
+	# Update scale (ease out for natural expansion)
 	var scale_progress = 1.0 - pow(1.0 - progress, 2.0)  # Ease out curve
 	var current_scale = base_ring_scale + (max_scale - base_ring_scale) * scale_progress
-	ring.scale = Vector3(current_scale, ring.scale.y, current_scale)  # Preserve Y from inspector
+	var current_y_scale = start_y_scale + (max_y_scale - start_y_scale) * scale_progress
+	ring.scale = Vector3(current_scale, current_y_scale, current_scale)
 	
-	# Update alpha (linear fade)
-	var alpha_progress = progress
-	var current_alpha = start_alpha * (1.0 - alpha_progress)
-	
-	# Apply alpha to material
-	if ring.material_override and ring.material_override is StandardMaterial3D:
-		var material = ring.material_override as StandardMaterial3D
-		material.albedo_color.a = current_alpha
-	elif ring.get_surface_override_material(0) and ring.get_surface_override_material(0) is StandardMaterial3D:
-		var material = ring.get_surface_override_material(0) as StandardMaterial3D
-		material.albedo_color.a = current_alpha
+	# Keep alpha solid - no fade animation
+	# Alpha remains at the start_alpha value set during initialization
 	
 	return false
 

@@ -156,7 +156,7 @@ class FlankingMovement extends MovementBehavior:
 			return Vector3.ZERO
 		
 		var player = enemy.get_player()
-		var player_pos = player.get_target_position() if player.has_method("get_target_position") else player.global_position
+		var player_pos = player.get_target_position(enemy.global_position) if player.has_method("get_target_position") else player.global_position
 		
 		# Cache the method check - only do it once
 		if not method_checked:
@@ -210,7 +210,7 @@ class CirclingMovement extends MovementBehavior:
 			return Vector3.ZERO
 		
 		var player = enemy.get_player()
-		var player_pos = player.get_target_position() if player.has_method("get_target_position") else player.global_position
+		var player_pos = player.get_target_position(enemy.global_position) if player.has_method("get_target_position") else player.global_position
 		
 		# Update circle angle
 		var angle_delta = circle_speed * delta

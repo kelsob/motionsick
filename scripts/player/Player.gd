@@ -67,10 +67,10 @@ var time_energy_manager: Node = null
 @export var pickup_time_threshold: float = 0.5
 
 # Bullet deflection system
-@export var deflect_range: float = 3.0
-@export var deflect_angle: float = 45.0  # Degrees
+@export var deflect_range: float = 8.0  # Increased from 3.0 for easier deflection
+@export var deflect_angle: float = 90.0  # Increased from 45.0 - much wider cone
 @export var deflect_speed_boost: float = 1.5  # Multiplier for deflected bullet speed
-@export var deflect_cooldown: float = 0.5  # Seconds between deflections
+@export var deflect_cooldown: float = 0.3  # Reduced from 0.5 for more responsive deflection
 var deflect_cooldown_timer: float = 0.0
 
 # === SIGNALS FOR GUN SYSTEM ===
@@ -666,6 +666,10 @@ func _find_deflectable_bullet() -> Node:
 		if angle > deflect_angle:
 			continue
 		
+		# Debug: Show what bullets are deflectable
+		var bullet_type = "Player" if bullet.is_player_bullet else "Enemy"
+		print("DEFLECT: Found deflectable ", bullet_type, " bullet at distance ", distance, " angle ", angle)
+		
 		# This bullet is valid and closer
 		if distance < closest_distance:
 			closest_distance = distance
@@ -688,13 +692,15 @@ func _create_deflection_effect(position: Vector3):
 
 # === TARGET POSITION FOR ENEMIES ===
 func get_camera_position() -> Vector3:
-	"""Get the camera position for enemy targeting - bullets aimed at player's head/camera level."""
+	"""Get the raw camera position without any offset."""
 	if camera:
-		return camera.global_position - Vector3.UP * 1.0  # Lower by 1 unit
+		return camera.global_position
 	else:
 		# Fallback to player center if camera not found
 		return global_position
 
-func get_target_position() -> Vector3:
-	"""Get the position enemies should aim at - same as camera position."""
-	return get_camera_position()
+func get_target_position(shooter_position: Vector3 = Vector3.ZERO) -> Vector3:
+	"""Get the position enemies should aim at - targets player's head/chest area."""
+	# Return camera position with a slight downward adjustment to aim at chest level
+	# This feels more natural than aiming at the very top of the head
+	return get_camera_position() + Vector3.DOWN * 0.3
