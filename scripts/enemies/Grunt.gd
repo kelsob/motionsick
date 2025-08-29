@@ -11,7 +11,7 @@ func _ready():
 	movement_speed = 6.0
 	detection_range = 15.0
 	attack_range = 3.0
-	turn_speed = 6.0
+	turn_speed = 15.0  # Faster rotation to keep up with direction changes
 	
 	# Set behaviors
 	movement_behavior_type = MovementBehavior.Type.CHASE

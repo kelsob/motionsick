@@ -56,13 +56,10 @@ class TracerData:
 			tracer_color = Color.YELLOW  # Fallback color
 
 func _ready():
-	print("TracerManager initialized")
+
 	# Connect to TimeManager
 	time_manager = get_node("/root/TimeManager")
-	if time_manager:
-		print("TracerManager connected to TimeManager")
-	else:
-		print("WARNING: TracerManager can't find TimeManager!")
+
 	
 	# Wait a frame to ensure GameManager is loaded
 	await get_tree().process_frame
@@ -71,16 +68,13 @@ func _ready():
 	var game_manager = get_node_or_null("/root/GameManager")
 	if game_manager:
 		game_manager.game_restart_requested.connect(_on_game_restart_requested)
-		print("TracerManager connected to GameManager")
-	else:
-		print("WARNING: TracerManager can't find GameManager")
 	
 	# Create tracer container when main scene is ready
 	call_deferred("_setup_tracer_container")
 
 func _setup_tracer_container():
 	"""Create tracer container in main scene."""
-	print("TracerManager: _setup_tracer_container() called")
+
 	var main_scene = get_tree().current_scene
 	if main_scene:
 		tracer_container = Node3D.new()
@@ -148,17 +142,17 @@ func _process(delta: float):
 func register_bullet(bullet: Area3D) -> int:
 	"""Register a bullet for tracer tracking. Returns bullet ID."""
 	if not tracer_enabled or not bullet:
-		print("TracerManager: Cannot register bullet - tracer disabled or bullet null")
+
 		return -1
 	
 	# Check if tracer container exists, if not try to create it
 	if not tracer_container:
-		print("TracerManager: No tracer container found, attempting to create one")
+
 		_setup_tracer_container()
 		
 		# If still no container, we can't register
 		if not tracer_container:
-			print("TracerManager: Failed to create tracer container")
+
 			return -1
 	
 	var bullet_id = next_bullet_id
@@ -167,7 +161,7 @@ func register_bullet(bullet: Area3D) -> int:
 	var tracer_data = TracerData.new(bullet)
 	active_tracers[bullet_id] = tracer_data
 	
-	print("TracerManager: Registered bullet ID ", bullet_id, " (total active: ", active_tracers.size(), ")")
+
 	
 	# Bullet registered for tracer tracking
 	return bullet_id
@@ -229,7 +223,7 @@ func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float, current
 		# Bullet has bounced! Clear segment history to avoid connecting across the bounce
 		tracer_data.segment_positions.clear()
 		tracer_data.last_known_bounces = current_bounces
-		print("TRACER: Bullet bounced! Clearing segment history to avoid cross-bounce connections.")
+
 	
 	if forward_raycast and backward_raycast:
 		# Use raycast to determine tracer start/end points
@@ -637,7 +631,7 @@ func _clear_all_tracers():
 
 func _on_game_restart_requested():
 	"""Called when game is restarting - reset tracer system"""
-	print("TracerManager: Game restart requested, resetting tracer system")
+
 	reset_tracer_system()
 
 func reset_tracer_system():

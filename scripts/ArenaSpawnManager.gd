@@ -27,11 +27,11 @@ enum EnemyType {
 # === ENEMY TYPE CONFIGURATION ===
 # Each enemy type has its own maximum count that increases over time
 var enemy_max_counts: Dictionary = {
-	EnemyType.GRUNT: 3,      # Start with 3 grunts
-	EnemyType.SNIPER: 5,     # Allow snipers for testing
-	EnemyType.FLANKER: 0,    # No flankers initially
-	EnemyType.RUSHER: 0,     # No rushers initially
-	EnemyType.ARTILLERY: 0   # No artillery initially
+	EnemyType.GRUNT: 1,      # Only spawn grunts for testing
+	EnemyType.SNIPER: 0,     # Disabled for now
+	EnemyType.FLANKER: 0,    # Disabled
+	EnemyType.RUSHER: 0,     # Disabled
+	EnemyType.ARTILLERY: 0   # Disabled
 }
 
 # When each enemy type should start appearing (in seconds)
@@ -45,8 +45,8 @@ var enemy_unlock_times: Dictionary = {
 
 # How much the max count increases per minute
 var enemy_growth_rates: Dictionary = {
-	EnemyType.GRUNT: 00.0,      # +1 grunt per minute
-	EnemyType.SNIPER: 50.5,     # +0.5 sniper per minute
+	EnemyType.GRUNT: 0.0,      # +1 grunt per minute
+	EnemyType.SNIPER: 0.0,     # +0.5 sniper per minute
 	EnemyType.FLANKER: 0.00,    # +0.5 flanker per minute
 	EnemyType.RUSHER: 0.0,     # +0.3 rusher per minute
 	EnemyType.ARTILLERY: 0.0   # +0.2 artillery per minute
@@ -68,6 +68,7 @@ var time_manager: Node = null
 # Telegraph system
 var telegraph_scene: PackedScene = preload("res://scenes/SpawnTelegraph.tscn")
 var pending_spawns: Array[Dictionary] = []  # Queue of telegraphed spawns
+var pending_spawns_by_type: Dictionary = {}  # Track pending spawns by enemy type
 
 # === SIGNALS ===
 signal enemy_spawned(enemy: BaseEnemy, enemy_type: EnemyType)
@@ -79,6 +80,7 @@ func _ready():
 	# Initialize enemy tracking
 	for enemy_type in EnemyType.values():
 		enemies_by_type[enemy_type] = 0
+		pending_spawns_by_type[enemy_type] = 0
 	
 	# Connect to time manager
 	time_manager = get_node_or_null("/root/TimeManager")
@@ -127,30 +129,14 @@ func _setup_spawn_markers():
 
 
 func _update_difficulty():
-	"""Update enemy maximums based on game time."""
-	var minutes_elapsed = game_time / 60.0
-	
-	for enemy_type in EnemyType.values():
-		# Check if this enemy type should be unlocked yet
-		if game_time < enemy_unlock_times[enemy_type]:
-			continue
-		
-		# Calculate new maximum based on growth rate
-		var base_count = 0
-		if enemy_type == EnemyType.GRUNT:
-			base_count = 3  # Start with 3 grunts
-		
-		var growth = enemy_growth_rates[enemy_type] * minutes_elapsed
-		var new_max = base_count + growth
-		
-		# Update if maximum has increased
-		if new_max > enemy_max_counts[enemy_type]:
-			enemy_max_counts[enemy_type] = new_max
-			#print("ArenaSpawnManager: ", EnemyType.keys()[enemy_type], " max increased to ", enemy_max_counts[enemy_type])
+	"""Update enemy maximums based on game time - RESPECTS TOP-LEVEL CONFIG."""
+	# DISABLED: Let the user control spawning via the top-level variables
+	# No more automatic difficulty scaling that overrides user settings
+	pass
 
 func _on_spawn_timer_timeout():
 	"""Called when it's time to attempt spawning."""
-	print("ArenaSpawnManager: Spawn timer timeout triggered")
+	#print("ArenaSpawnManager: Spawn timer timeout triggered")
 	
 	if not is_spawning:
 		print("ArenaSpawnManager: Not spawning, ignoring timer")
@@ -158,12 +144,12 @@ func _on_spawn_timer_timeout():
 	
 	# Only spawn if time isn't heavily slowed/frozen
 	if time_manager and time_manager.get_time_scale() < 0.1:
-		print("ArenaSpawnManager: Time scale too low (", time_manager.get_time_scale(), "), skipping spawn")
+		#print("ArenaSpawnManager: Time scale too low (", time_manager.get_time_scale(), "), skipping spawn")
 		# Skip spawning during heavy time dilation
 		spawn_timer.start()
 		return
 	
-	print("ArenaSpawnManager: Attempting to spawn enemy")
+	#print("ArenaSpawnManager: Attempting to spawn enemy")
 	# Try to spawn an enemy
 	_attempt_spawn()
 	
@@ -172,24 +158,37 @@ func _on_spawn_timer_timeout():
 
 func _attempt_spawn():
 	"""Attempt to spawn an enemy if we're under the maximum."""
+	print("ArenaSpawnManager: === SPAWN ATTEMPT DEBUG ===")
+	print("ArenaSpawnManager: Current enemy counts: ", enemies_by_type)
+	print("ArenaSpawnManager: Pending spawns: ", pending_spawns_by_type)
+	print("ArenaSpawnManager: Max enemy counts: ", enemy_max_counts)
+	print("ArenaSpawnManager: Total enemies alive: ", enemies_alive, "/", max_total_enemies)
+	
 	# Check debug toggle first
 	if disable_spawning:
+		print("ArenaSpawnManager: DEBUG: Spawning disabled")
 		return
 	
 	# Don't spawn if we're at the absolute maximum
 	if enemies_alive >= max_total_enemies:
+		print("ArenaSpawnManager: DEBUG: At total enemy maximum")
 		return
 	
 	# Find which enemy type to spawn
 	var spawn_type = _select_spawn_type()
+	print("ArenaSpawnManager: Selected spawn type: ", spawn_type, " (", EnemyType.keys()[spawn_type] if spawn_type >= 0 else "NONE", ")")
 	
 	if spawn_type == -1:  # Use -1 instead of null for no valid type
+		print("ArenaSpawnManager: DEBUG: No valid spawn type")
 		return  # No valid spawn type
 	
-	# Check if we're under the maximum for this type
-	if enemies_by_type[spawn_type] >= enemy_max_counts[spawn_type]:
+	# Check if we're under the maximum for this type (including pending spawns)
+	var total_count = enemies_by_type[spawn_type] + pending_spawns_by_type[spawn_type]
+	if total_count >= enemy_max_counts[spawn_type]:
+		print("ArenaSpawnManager: DEBUG: At maximum for type ", EnemyType.keys()[spawn_type], " (spawned: ", enemies_by_type[spawn_type], " + pending: ", pending_spawns_by_type[spawn_type], " = ", total_count, "/", enemy_max_counts[spawn_type], ")")
 		return  # At maximum for this type
 	
+	print("ArenaSpawnManager: DEBUG: SPAWNING ", EnemyType.keys()[spawn_type])
 	# Start spawn telegraph instead of immediate spawn
 	_start_spawn_telegraph(spawn_type)
 
@@ -197,7 +196,7 @@ func _select_spawn_type() -> int:
 	"""Select which enemy type to spawn based on current counts and availability."""
 	# TEMPORARY: Only spawn snipers for testing gunfire telegraphs
 	# Comment out the line below to return to normal spawning
-	return EnemyType.SNIPER
+	# return EnemyType.SNIPER
 	
 	# Original code:
 	var available_types: Array[int] = []
@@ -207,8 +206,9 @@ func _select_spawn_type() -> int:
 		if game_time < enemy_unlock_times[enemy_type]:
 			continue
 		
-		# Check if we're under the maximum for this type
-		if enemies_by_type[enemy_type] < enemy_max_counts[enemy_type]:
+		# Check if we're under the maximum for this type (including pending spawns)
+		var total_count = enemies_by_type[enemy_type] + pending_spawns_by_type[enemy_type]
+		if total_count < enemy_max_counts[enemy_type]:
 			available_types.append(enemy_type)
 	
 	# Return random available type, or -1 if none available
@@ -236,7 +236,7 @@ func _spawn_enemy(type: int) -> BaseEnemy:
 	
 	var enemy = enemy_scene.instantiate() as BaseEnemy
 	if not enemy:
-		print("ERROR: Failed to instantiate enemy of type: ", EnemyType.keys()[type])
+		print("ArenaSpawnManager: ERROR: Failed to instantiate enemy of type: ", EnemyType.keys()[type])
 		return null
 	
 	# Apply difficulty scaling
@@ -300,6 +300,10 @@ func _start_spawn_telegraph(enemy_type: int):
 	"""Start a spawn telegraph effect before actually spawning the enemy."""
 	var spawn_pos = _get_spawn_position()
 	
+	# TRACK PENDING SPAWN
+	pending_spawns_by_type[enemy_type] += 1
+	print("ArenaSpawnManager: Started telegraph for ", EnemyType.keys()[enemy_type], " - pending count now: ", pending_spawns_by_type[enemy_type])
+	
 	# Create telegraph effect from your scene
 	var telegraph = telegraph_scene.instantiate()
 	
@@ -331,10 +335,19 @@ func _start_spawn_telegraph(enemy_type: int):
 
 func _on_telegraph_completed(enemy_type: int, spawn_pos: Vector3):
 	"""Called when a telegraph finishes - actually spawn the enemy now."""
+	# REMOVE FROM PENDING SPAWNS
+	pending_spawns_by_type[enemy_type] -= 1
+	print("ArenaSpawnManager: Telegraph completed for ", EnemyType.keys()[enemy_type], " - pending count now: ", pending_spawns_by_type[enemy_type])
+	
 	var enemy = _spawn_enemy_at_position(enemy_type, spawn_pos)
 	if enemy:
 		enemies_alive += 1
 		enemies_by_type[enemy_type] += 1
+		
+		print("ArenaSpawnManager: === ENEMY SPAWNED ===")
+		print("ArenaSpawnManager: Type: ", EnemyType.keys()[enemy_type])
+		print("ArenaSpawnManager: New counts - Total: ", enemies_alive, ", Type: ", enemies_by_type[enemy_type])
+		print("ArenaSpawnManager: Max allowed: ", enemy_max_counts[enemy_type])
 		
 		# Connect to enemy death
 		enemy.enemy_died.connect(_on_enemy_died)
@@ -354,10 +367,15 @@ func _on_enemy_died(enemy: BaseEnemy):
 	"""Called when an enemy dies."""
 	enemies_alive -= 1
 	
+	print("ArenaSpawnManager: === ENEMY DIED ===")
+	print("ArenaSpawnManager: Enemy scene: ", enemy.scene_file_path.get_file().get_basename())
+	
 	# Find which type this enemy was and decrement its count
 	for enemy_type in EnemyType.values():
 		if enemy.scene_file_path.get_file().get_basename().to_upper() == EnemyType.keys()[enemy_type]:
 			enemies_by_type[enemy_type] -= 1
+			print("ArenaSpawnManager: Decremented ", EnemyType.keys()[enemy_type], " count to: ", enemies_by_type[enemy_type])
+			print("ArenaSpawnManager: Total enemies now: ", enemies_alive)
 			enemy_died.emit(enemy, enemy_type)
 			break
 
@@ -371,16 +389,11 @@ func _on_game_restart_requested():
 	# Reset enemy counts
 	for enemy_type in EnemyType.values():
 		enemies_by_type[enemy_type] = 0
+		pending_spawns_by_type[enemy_type] = 0
 	
-	# Reset enemy maximums to starting values
-	enemy_max_counts = {
-		EnemyType.GRUNT: 3,
-		EnemyType.SNIPER: 5,  # Allow snipers for testing
-		EnemyType.FLANKER: 0,
-		EnemyType.RUSHER: 0,
-		EnemyType.ARTILLERY: 0
-	}
-	print("ArenaSpawnManager: Reset enemy max counts - Sniper max: ", enemy_max_counts[EnemyType.SNIPER])
+	# DON'T RESET ENEMY MAXIMUMS - RESPECT USER'S TOP-LEVEL CONFIGURATION
+	# The user controls spawning via the variables at the top of this file
+	print("ArenaSpawnManager: Keeping user-defined enemy max counts - Grunt max: ", enemy_max_counts[EnemyType.GRUNT])
 	
 	# IMPORTANT: Restart spawning after reset
 	if auto_start:
@@ -465,15 +478,15 @@ func force_spawn_enemy(enemy_type: int):
 
 func print_status():
 	"""Debug function to print current spawning status."""
-	print("\n=== ARENA SPAWN MANAGER STATUS ===")
-	print("Game time: ", "%.1f" % game_time, " seconds")
-	print("Enemies alive: ", enemies_alive, "/", max_total_enemies)
-	print("Spawning: ", is_spawning)
-	print("\nEnemy counts:")
+	print("ArenaSpawnManager: \n=== ARENA SPAWN MANAGER STATUS ===")
+	print("ArenaSpawnManager: Game time: ", "%.1f" % game_time, " seconds")
+	print("ArenaSpawnManager: Enemies alive: ", enemies_alive, "/", max_total_enemies)
+	print("ArenaSpawnManager: Spawning: ", is_spawning)
+	print("ArenaSpawnManager: \nEnemy counts:")
 	for enemy_type in EnemyType.values():
 		var type_name = EnemyType.keys()[enemy_type]
 		var current = enemies_by_type[enemy_type]
 		var maximum = enemy_max_counts[enemy_type]
 		var unlocked = game_time >= enemy_unlock_times[enemy_type]
-		print("  ", type_name, ": ", current, "/", maximum, " (unlocked: ", unlocked, ")")
-	print("===============================\n")
+		print("ArenaSpawnManager:   ", type_name, ": ", current, "/", maximum, " (unlocked: ", unlocked, ")")
+	print("ArenaSpawnManager: ===============================\n")

@@ -17,6 +17,9 @@ class_name BaseEnemy
 @export var movement_behavior_type: MovementBehavior.Type = MovementBehavior.Type.CHASE
 @export var attack_behavior_type: AttackBehavior.Type = AttackBehavior.Type.MELEE
 
+
+
+
 @export_group("Visual Settings")
 @export var enemy_color: Color = Color.RED
 @export var size_scale: float = 1.0
@@ -37,10 +40,14 @@ var original_color: Color
 var movement_behavior: MovementBehavior
 var attack_behavior: AttackBehavior
 
-# Movement state
-var target_position: Vector3
-var movement_direction: Vector3
+# Movement state - BASIC NAVIGATION
 var distance_to_player: float
+var speed: float = 3.5
+var gravity: float = 9.8
+var rotation_speed: float = 5.0
+
+# Navigation system - BASIC IMPLEMENTATION
+@onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
 
 # Performance optimization for signal emission
 var player_detection_signaled: bool = false
@@ -54,6 +61,7 @@ var time_affected: TimeAffected = null
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 @onready var attack_timer: Timer = $AttackTimer
 @onready var state_timer: Timer = $StateTimer
+@onready var raycast: RayCast3D = $RayCast3D
 
 # === SIGNALS ===
 signal health_changed(current: int, max: int)
@@ -65,6 +73,10 @@ signal attack_finished()
 func _ready():
 	# Initialize health
 	current_health = max_health
+	
+	# Sync movement and rotation speeds - use the exported values instead of hardcoded ones
+	speed = movement_speed
+	rotation_speed = turn_speed
 	
 	# Find player
 	player = get_tree().get_first_node_in_group("player")
@@ -83,8 +95,9 @@ func _ready():
 	collision_layer = 128  # Enemy layer (bit 8)
 	collision_mask = 5     # Environment (4) + Player (1) = 5
 	
-	# Add to enemy group
+	# Add to enemy groups
 	add_to_group("enemies")
+	add_to_group("enemy")  # For main script targeting
 	
 	# Initialize behaviors
 	_setup_behaviors()
@@ -97,6 +110,13 @@ func _ready():
 	state_timer.timeout.connect(_on_state_timer_timeout)
 	
 	print("Enemy spawned: ", name, " | Movement: ", MovementBehavior.Type.keys()[movement_behavior_type], " | Attack: ", AttackBehavior.Type.keys()[attack_behavior_type])
+	print("  Speed synced: movement_speed=", movement_speed, " -> speed=", speed)
+	print("  Rotation synced: turn_speed=", turn_speed, " -> rotation_speed=", rotation_speed)
+	
+	# ENSURE RAYCAST IS IN CORRECT LOCAL POSITION
+	if raycast:
+		raycast.target_position = Vector3(0, 0, -5)  # Reset to proper forward direction
+		print("  Raycast reset to local forward: ", raycast.target_position)
 
 func _setup_behaviors():
 	"""Initialize movement and attack behaviors based on configuration."""
@@ -120,6 +140,8 @@ func _setup_appearance():
 		material.emission_enabled = true
 		material.emission = enemy_color * 0.3
 		mesh.material_override = material
+
+
 
 func _physics_process(delta):
 	# Handle death fade animation
@@ -158,14 +180,9 @@ func _update_player_tracking():
 		player_detection_signaled = false
 
 func _update_movement(delta):
-	"""Update movement using the assigned movement behavior."""
-	if movement_behavior:
-		# Check if time is frozen - if so, don't update movement direction
-		var is_frozen = time_affected and time_affected.is_time_frozen()
-		if is_frozen:
-			movement_direction = Vector3.ZERO  # Reset movement when frozen
-		else:
-			movement_direction = movement_behavior.get_movement_direction(delta)
+	"""Movement handled by basic navigation - no behavior system needed."""
+	# Basic navigation handles movement directly via _apply_movement()
+	pass
 
 func _update_attack_logic(delta):
 	"""Update attack logic using the assigned attack behavior."""
@@ -174,49 +191,76 @@ func _update_attack_logic(delta):
 			_start_attack()
 
 func _apply_movement(delta):
-	"""Apply movement to the enemy."""
-	if movement_direction.length() > 0:
-		# Direct position movement instead of expensive move_and_slide()
-		var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
-		var movement = movement_direction * movement_speed * effective_time_scale * delta
+	"""EXACT implementation from video tutorial with debug for grunts."""
+	# Get time-adjusted delta for consistent movement speed
+	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
+	
+	if not is_on_floor():
+		velocity.y -= gravity * delta  # Keep gravity at real-time
+	else:
+		velocity.y -= 2
+	
+	var next_location = nav_agent.get_next_path_position()
+	var current_location = global_transform.origin
+	
+	# Scale speed by time for proper time dilation
+	var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
+	var time_scaled_speed = speed * effective_time_scale
+	var new_velocity = (next_location - current_location).normalized() * time_scaled_speed
+	
+	# DEBUG: Print movement info for grunts
+	if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
+		print("GRUNT DEBUG - ", name)
+		print("  Current pos: ", current_location)
+		print("  Next nav pos: ", next_location)
+		print("  Nav target: ", nav_agent.target_position)
+		print("  Speed (BaseEnemy): ", speed)
+		print("  Time-scaled speed: ", time_scaled_speed)
+		print("  Speed (Grunt): ", movement_speed)
+		print("  New velocity: ", new_velocity)
+		print("  Distance to nav target: ", next_location.distance_to(current_location))
+		print("  Nav agent is navigating: ", nav_agent.is_navigation_finished() == false)
+		print("  Nav agent path exists: ", not nav_agent.is_target_reachable())
+		print("  Time delta: ", time_delta, " (real: ", delta, ")")
+		print("  Effective time scale: ", effective_time_scale)
+	
+	# Use normal movement interpolation (velocity is already time-scaled)
+	velocity = velocity.move_toward(new_velocity, 0.25)
+	move_and_slide()
+	
+	# Leave raycast alone - it should rotate with the enemy automatically
+	
+	# FUCK THE NAVIGATION DIRECTION - USE ACTUAL VELOCITY DIRECTION
+	var velocity_direction = Vector3(velocity.x, 0, velocity.z)
+	
+	if velocity_direction.length() > 0.1:
+		# SMOOTH rotation toward velocity direction - respecting time scale
+		# For Godot: -Z is forward, so add PI to flip from +Z to -Z
+		var velocity_angle = atan2(velocity_direction.x, velocity_direction.z) + PI
+		var old_rotation = rotation.y
 		
-		# Lightweight collision checks before moving
-		var new_position = global_position + movement
+		# Smooth rotation with time-scaled interpolation
+		rotation.y = lerp_angle(rotation.y, velocity_angle, rotation_speed * time_delta)
 		
-		# 1. Ground detection with raycast to handle variable terrain
-		var space_state = get_world_3d().direct_space_state
-		var ground_query = PhysicsRayQueryParameters3D.create(
-			new_position + Vector3.UP * 1.0,  # Start 1 unit above new position
-			new_position + Vector3.DOWN * 5.0,  # Cast down 5 units below new position
-			4  # Environment layer only (bit 3 = value 4)
-		)
-		ground_query.exclude = [self]  # Don't hit self
-		
-		var ground_result = space_state.intersect_ray(ground_query)
-		if ground_result:
-			# Found ground - place enemy on surface
-			new_position.y = ground_result.position.y + 2.0  # +1.0 to account for mesh center being at enemy's center
-		else:
-			# No ground found - use fallback constraint
-			if new_position.y < 2.0:
-				new_position.y = 2.0
-		
-		# 2. Simple enemy separation - avoid overlapping with other enemies
-		var enemies = get_tree().get_nodes_in_group("enemies")
-		for other_enemy in enemies:
-			if other_enemy == self or not is_instance_valid(other_enemy):
-				continue
-			var distance = new_position.distance_to(other_enemy.global_position)
-			if distance < 2.0:  # Too close to another enemy
-				var push_direction = (new_position - other_enemy.global_position).normalized()
-				new_position += push_direction * (2.0 - distance)  # Push away
-		
-		global_position = new_position
-		
-		# Simple rotation to face movement direction - Y-axis only
-		if movement_direction.length() > 0.01:
-			var target_angle = atan2(movement_direction.x, movement_direction.z)
-			global_rotation.y = lerp_angle(global_rotation.y, target_angle, turn_speed * delta)
+		# DEBUG: Print rotation info for grunts
+		if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
+			print("  SMOOTH VELOCITY ROTATION DEBUG:")
+			print("    Actual velocity: ", velocity_direction)
+			print("    Target velocity angle (deg): ", rad_to_deg(velocity_angle))
+			print("    OLD rotation.y: ", rad_to_deg(old_rotation))
+			print("    NEW rotation.y: ", rad_to_deg(rotation.y))
+			print("    Rotation progress: ", rad_to_deg(velocity_angle - old_rotation))
+			print("    Rotation speed: ", rotation_speed, " Time delta: ", time_delta)
+			if raycast:
+				print("    Raycast target: ", raycast.target_position)
+
+func target_position(target):
+	"""Set the navigation target position - called by Main script."""
+	nav_agent.target_position = target
+	
+	# DEBUG: Print target updates for grunts
+	if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
+		print("GRUNT NAV TARGET UPDATE - ", name, ": ", target)
 
 func _start_attack():
 	"""Initiate an attack."""
@@ -384,13 +428,7 @@ func is_player_visible() -> bool:
 	
 	return visibility_cache
 
-func set_target_position(pos: Vector3):
-	"""Set a target position for movement behaviors."""
-	target_position = pos
 
-func get_target_position() -> Vector3:
-	"""Get current target position."""
-	return target_position
 
 # === BEHAVIOR CONFIGURATION ===
 

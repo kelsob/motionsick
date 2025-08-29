@@ -6,6 +6,9 @@ extends Node3D
 @export_group("Debug Options")
 @export var disable_enemy_spawning: bool = false  # Turn off all enemy spawning for testing
 
+# Navigation targeting
+@onready var target = $Player
+
 func _ready():
 	# Pass debug settings to spawn manager
 	if disable_enemy_spawning:
@@ -15,3 +18,7 @@ func _ready():
 			print("Main: Enemy spawning disabled via debug toggle")
 	
 	print("Main scene ready")
+
+func _process(delta):
+	# Update all enemies with player position for navigation targeting
+	get_tree().call_group("enemy", "target_position", target.global_transform.origin)

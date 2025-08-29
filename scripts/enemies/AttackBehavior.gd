@@ -135,7 +135,13 @@ func create_gunfire_telegraph(fire_position: Vector3, callback: Callable, total_
 	
 	# Add to enemy
 	enemy.add_child(telegraph)
-	telegraph.position = Vector3.UP * 0.5  # Just above enemy
+	
+	# Position at bullet spawn point
+	var bullet_spawn_point = enemy.get_node_or_null("BulletSpawnPoint")
+	if bullet_spawn_point:
+		telegraph.global_position = bullet_spawn_point.global_position
+	else:
+		telegraph.position = Vector3.UP * 0.5  # Fallback
 	telegraph.rotation_degrees.x = 90  # Rotate to face forward instead of lying flat
 	
 	print("Telegraph created and added to enemy")

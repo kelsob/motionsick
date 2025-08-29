@@ -507,8 +507,6 @@ func take_damage(damage: int) -> bool:
 	# Stop all movement
 	velocity = Vector3.ZERO
 	
-	return true  # Damage was taken
-	
 	# Disable gun completely
 	if gun:
 		gun.set_process(false)
@@ -531,6 +529,8 @@ func take_damage(damage: int) -> bool:
 	# Optional: Add death visual/audio effects here
 	# For now, just print death message
 	print("PLAYER DIED - Game Over!")
+	
+	return true  # Damage was taken
 
 # === GUN PICKUP SYSTEM ===
 
