@@ -411,7 +411,17 @@ class ChargedAttack extends AttackBehavior:
 	
 	func _can_attack() -> bool:
 		# Snipers can attack from any distance if they can see the player
-		return enemy.is_player_visible() and not is_charging
+		var can_see = enemy.is_player_visible()
+		var not_charging = not is_charging
+		var can_attack = can_see and not_charging
+		
+		# DEBUG: Print sniper attack logic
+		print("SNIPER ATTACK DEBUG - ", enemy.name)
+		print("  Can see player: ", can_see)
+		print("  Not charging: ", not_charging)
+		print("  Can attack: ", can_attack)
+		
+		return can_attack
 	
 	func execute_attack():
 		super()

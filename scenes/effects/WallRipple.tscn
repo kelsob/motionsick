@@ -26,18 +26,18 @@ albedo_color = Color(0, 1, 0.866667, 1)
 script = ExtResource("1_kg0mk")
 ring1_max_scale = 2.0
 ring1_start_alpha = 1.0
-ring1_start_y_scale = 5.0
+ring1_start_y_scale = 2.0
 ring1_max_y_scale = 0.0
 ring2_max_scale = 1.75
 ring2_duration = 0.4
 ring2_start_alpha = 1.0
 ring2_delay = 0.0
-ring2_start_y_scale = 2.0
+ring2_start_y_scale = 1.5
 ring2_max_y_scale = 0.0
 ring3_max_scale = 1.5
 ring3_duration = 0.4
 ring3_delay = 0.0
-ring3_start_y_scale = 1.0
+ring3_start_y_scale = 1.25
 ring3_max_y_scale = 0.0
 
 [node name="Ring1" type="MeshInstance3D" parent="."]

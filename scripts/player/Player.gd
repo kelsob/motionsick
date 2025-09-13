@@ -625,11 +625,8 @@ func _try_deflect_bullet():
 	# Get deflection direction (where player is looking)
 	var deflect_direction = -camera.global_transform.basis.z.normalized()
 	
-	# Deflect the bullet
+	# Deflect the bullet (bullet will create its own effect)
 	target_bullet.deflect_bullet(deflect_direction, deflect_speed_boost)
-	
-	# Create deflection effect
-	_create_deflection_effect(target_bullet.global_position)
 	
 	# Start cooldown
 	deflect_cooldown_timer = deflect_cooldown

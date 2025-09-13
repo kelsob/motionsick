@@ -12,72 +12,149 @@ enum TravelType {
 	DELAYED_HITSCAN    # Brief delay then instant
 }
 
-# === CONFIGURATION ===
-@export var base_speed: float = 20.0  # Reduced from 40.0
-@export var lifetime: float = 30.0  # Very long lifetime so bullets don't disappear while player catches up
+## === EXPORTED CONFIGURATION ===
+@export_group("Basic Properties")
+## Base speed for bullet movement
+@export var base_speed: float = 20.0
+## Maximum time bullet can exist before self-destructing
+@export var lifetime: float = 30.0
+## Travel behavior type for this bullet
 @export var travel_type: TravelType = TravelType.CONSTANT_FAST
 
-# Time system integration
-@export var time_resistance: float = 0.0  # 0.0 = fully affected by time, 1.0 = immune
+@export_group("Time System Integration")
+## Time resistance (0.0 = fully affected by time, 1.0 = immune to time effects)
+@export var time_resistance: float = 0.0
 
-# Visual properties
-@export var tracer_color: Color = Color.YELLOW  # Default tracer color (gets overridden)
-@export var spin_speed: float = 720.0  # Degrees per second rotation around z-axis
+@export_group("Visual Properties")
+## Tracer color for this bullet
+@export var tracer_color: Color = Color.YELLOW
+## Spinning speed in degrees per second around z-axis
+@export var spin_speed: float = 720.0
 
-# Color constants removed - using different bullet scenes instead
+@export_group("Travel Behavior Settings")
+## Maximum speed the bullet can reach
+@export var max_speed: float = 40.0
+## Minimum speed the bullet can have
+@export var min_speed: float = 5.0
+## Acceleration rate for speed changes (units/second²)
+@export var acceleration_rate: float = 60.0
+## Deceleration rate for speed changes (units/second²)
+@export var deceleration_rate: float = 30.0
+## Frequency of speed pulses for PULSE_SPEED travel type (pulses per second)
+@export var pulse_frequency: float = 3.0
+## Delay before hitscan activation for DELAYED_HITSCAN travel type (seconds)
+@export var hitscan_delay: float = 0.1
 
-# === TRAVEL BEHAVIOR SETTINGS ===
-var max_speed: float = 40.0  # Reduced from 80.0
-var min_speed: float = 5.0   # Reduced from 10.0
-var acceleration_rate: float = 60.0  # Reduced from 120.0 (units/second^2)
-var deceleration_rate: float = 30.0  # Reduced from 60.0
-var pulse_frequency: float = 3.0  # pulses per second
-var hitscan_delay: float = 0.1  # seconds before hitscan
+@export_group("Bounce Properties")
+## Whether this bullet can bounce off surfaces
+@export var can_bounce: bool = false
+## Maximum number of bounces before bullet dies
+@export var max_bounces: int = 3
+## Energy lost per bounce (0.0 = no loss, 1.0 = all energy lost)
+@export_range(0.0, 1.0) var bounce_energy_loss: float = 0.2
 
-# === STATE ===
+@export_group("Combat Properties")
+## Default damage value for this bullet
+@export var default_damage: int = 25
+## Default knockback force applied to targets
+@export var default_knockback: float = 1.0
+
+@export_group("Recall System")
+## Speed multiplier when bullet is being recalled to player
+@export var recall_speed_multiplier: float = 2.0
+## How fast bullet turns toward player during recall (0.0-1.0, higher = faster)
+@export_range(0.0, 1.0) var recall_turn_speed: float = 0.8
+## Distance from player position to target when recalling (Y offset)
+@export var recall_target_offset_y: float = 1.0
+## Distance at which recalled bullet is considered to have reached player
+@export var recall_completion_distance: float = 1.5
+
+@export_group("Collision Detection")
+## Hitscan maximum range for instant travel bullets
+@export var hitscan_max_range: float = 1000.0
+## Environment collision layer bit value
+@export var environment_collision_mask: int = 4
+## Enemy collision layer bit value  
+@export var enemy_collision_mask: int = 128
+## Player collision layer bit value
+@export var player_collision_mask: int = 1
+
+@export_group("Effects and Visual")
+## Effect duration for impact effects
+@export var impact_effect_duration: float = 0.25
+## Effect duration for bounce impact effects
+@export var bounce_effect_duration: float = 0.2
+## Effect duration for piercing impact effects
+@export var pierce_effect_duration: float = 0.15
+
+@export_group("Curve Acceleration Settings")
+## Time to reach maximum speed for CURVE_ACCELERATE travel type
+@export var curve_acceleration_time: float = 1.0
+
+@export_group("Safety and Collision Prevention")
+## Distance to move bullet away from surfaces after deflection
+@export var deflection_safety_distance: float = 0.3
+## Minimum check distance for surface tunneling prevention
+@export var tunneling_check_distance: float = 0.5
+## Corner detection radius for bounce calculations
+@export var corner_detection_radius: float = 0.5
+## Maximum corner detection distance for emergency situations
+@export var corner_danger_distance: float = 0.3
+
+@export_group("Debug Settings")
+## Enable debug output for explosion events
+@export var debug_explosions: bool = false
+## Enable debug output for piercing events  
+@export var debug_piercing: bool = false
+## Enable debug output for bounce events
+@export var debug_bouncing: bool = false
+## Enable debug output for deflection events
+@export var debug_deflection: bool = false
+## Enable debug output for collision events
+@export var debug_collisions: bool = false
+## Enable debug output for recall events
+@export var debug_recall: bool = false
+
+## === RUNTIME STATE ===
+# Timing and lifecycle
 var life_timer: float = 0.0
 var has_been_fired: bool = false
+var has_hit_target: bool = false
+
+# References
 var gun_reference: Node3D = null
 var muzzle_marker: Node3D = null
-var damage: int = 25  # Default damage value
-var knockback: float = 1.0  # Default knockback value
-var has_hit_target: bool = false  # Prevent multiple hits
-var is_player_bullet: bool = false  # Track if this bullet was fired by the player
-var shooter: Node = null  # Store reference to entity that fired this bullet for self-collision prevention
-
-# Bullet type now determined by scene instead of enum
-
-# Time system
+var shooter: Node = null
 var time_affected: TimeAffected = null
+
+# Combat properties (runtime)
+var damage: int = 25
+var knockback: float = 1.0
+var is_player_bullet: bool = false
 
 # Tracer system
 var tracer_id: int = -1
 
-# Explosion properties
+# Explosion properties (runtime)
 var is_explosive: bool = false
 var explosion_radius: float = 0.0
 var explosion_damage: int = 0
 
-# Piercing properties
-var piercing_value: float = 0.0  # How much piercing power the bullet has
-var has_pierced: bool = false  # Track if bullet has pierced through anything
+# Piercing properties (runtime)
+var piercing_value: float = 0.0
+var has_pierced: bool = false
 
-# Bullet recall properties
-var is_being_recalled: bool = false  # True when bullet is returning to player
-var recall_speed_multiplier: float = 2.0  # How much faster bullet moves when recalled
-var recall_turn_speed: float = 0.8  # How fast bullet turns toward player (0-1, higher = faster turn)
-var recall_target_position: Vector3 = Vector3.ZERO  # Current target position (player)
+# Recall properties (runtime)
+var is_being_recalled: bool = false
+var recall_target_position: Vector3 = Vector3.ZERO
 
-# Bullet deflection properties
-var has_been_deflected: bool = false  # Track if bullet was deflected by player
+# Deflection properties (runtime)
+var has_been_deflected: bool = false
 
-# Bounce properties
-@export var can_bounce: bool = false  # Whether this bullet can bounce off surfaces
-@export var max_bounces: int = 3  # Maximum number of bounces before bullet dies
-@export_range(0.0, 1.0) var bounce_energy_loss: float = 0.2  # Energy lost per bounce (0.0 = no loss, 1.0 = all energy lost)
-var current_bounces: int = 0  # Current number of bounces performed
+# Bounce properties (runtime)
+var current_bounces: int = 0
 
-# Travel behavior state
+# Travel behavior state (runtime)
 var current_speed: float = 0.0
 var travel_direction: Vector3 = Vector3.ZERO
 var initial_position: Vector3 = Vector3.ZERO
@@ -97,6 +174,10 @@ var hitscan_timer: float = 0.0
 # Effects now animate themselves using timers instead of relying on bullet's _process
 
 func _ready():
+	# Initialize runtime values from defaults
+	damage = default_damage
+	knockback = default_knockback
+	
 	# Add to bullets group for pickup detection
 	add_to_group("bullets")
 	
@@ -227,11 +308,11 @@ func recall_to_player():
 	# Find player position
 	var player = get_tree().get_first_node_in_group("player")
 	if player:
-		recall_target_position = player.global_position + Vector3(0, 1.0, 0)
-
+		recall_target_position = player.global_position + Vector3(0, recall_target_offset_y, 0)
 		return true
 	else:
-		#print("WARNING: Could not find player for bullet recall")
+		if debug_recall:
+			print("WARNING: Could not find player for bullet recall")
 		is_being_recalled = false
 		return false
 
@@ -322,7 +403,7 @@ func _update_travel_behavior(time_delta: float):
 			current_speed = max(min_speed, current_speed - deceleration_rate * time_delta)
 		TravelType.CURVE_ACCELERATE:
 			# Smooth acceleration curve using easing
-			var progress = min(1.0, life_timer / 1.0)  # 1 second to reach max speed
+			var progress = min(1.0, life_timer / curve_acceleration_time)
 			var ease_factor = ease_out_cubic(progress)
 			current_speed = lerp(min_speed, max_speed, ease_factor)
 		TravelType.PULSE_SPEED:
@@ -344,7 +425,7 @@ func _update_recalled_movement(time_scale: float, time_delta: float):
 	# Update player position continuously
 	var player = get_tree().get_first_node_in_group("player")
 	if player:
-		recall_target_position = player.global_position + Vector3(0, 1.0, 0)
+		recall_target_position = player.global_position + Vector3(0, recall_target_offset_y, 0)
 	else:
 		# Player not found, stop recall
 		is_being_recalled = false
@@ -363,7 +444,7 @@ func _update_recalled_movement(time_scale: float, time_delta: float):
 	
 	# Check if bullet reached player
 	var distance_to_player = global_position.distance_to(recall_target_position)
-	if distance_to_player < 1.5:
+	if distance_to_player < recall_completion_distance:
 		_handle_bullet_return_to_player()
 
 func _handle_bullet_return_to_player():
@@ -385,12 +466,11 @@ func _fire_hitscan():
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(
 		start_pos,
-		start_pos + travel_direction * 1000.0  # Long range
+		start_pos + travel_direction * hitscan_max_range
 	)
 	
-	# Hit Environment (layer 3, bit value 4) + Enemy (layer 8, bit value 128) = 132
-	query.collision_mask = 132 + 1  # Environment (layer 3, bit 4) + Enemy (layer 8, bit 128) + Player layer (bit 1) = 133
-	# Note: Including Player layer temporarily since environment might be on layer 1 instead of layer 3 
+	# Combine collision masks for environment, enemies, and player
+	query.collision_mask = environment_collision_mask + enemy_collision_mask + player_collision_mask
 	query.exclude = [get_tree().get_first_node_in_group("player")]  # Exclude player
 	
 
@@ -407,25 +487,27 @@ func _fire_hitscan():
 		# Move to hit position
 		global_position = result.position
 	else:
-
 		# No hit, travel max distance
-		end_pos = start_pos + travel_direction * 1000.0
+		end_pos = start_pos + travel_direction * hitscan_max_range
 		global_position = end_pos
 	
 	# Visual effects handled by TracerManager
 	
 	# Handle collision if we hit something
 	if hit_body:
-		#print("Attempting to apply damage to: ", hit_body.name)
+		if debug_collisions:
+			print("Attempting to apply damage to: ", hit_body.name)
 		# Apply damage directly for hitscan
 		if hit_body.has_method("take_damage"):
-			#print("SUCCESS: Applying hitscan damage: ", damage)
+			if debug_collisions:
+				print("SUCCESS: Applying hitscan damage: ", damage)
 			hit_body.take_damage(damage)
 		has_hit_target = true
 		_cleanup_bullet()
 		queue_free()
 	else:
-		#print("No damage to apply - no target hit")
+		if debug_collisions:
+			print("No damage to apply - no target hit")
 		_cleanup_bullet()
 		queue_free()
 	
@@ -473,7 +555,8 @@ func _on_body_entered(body):
 			var damage_applied = body.take_damage(damage)
 			# If damage was prevented on player (time dilation), don't free the bullet
 			if is_player_target and damage_applied == false:  # Explicitly check for false
-				#print("⏰ BULLET: Player damage prevented, bullet continues")
+				if debug_collisions:
+					print("⏰ BULLET: Player damage prevented, bullet continues")
 				return  # Don't free bullet, let it continue
 			
 			# Apply knockback if enemy supports it
@@ -482,15 +565,17 @@ func _on_body_entered(body):
 				body.apply_knockback(knockback_direction, knockback)
 
 		
-		has_hit_target = true
 		is_being_recalled = false  # Stop any active recall
 		
 		# Handle piercing logic (regardless of damage)
 		if piercing_value > 0.0:
-			#print("IMPACT Piercing through target, continuing bullet")
+			if debug_piercing:
+				print("IMPACT Piercing through target, continuing bullet")
 			_handle_piercing(body, global_position)
+			# DON'T set has_hit_target = true for piercing bullets - they should remain deflectable
 		else:
-			# No piercing - create explosion and destroy bullet
+			# No piercing - mark as hit and destroy bullet
+			has_hit_target = true
 			if is_explosive:
 				_create_bullet_explosion(global_position)
 			_cleanup_bullet()
@@ -537,15 +622,18 @@ func _on_body_entered(body):
 				queue_free()
 				return
 		else:
-			#print("VERTEX IMPACT could not determine precise impact")
+			if debug_bouncing:
+				print("VERTEX IMPACT could not determine precise impact")
 			
 			# Create wall ripple with fallback data
 			_create_wall_ripple_fallback(body)
 			
 			# Fallback - try simple bounce if we're supposed to bounce
-			#print("BOUNCE CHECK (fallback): current_bounces=", current_bounces, " max_bounces=", max_bounces, " can_bounce=", can_bounce)
+			if debug_bouncing:
+				print("BOUNCE CHECK (fallback): current_bounces=", current_bounces, " max_bounces=", max_bounces, " can_bounce=", can_bounce)
 			if can_bounce and current_bounces <= max_bounces:
-				#print("VERTEX FALLBACK: Attempting simple bounce without vertex data")
+				if debug_bouncing:
+					print("VERTEX FALLBACK: Attempting simple bounce without vertex data")
 				_handle_simple_fallback_bounce()
 				return  # Don't destroy bullet
 			else:
@@ -558,7 +646,8 @@ func _on_body_entered(body):
 				return
 		
 		# Environment hit but no bouncing - stop bullet
-		#print("IMPACT Environment hit - stopping bullet")
+		if debug_collisions:
+			print("IMPACT Environment hit - stopping bullet")
 		if is_explosive:
 			_create_bullet_explosion(global_position)
 		else:
@@ -570,14 +659,16 @@ func _on_body_entered(body):
 		
 	# If we get here, unknown collision - stop the bullet
 	else:
-		#print("IMPACT Unknown collision with: ", body.name, " - stopping bullet")
+		if debug_collisions:
+			print("IMPACT Unknown collision with: ", body.name, " - stopping bullet")
 		# Create impact effect for unknown collision
 		_create_environment_impact_effect(global_position)
 		has_hit_target = true
 		_cleanup_bullet()
 		queue_free()
 	
-	#print("=== END COLLISION INFO ===")
+	if debug_collisions:
+		print("=== END COLLISION INFO ===")
 
 func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bounced_from_body: Node3D):
 	"""Handle bouncing using precise vertex impact data."""
@@ -606,9 +697,10 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 			up_vector = Vector3.FORWARD
 		look_at(global_position + travel_direction, up_vector)
 	
-	#print("BULLET BOUNCE: Atomic update - Position: ", old_position, " -> ", global_position)
-	#print("BULLET BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
-	#print("BULLET BOUNCE: New direction: ", travel_direction)
+	if debug_bouncing:
+		print("BULLET BOUNCE: Atomic update - Position: ", old_position, " -> ", global_position)
+		print("BULLET BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
+		print("BULLET BOUNCE: New direction: ", travel_direction)
 	
 	var shapecast = get_node_or_null("ShapeCast3D")
 	if shapecast:
@@ -658,7 +750,7 @@ func _handle_simple_fallback_bounce():
 	var ray_end = global_position + travel_direction.normalized() * 0.3
 	
 	var query = PhysicsRayQueryParameters3D.create(ray_start, ray_end)
-	query.collision_mask = 4  # Environment layer
+	query.collision_mask = environment_collision_mask
 	query.exclude = [self]
 	
 	var result = space_state.intersect_ray(query)
@@ -687,13 +779,13 @@ func _handle_simple_fallback_bounce():
 			up_vector = Vector3.FORWARD
 		look_at(global_position + travel_direction, up_vector)
 	
-	#print("FALLBACK Smart bounce complete - new direction: ", travel_direction)
-	#print("FALLBACK New position: ", global_position)
+	if debug_bouncing:
+		print("FALLBACK Smart bounce complete - new direction: ", travel_direction)
+		print("FALLBACK New position: ", global_position)
 
 func _is_environment(body: Node3D) -> bool:
 	"""Check if the body is environment (walls, floors, etc.) based on collision layer."""
-	# Environment should be on collision layer 3 (bit value 4)
-	return (body.collision_layer & 4) != 0
+	return (body.collision_layer & environment_collision_mask) != 0
 
 func _get_surface_impact_position(hit_body: Node3D) -> Vector3:
 	"""Calculate the actual surface impact position using raycast with debugging."""
@@ -732,8 +824,9 @@ func _get_surface_impact_position(hit_body: Node3D) -> Vector3:
 
 func _handle_piercing(enemy: Node3D, impact_position: Vector3):
 	"""Handle piercing logic when bullet hits an enemy."""
-	#print("=== PIERCING LOGIC ===")
-	#print("Bullet piercing value: ", piercing_value)
+	if debug_piercing:
+		print("=== PIERCING LOGIC ===")
+		print("Bullet piercing value: ", piercing_value)
 	
 	# Get enemy piercability
 	var enemy_piercability = 1.0  # Default
@@ -742,21 +835,24 @@ func _handle_piercing(enemy: Node3D, impact_position: Vector3):
 	elif enemy.has("piercability"):
 		enemy_piercability = enemy.piercability
 	
-	#print("Enemy piercability: ", enemy_piercability)
+	if debug_piercing:
+		print("Enemy piercability: ", enemy_piercability)
 	
 	# Reduce piercing value by enemy's piercability
 	piercing_value = max(0.0, piercing_value - enemy_piercability)
 	has_pierced = true
 	
-	#print("Piercing value after hit: ", piercing_value)
+	if debug_piercing:
+		print("Piercing value after hit: ", piercing_value)
 	
 	# Create piercing impact effect (red to distinguish from regular impacts)
 	if TracerManager:
-		TracerManager.create_impact(impact_position, Color.RED, 0.15)
+		TracerManager.create_impact(impact_position, Color.RED, pierce_effect_duration)
 	
 	# Check if piercing is exhausted
 	if piercing_value <= 0.0:
-		#print("Bullet stopped - piercing exhausted")
+		if debug_piercing:
+			print("Bullet stopped - piercing exhausted")
 		if is_explosive:
 			_create_bullet_explosion(impact_position)
 		_cleanup_bullet()
@@ -941,21 +1037,24 @@ func _get_surface_normal(surface_body: Node3D, impact_position: Vector3) -> Vect
 
 func _create_bounce_impact_effect(position: Vector3):
 	"""Create impact effect when bullet bounces off a surface."""
-	#print("BOUNCE Creating bounce impact effect at: ", position)
+	if debug_bouncing:
+		print("BOUNCE Creating bounce impact effect at: ", position)
 	
 	# Use TracerManager to create bounce impact effect (cyan color to distinguish from regular impacts)
 	if TracerManager:
-		TracerManager.create_impact(position, Color.CYAN, 0.2)
+		TracerManager.create_impact(position, Color.CYAN, bounce_effect_duration)
 
 func _create_environment_impact_effect(position: Vector3):
 	"""Create impact effect when bullet hits environment (walls, floor, etc.)."""
-	#print("Creating impact effect at: ", position)
+	if debug_collisions:
+		print("Creating impact effect at: ", position)
 	
 	# Use TracerManager to create impact effect
 	if TracerManager:
-		TracerManager.create_impact(position, Color.YELLOW, 0.25)
+		TracerManager.create_impact(position, Color.YELLOW, impact_effect_duration)
 	
-	#print("Impact effect created and should be visible!")
+	if debug_collisions:
+		print("Impact effect created and should be visible!")
 
 
 
@@ -964,7 +1063,8 @@ func _create_bullet_explosion(position: Vector3):
 	if not is_explosive or explosion_radius <= 0.0:
 		return
 	
-	#print("BULLET EXPLOSION at ", position, " - Radius: ", explosion_radius, " Damage: ", explosion_damage)
+	if debug_explosions:
+		print("BULLET EXPLOSION at ", position, " - Radius: ", explosion_radius, " Damage: ", explosion_damage)
 	
 	# Apply area damage
 	_apply_bullet_explosion_damage(position)
@@ -982,7 +1082,7 @@ func _apply_bullet_explosion_damage(explosion_pos: Vector3):
 	sphere.radius = explosion_radius
 	query.shape = sphere
 	query.transform.origin = explosion_pos
-	query.collision_mask = 128  # Enemy layer (bit 8)
+	query.collision_mask = enemy_collision_mask
 	
 	var results = space_state.intersect_shape(query)
 	
@@ -994,7 +1094,8 @@ func _apply_bullet_explosion_damage(explosion_pos: Vector3):
 			var damage_multiplier = 1.0 - (distance / explosion_radius)  # Linear falloff
 			var final_damage = int(explosion_damage * damage_multiplier)
 			
-			#print("Bullet explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
+			if debug_explosions:
+				print("Bullet explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
 			enemy.take_damage(final_damage)
 
 
@@ -1014,7 +1115,8 @@ func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 	# Load the wall ripple scene
 	var wall_ripple_scene = load("res://scenes/effects/WallRipple.tscn")
 	if not wall_ripple_scene:
-		#print("WARNING: Could not load WallRipple.tscn")
+		if debug_collisions:
+			print("WARNING: Could not load WallRipple.tscn")
 		return
 	
 	# Instantiate the ripple effect
@@ -1028,7 +1130,8 @@ func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 		# Fallback setup
 		ripple.global_position = impact_position
 	
-	#print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)
+	if debug_collisions:
+		print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)
 
 func _create_wall_ripple_fallback(hit_body: Node3D):
 	"""Create wall ripple with fallback surface normal calculation."""
@@ -1046,12 +1149,13 @@ func _create_wall_ripple_fallback(hit_body: Node3D):
 func deflect_bullet(new_direction: Vector3, speed_boost: float = 1.0):
 	"""Deflect the bullet in a new direction with optional speed boost."""
 	if not has_been_fired or has_hit_target:
-		return  # Can't deflect unfired or already hit bullets
+		return  # Can't deflected unfired or already hit bullets
 	
-	#print("DEFLECTION: Bullet deflected!")
-	#print("DEFLECTION: Old direction: ", travel_direction)
-	#print("DEFLECTION: New direction: ", new_direction)
-	#print("DEFLECTION: Speed boost: ", speed_boost)
+	if debug_deflection:
+		print("DEFLECTION: Bullet deflected!")
+		print("DEFLECTION: Old direction: ", travel_direction)
+		print("DEFLECTION: New direction: ", new_direction)
+		print("DEFLECTION: Speed boost: ", speed_boost)
 	
 	# Change direction
 	travel_direction = new_direction.normalized()
@@ -1065,6 +1169,12 @@ func deflect_bullet(new_direction: Vector3, speed_boost: float = 1.0):
 	# Stop any recall if active
 	is_being_recalled = false
 	
+	# Create BulletDeflect effect at current position
+	_create_bullet_deflect_effect(global_position)
+	
+	# SAFETY CHECK: If deflected toward nearby surface, move bullet away slightly
+	_prevent_surface_tunneling_on_deflection()
+	
 	# Orient bullet to new direction
 	if travel_direction.length() > 0.01:
 		var up_vector = Vector3.UP
@@ -1072,8 +1182,41 @@ func deflect_bullet(new_direction: Vector3, speed_boost: float = 1.0):
 			up_vector = Vector3.FORWARD
 		look_at(global_position + travel_direction, up_vector)
 	
-	#print("DEFLECTION: New speed: ", current_speed)
-	#print("DEFLECTION: Bullet reoriented")
+	if debug_deflection:
+		print("DEFLECTION: New speed: ", current_speed)
+		print("DEFLECTION: Bullet reoriented")
+
+func _create_bullet_deflect_effect(position: Vector3):
+	"""Create BulletDeflect effect when bullet is deflected by player."""
+	var deflect_scene = load("res://scenes/effects/BulletDeflect.tscn")
+	if not deflect_scene:
+		print("WARNING: Could not load BulletDeflect.tscn")
+		return
+	
+	var effect = deflect_scene.instantiate()
+	get_tree().current_scene.add_child(effect)
+	effect.global_position = position
+	
+	print("BulletDeflect effect spawned at: ", position)
+
+func _prevent_surface_tunneling_on_deflection():
+	"""Prevent bullet from tunneling through surfaces after deflection."""
+	# Cast a short ray in the new travel direction to check for immediate collision
+	var space_state = get_world_3d().direct_space_state
+	var ray_end = global_position + travel_direction * tunneling_check_distance
+	
+	var query = PhysicsRayQueryParameters3D.create(global_position, ray_end)
+	query.collision_mask = environment_collision_mask
+	query.exclude = [self]
+	
+	var result = space_state.intersect_ray(query)
+	if result:
+		# Surface detected in travel direction - move bullet away from it
+		var surface_normal = result.normal
+		var safety_offset = surface_normal * deflection_safety_distance
+		global_position += safety_offset
+		if debug_deflection:
+			print("DEFLECTION SAFETY: Moved bullet away from surface by ", safety_offset)
 
 # === UTILITY FUNCTIONS ===
 func get_tracer_color() -> Color:
@@ -1085,7 +1228,6 @@ func get_tracer_color() -> Color:
 func _debug_corner_detection(impact_position: Vector3):
 	"""Debug function to detect corner situations."""
 	# Simple corner detection - only cardinal directions + closest corners
-	var corner_radius = 0.5  # Much smaller radius
 	var directions = [
 		Vector3.RIGHT, Vector3.LEFT, 
 		Vector3.FORWARD, Vector3.BACK,
@@ -1099,9 +1241,9 @@ func _debug_corner_detection(impact_position: Vector3):
 		var space_state = get_world_3d().direct_space_state
 		var query = PhysicsRayQueryParameters3D.create(
 			impact_position, 
-			impact_position + direction * corner_radius
+			impact_position + direction * corner_detection_radius
 		)
-		query.collision_mask = 4  # Environment layer
+		query.collision_mask = environment_collision_mask
 		query.exclude = [self]  # Don't hit ourselves
 		
 		var result = space_state.intersect_ray(query)
@@ -1116,7 +1258,7 @@ func _debug_corner_detection(impact_position: Vector3):
 	# Only trigger for VERY close corners that would cause immediate problems
 	var very_close_walls = 0
 	for wall in detected_walls:
-		if wall.distance < 0.3:  # Only count walls that are extremely close
+		if wall.distance < corner_danger_distance:
 			very_close_walls += 1
 	
 	if very_close_walls >= 2:
@@ -1134,7 +1276,7 @@ func _will_be_inside_geometry(position: Vector3) -> bool:
 	sphere.radius = 0.1  # Small sphere
 	query.shape = sphere
 	query.transform.origin = position
-	query.collision_mask = 4  # Environment layer
+	query.collision_mask = environment_collision_mask
 	
 	var results = space_state.intersect_shape(query)
 	return results.size() > 0
@@ -1175,9 +1317,9 @@ func _calculate_corner_safe_position(impact_position: Vector3, primary_normal: V
 		var space_state = get_world_3d().direct_space_state
 		var query = PhysicsRayQueryParameters3D.create(
 			safe_position, 
-			safe_position + direction * corner_radius
+			safe_position + direction * corner_detection_radius
 		)
-		query.collision_mask = 4  # Environment layer
+		query.collision_mask = environment_collision_mask
 		query.exclude = [self]
 		
 		var result = space_state.intersect_ray(query)
@@ -1186,29 +1328,33 @@ func _calculate_corner_safe_position(impact_position: Vector3, primary_normal: V
 			var wall_normal = result.normal
 			
 			# If wall is very close, add offset away from it
-			if wall_distance < 0.3:  # Danger zone
-				var safety_offset = (0.3 - wall_distance) * wall_normal
-				additional_offset += 0
+			if wall_distance < corner_danger_distance:
+				var safety_offset = (corner_danger_distance - wall_distance) * wall_normal
+				additional_offset += safety_offset
 				walls_found += 1
-				#print("SAFE   Wall close at distance ", wall_distance, " normal: ", wall_normal, " adding offset: ", safety_offset)
+				if debug_bouncing:
+					print("SAFE   Wall close at distance ", wall_distance, " normal: ", wall_normal, " adding offset: ", safety_offset)
 	
 	safe_position += additional_offset
 	
-	#print("SAFE Original position: ", impact_position)
-	#print("SAFE Standard position: ", impact_position + primary_normal * base_offset)
-	#print("SAFE Final safe position: ", safe_position)
-	#print("SAFE Additional offset applied: ", additional_offset)
-	#print("SAFE Walls avoided: ", walls_found)
+	if debug_bouncing:
+		print("SAFE Original position: ", impact_position)
+		print("SAFE Standard position: ", impact_position + primary_normal * base_offset)
+		print("SAFE Final safe position: ", safe_position)
+		print("SAFE Additional offset applied: ", additional_offset)
+		print("SAFE Walls avoided: ", walls_found)
 	
 	# Final verification - make sure we're not still inside geometry
 	if _will_be_inside_geometry(safe_position):
-		#print("SAFE ⚠️ STILL INSIDE GEOMETRY! Applying emergency offset...")
+		if debug_bouncing:
+			print("SAFE ⚠️ STILL INSIDE GEOMETRY! Applying emergency offset...")
 		# Emergency: move further away from primary surface
-		safe_position = impact_position + primary_normal * 0.5
+		safe_position = impact_position + primary_normal * deflection_safety_distance * 1.67  # ~0.5
 		
 		if _will_be_inside_geometry(safe_position):
-			#print("SAFE ⚠️ EMERGENCY OFFSET FAILED! Using maximum offset...")
-			safe_position = impact_position + primary_normal * 1.0
+			if debug_bouncing:
+				print("SAFE ⚠️ EMERGENCY OFFSET FAILED! Using maximum offset...")
+			safe_position = impact_position + primary_normal * deflection_safety_distance * 3.33  # ~1.0
 	
 	return safe_position
 
@@ -1238,7 +1384,7 @@ func _resolve_cascading_bounces(initial_impact: Vector3, initial_normal: Vector3
 		var space_state = get_world_3d().direct_space_state
 		var test_end = current_pos + current_dir * test_distance
 		var query = PhysicsRayQueryParameters3D.create(current_pos, test_end)
-		query.collision_mask = 4  # Environment layer
+		query.collision_mask = environment_collision_mask
 		query.exclude = [self]
 		
 		var result = space_state.intersect_ray(query)

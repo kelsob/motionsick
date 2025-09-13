@@ -187,7 +187,8 @@ func _update_movement(delta):
 func _update_attack_logic(delta):
 	"""Update attack logic using the assigned attack behavior."""
 	if attack_behavior and distance_to_player <= attack_range and not is_attacking:
-		if attack_behavior.should_attack(delta):
+		# Check line of sight before attacking
+		if _has_line_of_sight_to_player() and attack_behavior.should_attack(delta):
 			_start_attack()
 
 func _apply_movement(delta):
@@ -208,21 +209,7 @@ func _apply_movement(delta):
 	var time_scaled_speed = speed * effective_time_scale
 	var new_velocity = (next_location - current_location).normalized() * time_scaled_speed
 	
-	# DEBUG: Print movement info for grunts
-	if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
-		print("GRUNT DEBUG - ", name)
-		print("  Current pos: ", current_location)
-		print("  Next nav pos: ", next_location)
-		print("  Nav target: ", nav_agent.target_position)
-		print("  Speed (BaseEnemy): ", speed)
-		print("  Time-scaled speed: ", time_scaled_speed)
-		print("  Speed (Grunt): ", movement_speed)
-		print("  New velocity: ", new_velocity)
-		print("  Distance to nav target: ", next_location.distance_to(current_location))
-		print("  Nav agent is navigating: ", nav_agent.is_navigation_finished() == false)
-		print("  Nav agent path exists: ", not nav_agent.is_target_reachable())
-		print("  Time delta: ", time_delta, " (real: ", delta, ")")
-		print("  Effective time scale: ", effective_time_scale)
+	# Debug removed for cleaner console output
 	
 	# Use normal movement interpolation (velocity is already time-scaled)
 	velocity = velocity.move_toward(new_velocity, 0.25)
@@ -242,25 +229,13 @@ func _apply_movement(delta):
 		# Smooth rotation with time-scaled interpolation
 		rotation.y = lerp_angle(rotation.y, velocity_angle, rotation_speed * time_delta)
 		
-		# DEBUG: Print rotation info for grunts
-		if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
-			print("  SMOOTH VELOCITY ROTATION DEBUG:")
-			print("    Actual velocity: ", velocity_direction)
-			print("    Target velocity angle (deg): ", rad_to_deg(velocity_angle))
-			print("    OLD rotation.y: ", rad_to_deg(old_rotation))
-			print("    NEW rotation.y: ", rad_to_deg(rotation.y))
-			print("    Rotation progress: ", rad_to_deg(velocity_angle - old_rotation))
-			print("    Rotation speed: ", rotation_speed, " Time delta: ", time_delta)
-			if raycast:
-				print("    Raycast target: ", raycast.target_position)
+		# Debug removed for cleaner console output
 
 func target_position(target):
 	"""Set the navigation target position - called by Main script."""
 	nav_agent.target_position = target
 	
-	# DEBUG: Print target updates for grunts
-	if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
-		print("GRUNT NAV TARGET UPDATE - ", name, ": ", target)
+	# Debug removed for cleaner console output
 
 func _start_attack():
 	"""Initiate an attack."""
@@ -400,8 +375,8 @@ func is_player_in_range(range: float) -> bool:
 	return distance_to_player <= range
 
 # Visibility check optimization
-var visibility_cache: bool = true
-var visibility_check_timer: float = 0.0
+var visibility_cache: bool = false  # Start as false - force check on first frame
+var visibility_check_timer: float = 0.1  # Force immediate check by starting at interval
 var visibility_check_interval: float = 0.1  # Check every 0.1 seconds instead of every frame
 
 func is_player_visible() -> bool:
@@ -419,14 +394,70 @@ func is_player_visible() -> bool:
 		var query = PhysicsRayQueryParameters3D.create(
 			global_position + Vector3.UP * 0.5,  # Start slightly above ground
 			target_position,  # Aim at camera/head level
-			4  # Environment layer only
+			255  # ALL LAYERS - debug to see what we actually hit
 		)
 		query.exclude = [self]
 		
 		var result = space_state.intersect_ray(query)
-		visibility_cache = result.is_empty()  # True if no obstacles
+		var old_cache = visibility_cache
+		
+		# Check what we hit - if we hit the player, that's clear line of sight
+		if result:
+			var hit_object = result.collider
+			if hit_object.is_in_group("player"):
+				visibility_cache = true  # Clear line of sight - we can see the player
+			else:
+				visibility_cache = false  # Blocked by obstacle (wall, etc.)
+		else:
+			visibility_cache = true  # No obstacles at all
+		
+		# DEBUG: Print ALL visibility checks for snipers
+		if scene_file_path.get_file().get_basename() == "Sniper":
+			print("SNIPER VISIBILITY RAYCAST - ", name)
+			print("  Raycast start: ", global_position + Vector3.UP * 0.5)
+			print("  Raycast end: ", target_position)
+			print("  Collision mask: ", 255)
+			print("  Result empty: ", result.is_empty())
+			print("  Visibility cache: ", visibility_cache)
+			if result:
+				print("  RAYCAST HIT: ", result.collider.name, " (layer: ", result.collider.collision_layer, ")")
+				print("  Hit position: ", result.position)
+				print("  Distance to hit: ", global_position.distance_to(result.position))
+			else:
+				print("  RAYCAST CLEAR: No obstacles detected")
+			print("  Player distance: ", distance_to_player)
 	
 	return visibility_cache
+
+func _has_line_of_sight_to_player() -> bool:
+	"""Simple line of sight check for attacking - uses existing visibility system."""
+	var has_sight = is_player_visible()
+	
+	# DEBUG: Print line of sight info
+	if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
+		print("LINE OF SIGHT DEBUG - ", name)
+		print("  Has line of sight: ", has_sight)
+		print("  Distance to player: ", distance_to_player)
+		print("  Attack range: ", attack_range)
+		print("  In attack range: ", distance_to_player <= attack_range)
+		if not has_sight:
+			# Do a manual raycast to see what's blocking
+			var space_state = get_world_3d().direct_space_state
+			var target_pos = player.get_target_position() if player.has_method("get_target_position") else player.global_position
+			var query = PhysicsRayQueryParameters3D.create(
+				global_position + Vector3.UP * 0.5,
+				target_pos,
+				12  # Environment layers
+			)
+			query.exclude = [self]
+			var result = space_state.intersect_ray(query)
+			if result:
+				print("  BLOCKED BY: ", result.collider.name, " (layer: ", result.collider.collision_layer, ")")
+				print("  Blocker position: ", result.position)
+			else:
+				print("  NO BLOCKER FOUND - visibility system error?")
+	
+	return has_sight
 
 
 

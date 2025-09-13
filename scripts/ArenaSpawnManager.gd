@@ -27,8 +27,8 @@ enum EnemyType {
 # === ENEMY TYPE CONFIGURATION ===
 # Each enemy type has its own maximum count that increases over time
 var enemy_max_counts: Dictionary = {
-	EnemyType.GRUNT: 1,      # Only spawn grunts for testing
-	EnemyType.SNIPER: 0,     # Disabled for now
+	EnemyType.GRUNT: 0,      # Only spawn grunts for testing
+	EnemyType.SNIPER: 1,     # Disabled for now
 	EnemyType.FLANKER: 0,    # Disabled
 	EnemyType.RUSHER: 0,     # Disabled
 	EnemyType.ARTILLERY: 0   # Disabled
@@ -308,7 +308,7 @@ func _start_spawn_telegraph(enemy_type: int):
 	var telegraph = telegraph_scene.instantiate()
 	
 	get_tree().current_scene.add_child(telegraph)
-	telegraph.global_position = spawn_pos
+	telegraph.global_position = spawn_pos + Vector3(0, 2, 0)  # Raise by 2 units
 	
 	# Configure telegraph colors based on enemy type
 	var telegraph_color = Color.RED

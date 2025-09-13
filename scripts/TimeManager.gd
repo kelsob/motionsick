@@ -4,31 +4,46 @@ extends Node
 # Controls global time dilation without affecting Engine.time_scale
 # Allows asymmetric time where player is unaffected but world slows/freezes
 
+## === EXPORTED CONFIGURATION ===
+@export_group("Time Scale Thresholds")
+## Below this threshold, time is considered "frozen"
+@export var time_frozen_threshold: float = 0.1
+## Above this threshold, time is considered "normal speed"
+@export var time_normal_threshold: float = 0.9
+## Below this time scale, damage is prevented
+@export var damage_prevention_threshold: float = 0.5
+
+@export_group("Movement Response")
+## Minimum time scale threshold - values below this become 0.0
+@export var minimum_time_scale_threshold: float = 0.01
+## Default time scale when no movement intent (normal speed)
+@export var default_time_scale: float = 1.0
+
+@export_group("Player Detection")
+## How often to retry finding the player (in frames) when player reference is lost
+@export var player_search_retry_interval: int = 30
+
+@export_group("Debug Settings")
+## Enable debug print statements for damage prevention
+@export var debug_damage_prevention: bool = true
+## Enable debug print statements for player connection
+@export var debug_player_connection: bool = true
+## Enable debug print statements for GameManager connection
+@export var debug_gamemanager_connection: bool = true
+
+## === RUNTIME STATE ===
 # Current time scale (0.0 = frozen, 1.0 = normal speed)
 var custom_time_scale: float = 1.0
-
-# Smoothing parameters
-@export var freeze_duration: float = 0.4  # Time to freeze when player starts moving
-@export var unfreeze_duration: float = 1.0  # Time to unfreeze when player stops
-
-# Damage prevention threshold
-@export var damage_prevention_threshold: float = 0.5  # Below this time scale, damage is prevented
-
-# State tracking
-var target_time_scale: float = 1.0
-var is_transitioning: bool = false
-var transition_speed: float = 1.0
-
-# Player movement state
-var player_is_moving: bool = false
+# Player reference
 var player: CharacterBody3D = null
 
 # Signals for time scale changes
 signal time_scale_changed(new_scale: float)
-signal time_freeze_started()
-signal time_unfreeze_started()
 
 func _ready():
+	# Initialize time scale to default
+	custom_time_scale = default_time_scale
+	
 	# Find player reference
 	call_deferred("_find_player")
 	
@@ -36,16 +51,20 @@ func _ready():
 	var game_manager = get_node_or_null("/root/GameManager")
 	if game_manager:
 		game_manager.game_restart_requested.connect(_on_game_restart_requested)
-		print("TimeManager connected to GameManager")
+		if debug_gamemanager_connection:
+			print("TimeManager connected to GameManager")
 	else:
-		print("WARNING: TimeManager can't find GameManager")
+		if debug_gamemanager_connection:
+			print("WARNING: TimeManager can't find GameManager")
 
 func _find_player():
 	player = get_tree().get_first_node_in_group("player")
 	if player and is_instance_valid(player):
-		print("TimeManager connected to player")
+		if debug_player_connection:
+			print("TimeManager connected to player")
 	else:
-		print("TimeManager: Player not found!")
+		if debug_player_connection:
+			print("TimeManager: Player not found!")
 		player = null
 
 func _process(delta: float):
@@ -60,14 +79,17 @@ func _update_time_scale(delta):
 		movement_intent = player.get_movement_intent()
 	else:
 		# If player is null or invalid, try to find it again (but not every frame)
-		if not player and Engine.get_process_frames() % 30 == 0:  # Try every 30 frames
+		if not player and Engine.get_process_frames() % player_search_retry_interval == 0:
 			_find_player()
 		movement_intent = 0.0
 	
-	custom_time_scale = 1.0 - movement_intent
+	# Calculate time scale based on movement intent
+	custom_time_scale = default_time_scale - movement_intent
 	
-	if custom_time_scale < 0.01:
+	# Apply minimum threshold - values below this become 0.0
+	if custom_time_scale < minimum_time_scale_threshold:
 		custom_time_scale = 0.0
+	
 	time_scale_changed.emit(custom_time_scale)
 
 
@@ -83,17 +105,17 @@ func get_effective_delta(delta: float, time_resistance: float = 0.0) -> float:
 	return delta * custom_time_scale * resistance_factor
 
 func is_time_frozen() -> bool:
-	"""Check if time is currently frozen (below 0.1 threshold)."""
-	return custom_time_scale < 0.1
+	"""Check if time is currently frozen (below configured threshold)."""
+	return custom_time_scale < time_frozen_threshold
 
 func is_time_normal() -> bool:
-	"""Check if time is at normal speed (above 0.9 threshold)."""
-	return custom_time_scale > 0.9
+	"""Check if time is at normal speed (above configured threshold)."""
+	return custom_time_scale > time_normal_threshold
 
 func is_damage_prevented() -> bool:
 	"""Check if damage should be prevented due to time dilation."""
 	var prevented = custom_time_scale < damage_prevention_threshold
-	if prevented:
+	if prevented and debug_damage_prevention:
 		print("TimeManager: Damage prevented - Time scale: ", "%.2f" % custom_time_scale, " < ", "%.2f" % damage_prevention_threshold)
 	return prevented
 
@@ -106,25 +128,21 @@ func set_damage_prevention_threshold(threshold: float):
 	damage_prevention_threshold = clamp(threshold, 0.0, 1.0)
 	print("TimeManager: Damage prevention threshold set to ", damage_prevention_threshold)
 
-func get_player_moving_state() -> bool:
-	"""Get current player movement state."""
-	return player_is_moving
 
 func _on_game_restart_requested():
 	"""Called when game is restarting - reset player reference."""
-	print("TimeManager: Game restarting, resetting player reference")
+	if debug_gamemanager_connection:
+		print("TimeManager: Game restarting, resetting player reference")
 	player = null
-	# Reset time scale to normal
-	custom_time_scale = 1.0
+	# Reset time scale to default
+	custom_time_scale = default_time_scale
 	time_scale_changed.emit(custom_time_scale)
 
 # === DEBUG API ===
 
 func force_time_scale(scale: float):
 	"""Force time scale for testing (bypasses smooth transitions)."""
-	custom_time_scale = clamp(scale, 0.0, 1.0)
-	target_time_scale = custom_time_scale
-	is_transitioning = false
+	custom_time_scale = clamp(scale, 0.0, default_time_scale)
 	time_scale_changed.emit(custom_time_scale)
 	print("Time scale forced to: ", custom_time_scale)
 
@@ -132,11 +150,9 @@ func print_time_state():
 	"""Debug function to print current time state."""
 	print("=== TIME MANAGER STATE ===")
 	print("Current scale: ", "%.3f" % custom_time_scale)
-	print("Target scale: ", "%.3f" % target_time_scale)
-	print("Player moving: ", player_is_moving)
-	print("Transitioning: ", is_transitioning)
-	if is_transitioning:
-		print("Transition speed: ", "%.2f" % transition_speed)
+	print("Player valid: ", player != null and is_instance_valid(player))
+	print("Time frozen: ", is_time_frozen())
+	print("Time normal: ", is_time_normal())
 	print("Damage prevention threshold: ", "%.2f" % damage_prevention_threshold)
 	print("Damage prevented: ", is_damage_prevented())
 	print("==========================")
