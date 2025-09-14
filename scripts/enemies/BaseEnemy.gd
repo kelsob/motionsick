@@ -4,57 +4,111 @@ class_name BaseEnemy
 # === BASE ENEMY SYSTEM ===
 # Extensible enemy with modular movement and attack behaviors
 
-# === CONFIGURATION ===
+## === EXPORTED CONFIGURATION ===
 @export_group("Enemy Stats")
+## Maximum health points
 @export var max_health: int = 100
+## Movement speed in units per second
 @export var movement_speed: float = 5.0
+## Range at which enemy detects player
 @export var detection_range: float = 20.0
+## Range at which enemy can attack player
 @export var attack_range: float = 10.0
+## Rotation speed when turning toward target
 @export var turn_speed: float = 5.0
-@export var piercability: float = 1.0  # How much piercing power this enemy absorbs
+## How much piercing power this enemy absorbs from bullets
+@export var piercability: float = 1.0
 
 @export_group("Behavior Configuration")
+## Type of movement behavior to use
 @export var movement_behavior_type: MovementBehavior.Type = MovementBehavior.Type.CHASE
+## Type of attack behavior to use
 @export var attack_behavior_type: AttackBehavior.Type = AttackBehavior.Type.MELEE
 
-
-
-
 @export_group("Visual Settings")
+## Color of the enemy mesh
 @export var enemy_color: Color = Color.RED
+## Scale multiplier for enemy size
 @export var size_scale: float = 1.0
+## Emission intensity multiplier for glowing effect
+@export var emission_intensity: float = 0.3
 
-# === STATE ===
+@export_group("Physics Settings")
+## Time resistance (0.0 = fully affected by time, 1.0 = immune)
+@export var time_resistance: float = 0.0
+## Gravity force applied to enemy
+@export var gravity_force: float = 9.8
+## Collision layer bit value for enemy layer
+@export var enemy_collision_layer: int = 128
+## Collision mask for environment and player interactions
+@export var collision_detection_mask: int = 5
+
+@export_group("Movement Physics")
+## Velocity interpolation rate for smooth movement
+@export var velocity_interpolation_rate: float = 0.25
+## Minimum velocity magnitude to trigger rotation
+@export var min_velocity_for_rotation: float = 0.1
+## Raycast distance for line-of-sight checks
+@export var raycast_distance: float = 5.0
+## Height offset for raycast origin (above ground)
+@export var raycast_height_offset: float = 0.5
+
+@export_group("Death Animation")
+## Duration of death fade animation in seconds
+@export var death_fade_duration: float = 1.0
+
+@export_group("Visibility System")
+## How often to check player visibility (seconds)
+@export var visibility_check_interval: float = 0.1
+## Collision mask for visibility raycasts (all layers)
+@export var visibility_raycast_mask: int = 255
+## Collision mask for line-of-sight checks (environment layers)
+@export var line_of_sight_mask: int = 12
+
+@export_group("Debug Settings")
+## Enable debug output for spawning and initialization
+@export var debug_spawning: bool = false
+## Enable debug output for movement and navigation
+@export var debug_movement: bool = false
+## Enable debug output for attack system
+@export var debug_attacks: bool = false
+## Enable debug output for damage and death
+@export var debug_damage: bool = false
+## Enable debug output for visibility system
+@export var debug_visibility: bool = false
+## Enable debug output for line-of-sight checks
+@export var debug_line_of_sight: bool = false
+
+## === RUNTIME STATE ===
+# Health and lifecycle
 var current_health: int
-var player: Node3D = null
 var is_dead: bool = false
 var is_attacking: bool = false
 
 # Death animation state
 var is_dying: bool = false
 var death_fade_timer: float = 0.0
-var death_fade_duration: float = 1.0
 var original_color: Color
+
+# References
+var player: Node3D = null
+var time_manager: Node = null
+var time_affected: TimeAffected = null
 
 # Behavior components
 var movement_behavior: MovementBehavior
 var attack_behavior: AttackBehavior
 
-# Movement state - BASIC NAVIGATION
+# Movement state
 var distance_to_player: float
 var speed: float = 3.5
-var gravity: float = 9.8
 var rotation_speed: float = 5.0
 
-# Navigation system - BASIC IMPLEMENTATION
+# Navigation system
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
 
 # Performance optimization for signal emission
 var player_detection_signaled: bool = false
-
-# Time system integration
-var time_manager: Node = null
-var time_affected: TimeAffected = null
 
 # === COMPONENTS ===
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
@@ -81,19 +135,20 @@ func _ready():
 	# Find player
 	player = get_tree().get_first_node_in_group("player")
 	if not player:
-		print("WARNING: Enemy can't find player!")
+		if debug_spawning:
+			print("WARNING: Enemy can't find player!")
 	
 	# Connect to time manager
 	time_manager = get_node("/root/TimeManager")
 	
 	# Add time system component
 	time_affected = TimeAffected.new()
-	time_affected.time_resistance = 0.0  # Fully affected by time
+	time_affected.time_resistance = time_resistance
 	add_child(time_affected)
 	
 	# Set up collision
-	collision_layer = 128  # Enemy layer (bit 8)
-	collision_mask = 5     # Environment (4) + Player (1) = 5
+	collision_layer = enemy_collision_layer
+	collision_mask = collision_detection_mask
 	
 	# Add to enemy groups
 	add_to_group("enemies")
@@ -109,14 +164,16 @@ func _ready():
 	attack_timer.timeout.connect(_on_attack_timer_timeout)
 	state_timer.timeout.connect(_on_state_timer_timeout)
 	
-	print("Enemy spawned: ", name, " | Movement: ", MovementBehavior.Type.keys()[movement_behavior_type], " | Attack: ", AttackBehavior.Type.keys()[attack_behavior_type])
-	print("  Speed synced: movement_speed=", movement_speed, " -> speed=", speed)
-	print("  Rotation synced: turn_speed=", turn_speed, " -> rotation_speed=", rotation_speed)
+	if debug_spawning:
+		print("Enemy spawned: ", name, " | Movement: ", MovementBehavior.Type.keys()[movement_behavior_type], " | Attack: ", AttackBehavior.Type.keys()[attack_behavior_type])
+		print("  Speed synced: movement_speed=", movement_speed, " -> speed=", speed)
+		print("  Rotation synced: turn_speed=", turn_speed, " -> rotation_speed=", rotation_speed)
 	
 	# ENSURE RAYCAST IS IN CORRECT LOCAL POSITION
 	if raycast:
-		raycast.target_position = Vector3(0, 0, -5)  # Reset to proper forward direction
-		print("  Raycast reset to local forward: ", raycast.target_position)
+		raycast.target_position = Vector3(0, 0, -raycast_distance)
+		if debug_spawning:
+			print("  Raycast reset to local forward: ", raycast.target_position)
 
 func _setup_behaviors():
 	"""Initialize movement and attack behaviors based on configuration."""
@@ -138,7 +195,7 @@ func _setup_appearance():
 		var material = StandardMaterial3D.new()
 		material.albedo_color = enemy_color
 		material.emission_enabled = true
-		material.emission = enemy_color * 0.3
+		material.emission = enemy_color * emission_intensity
 		mesh.material_override = material
 
 
@@ -197,7 +254,7 @@ func _apply_movement(delta):
 	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
 	
 	if not is_on_floor():
-		velocity.y -= gravity * delta  # Keep gravity at real-time
+		velocity.y -= gravity_force * delta  # Keep gravity at real-time
 	else:
 		velocity.y -= 2
 	
@@ -212,15 +269,15 @@ func _apply_movement(delta):
 	# Debug removed for cleaner console output
 	
 	# Use normal movement interpolation (velocity is already time-scaled)
-	velocity = velocity.move_toward(new_velocity, 0.25)
+	velocity = velocity.move_toward(new_velocity, velocity_interpolation_rate)
 	move_and_slide()
 	
 	# Leave raycast alone - it should rotate with the enemy automatically
 	
-	# FUCK THE NAVIGATION DIRECTION - USE ACTUAL VELOCITY DIRECTION
+	# Use actual velocity direction for rotation
 	var velocity_direction = Vector3(velocity.x, 0, velocity.z)
 	
-	if velocity_direction.length() > 0.1:
+	if velocity_direction.length() > min_velocity_for_rotation:
 		# SMOOTH rotation toward velocity direction - respecting time scale
 		# For Godot: -Z is forward, so add PI to flip from +Z to -Z
 		var velocity_angle = atan2(velocity_direction.x, velocity_direction.z) + PI
@@ -248,7 +305,8 @@ func _start_attack():
 	# Let the attack behavior handle the attack
 	attack_behavior.execute_attack()
 	
-	print(name, " attacking player!")
+	if debug_attacks:
+		print(name, " attacking player!")
 
 func _finish_attack():
 	"""Complete the current attack."""
@@ -275,7 +333,8 @@ func take_damage(amount: int):
 	current_health = max(0, current_health - amount)
 	health_changed.emit(current_health, max_health)
 	
-	print(name, " took ", amount, " damage (", current_health, "/", max_health, ")")
+	if debug_damage:
+		print(name, " took ", amount, " damage (", current_health, "/", max_health, ")")
 	
 	if current_health <= 0:
 		_die()
@@ -286,7 +345,8 @@ func _die():
 		return
 		
 	is_dead = true
-	print(name, " died!")
+	if debug_damage:
+		print(name, " died!")
 	
 	# Add score for killing this enemy
 	var score_manager = get_node_or_null("/root/ScoreManager")
@@ -295,7 +355,8 @@ func _die():
 		var enemy_type = get_enemy_type_name()
 		score_manager.add_score(enemy_type)
 	else:
-		print("WARNING: ScoreManager not found!")
+		if debug_damage:
+			print("WARNING: ScoreManager not found!")
 	
 	enemy_died.emit(self)
 	
@@ -311,7 +372,8 @@ func _die():
 	else:
 		original_color = enemy_color
 		
-	print(name, " starting death fade animation")
+	if debug_damage:
+		print(name, " starting death fade animation")
 
 func _update_death_fade(delta: float):
 	"""Update manual death fade animation that respects time scale."""
@@ -332,7 +394,6 @@ func _update_death_fade(delta: float):
 	# Apply faded color
 	if mesh and mesh.material_override:
 		mesh.material_override.albedo_color = faded_color
-		print(faded_color)
 	
 	# Check if fade is complete
 	if fade_progress >= 1.0:
@@ -377,7 +438,6 @@ func is_player_in_range(range: float) -> bool:
 # Visibility check optimization
 var visibility_cache: bool = false  # Start as false - force check on first frame
 var visibility_check_timer: float = 0.1  # Force immediate check by starting at interval
-var visibility_check_interval: float = 0.1  # Check every 0.1 seconds instead of every frame
 
 func is_player_visible() -> bool:
 	"""Check if player is visible (cached for performance)."""
@@ -392,9 +452,9 @@ func is_player_visible() -> bool:
 		var space_state = get_world_3d().direct_space_state
 		var target_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
 		var query = PhysicsRayQueryParameters3D.create(
-			global_position + Vector3.UP * 0.5,  # Start slightly above ground
+			global_position + Vector3.UP * raycast_height_offset,  # Start slightly above ground
 			target_position,  # Aim at camera/head level
-			255  # ALL LAYERS - debug to see what we actually hit
+			visibility_raycast_mask  # ALL LAYERS - debug to see what we actually hit
 		)
 		query.exclude = [self]
 		
@@ -412,11 +472,11 @@ func is_player_visible() -> bool:
 			visibility_cache = true  # No obstacles at all
 		
 		# DEBUG: Print ALL visibility checks for snipers
-		if scene_file_path.get_file().get_basename() == "Sniper":
+		if debug_visibility and scene_file_path.get_file().get_basename() == "Sniper":
 			print("SNIPER VISIBILITY RAYCAST - ", name)
-			print("  Raycast start: ", global_position + Vector3.UP * 0.5)
+			print("  Raycast start: ", global_position + Vector3.UP * raycast_height_offset)
 			print("  Raycast end: ", target_position)
-			print("  Collision mask: ", 255)
+			print("  Collision mask: ", visibility_raycast_mask)
 			print("  Result empty: ", result.is_empty())
 			print("  Visibility cache: ", visibility_cache)
 			if result:
@@ -434,7 +494,7 @@ func _has_line_of_sight_to_player() -> bool:
 	var has_sight = is_player_visible()
 	
 	# DEBUG: Print line of sight info
-	if get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt":
+	if debug_line_of_sight and (get_class() == "Grunt" or scene_file_path.get_file().get_basename() == "Grunt"):
 		print("LINE OF SIGHT DEBUG - ", name)
 		print("  Has line of sight: ", has_sight)
 		print("  Distance to player: ", distance_to_player)
@@ -445,9 +505,9 @@ func _has_line_of_sight_to_player() -> bool:
 			var space_state = get_world_3d().direct_space_state
 			var target_pos = player.get_target_position() if player.has_method("get_target_position") else player.global_position
 			var query = PhysicsRayQueryParameters3D.create(
-				global_position + Vector3.UP * 0.5,
+				global_position + Vector3.UP * raycast_height_offset,
 				target_pos,
-				12  # Environment layers
+				line_of_sight_mask  # Environment layers
 			)
 			query.exclude = [self]
 			var result = space_state.intersect_ray(query)

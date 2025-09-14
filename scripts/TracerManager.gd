@@ -4,21 +4,64 @@ extends Node
 # Autoload singleton that manages visual tracers for bullets
 # Automatically creates tracer container and handles all tracer logic
 
-# === CONFIGURATION ===
+## === EXPORTED CONFIGURATION ===
+@export_group("Tracer System")
+## Enable/disable tracer system
 @export var tracer_enabled: bool = true
-@export var tracer_length_seconds: float = 0.6  # How long the trail lasts (increased by 50%)
-@export var tracer_segment_count: int = 100  # Number of trail segments (MUCH denser!)
-@export var tracer_update_rate: float = 0.003  # How often to add new segments (seconds) (SUPER fast!)
+## How long the trail lasts (seconds)
+@export var tracer_length_seconds: float = 0.6
+## Number of trail segments for density
+@export var tracer_segment_count: int = 100
+## How often to add new segments (seconds)
+@export var tracer_update_rate: float = 0.003
 
-# === TRACER VISUAL SETTINGS ===
-@export var tracer_thickness: float = 0.05  # Bigger spheres for more overlap
+@export_group("Tracer Visual Settings")
+## Thickness of tracer segments
+@export var tracer_thickness: float = 0.05
+## Default tracer color
 @export var tracer_color: Color = Color.YELLOW
-@export var tracer_emission_energy: float = 3.0  # Brighter for more visibility
-@export var use_line_segments: bool = true  # Use continuous lines instead of spheres
+## Emission energy for tracer brightness
+@export var tracer_emission_energy: float = 3.0
+## Use continuous lines instead of spheres
+@export var use_line_segments: bool = true
 
-# === EXPLOSION AND IMPACT EFFECTS ===
+@export_group("Segment Properties")
+## Sphere segment radius multiplier
+@export var sphere_segment_radius_multiplier: float = 4.0
+## Line segment height multiplier
+@export var line_segment_height_multiplier: float = 1.75
+## Line segment radius multiplier (thinner than spheres)
+@export var line_segment_radius_multiplier: float = 0.7
+## Extra position history segments to keep
+@export var extra_position_segments: int = 5
+
+@export_group("Animation Thresholds")
+## Minimum line direction length for valid orientation
+@export var min_line_direction_length: float = 0.001
+## Dot product threshold for up vector selection
+@export var up_vector_dot_threshold: float = 0.99
+## Minimum scale factor during fadeout
+@export var min_fadeout_scale: float = 0.0
+
+@export_group("Time Conversion")
+## Milliseconds to seconds conversion factor
+@export var time_conversion_factor: float = 1000.0
+
+@export_group("Explosion and Impact Effects")
+## Enable/disable explosion effects
 @export var explosion_enabled: bool = true
+## Enable/disable impact effects
 @export var impact_enabled: bool = true
+
+@export_group("Debug Settings")
+## Enable debug output for tracer registration and management
+@export var debug_registration: bool = false
+## Enable debug output for bullet recall system
+@export var debug_recall: bool = false
+## Enable debug output for tracer container setup
+@export var debug_container: bool = false
+## Enable debug output for system reset events
+@export var debug_reset: bool = false
 
 # === STATE ===
 var tracer_container: Node3D = null
@@ -80,10 +123,12 @@ func _setup_tracer_container():
 		tracer_container = Node3D.new()
 		tracer_container.name = "TracerContainer"
 		main_scene.add_child(tracer_container)
-		print("TracerManager: TracerContainer created in main scene")
-		print("TracerManager: TracerContainer path: ", tracer_container.get_path())
+		if debug_container:
+			print("TracerManager: TracerContainer created in main scene")
+			print("TracerManager: TracerContainer path: ", tracer_container.get_path())
 	else:
-		print("WARNING: Could not find main scene for TracerContainer!")
+		if debug_container:
+			print("WARNING: Could not find main scene for TracerContainer!")
 
 func _process(delta: float):
 	"""Update all active tracers, explosions, and impacts."""
@@ -100,7 +145,7 @@ func _process(delta: float):
 		time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0)  # No time resistance for tracers
 
 	
-	var current_time = Time.get_ticks_msec() / 1000.0
+	var current_time = Time.get_ticks_msec() / time_conversion_factor
 	
 	# Update tracers
 	if tracer_enabled:
@@ -269,10 +314,10 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 		
 		var line_direction = (position - prev_pos).normalized()
 		
-		if line_direction.length() > 0.001:
+		if line_direction.length() > min_line_direction_length:
 			# Create proper orientation transform for cylinder
 			var up = Vector3.UP
-			if abs(line_direction.dot(up)) > 0.99:
+			if abs(line_direction.dot(up)) > up_vector_dot_threshold:
 				up = Vector3.FORWARD
 			
 			# Create basis where Y-axis points along line direction
@@ -303,8 +348,8 @@ func _create_sphere_segment(tracer_data: TracerData) -> MeshInstance3D:
 	
 	# Create small sphere mesh for segment
 	var sphere = SphereMesh.new()
-	sphere.radius = tracer_thickness * 4
-	sphere.height = tracer_thickness * 4
+	sphere.radius = tracer_thickness * sphere_segment_radius_multiplier
+	sphere.height = tracer_thickness * sphere_segment_radius_multiplier
 	segment.mesh = sphere
 	
 	# Position will be set after adding to tree
@@ -327,9 +372,9 @@ func _create_line_segment(start_pos: Vector3, end_pos: Vector3, tracer_data: Tra
 	# Create cylinder mesh for line
 	var cylinder = CylinderMesh.new()
 	var distance = start_pos.distance_to(end_pos)
-	cylinder.height = distance * 1.75
-	cylinder.top_radius = tracer_thickness * 0.7  # Slightly thinner than spheres
-	cylinder.bottom_radius = tracer_thickness * 0.7
+	cylinder.height = distance * line_segment_height_multiplier
+	cylinder.top_radius = tracer_thickness * line_segment_radius_multiplier
+	cylinder.bottom_radius = tracer_thickness * line_segment_radius_multiplier
 	segment.mesh = cylinder
 	
 	# Position and orientation will be set after adding to tree
@@ -367,8 +412,8 @@ func _update_segment_fadeout(tracer_data: TracerData, time_adjusted_delta: float
 				segments_to_remove.append(i)
 				segment.queue_free()
 			else:
-				# Scale from 1.0 to 0.0 over the fadeout duration
-				var scale_factor = max(0.0, 1.0 - fade_progress)
+				# Scale from 1.0 to min_fadeout_scale over the fadeout duration
+				var scale_factor = max(min_fadeout_scale, 1.0 - fade_progress)
 				segment.scale = Vector3.ONE * scale_factor
 	
 	# Remove fully faded segments (in reverse order to maintain indices)
@@ -389,7 +434,7 @@ func _trim_old_segments(tracer_data: TracerData):
 			tracer_data.segment_ages.pop_front()
 	
 	# Trim position history (keep a few extra for line segment generation)
-	while tracer_data.segment_positions.size() > tracer_segment_count + 5:
+	while tracer_data.segment_positions.size() > tracer_segment_count + extra_position_segments:
 		tracer_data.segment_positions.pop_front()
 
 func _cleanup_tracer_visuals(tracer_data: TracerData):
@@ -636,10 +681,11 @@ func _on_game_restart_requested():
 
 func reset_tracer_system():
 	"""Reset the tracer system for a new game session"""
-	print("TracerManager: Resetting tracer system...")
-	print("TracerManager: Active tracers before reset: ", active_tracers.size())
-	print("TracerManager: Active explosions before reset: ", active_explosions.size())
-	print("TracerManager: Active impacts before reset: ", active_impacts.size())
+	if debug_reset:
+		print("TracerManager: Resetting tracer system...")
+		print("TracerManager: Active tracers before reset: ", active_tracers.size())
+		print("TracerManager: Active explosions before reset: ", active_explosions.size())
+		print("TracerManager: Active impacts before reset: ", active_impacts.size())
 	
 	# Immediately disable systems to prevent new registrations
 	tracer_enabled = false
@@ -648,7 +694,8 @@ func reset_tracer_system():
 	
 	# Clear all active tracers immediately
 	for bullet_id in active_tracers.keys():
-		print("TracerManager: Unregistering bullet ID: ", bullet_id)
+		if debug_reset:
+			print("TracerManager: Unregistering bullet ID: ", bullet_id)
 		var tracer_data = active_tracers[bullet_id]
 		# Force cleanup of all visual elements immediately
 		_cleanup_tracer_visuals(tracer_data)
@@ -672,15 +719,18 @@ func reset_tracer_system():
 	
 	# Reset bullet ID counter
 	next_bullet_id = 0
-	print("TracerManager: Reset bullet ID counter to 0")
+	if debug_reset:
+		print("TracerManager: Reset bullet ID counter to 0")
 	
 	# Clear tracer container
 	if tracer_container:
-		print("TracerManager: Destroying old tracer container")
+		if debug_reset:
+			print("TracerManager: Destroying old tracer container")
 		tracer_container.queue_free()
 		tracer_container = null
 	else:
-		print("TracerManager: No tracer container to destroy")
+		if debug_reset:
+			print("TracerManager: No tracer container to destroy")
 	
 	# Re-enable systems
 	tracer_enabled = true
@@ -688,13 +738,15 @@ func reset_tracer_system():
 	impact_enabled = true
 	
 	# Wait a frame to ensure scene is reloaded, then recreate tracer container
-	print("TracerManager: Waiting for scene reload, then recreating container")
+	if debug_reset:
+		print("TracerManager: Waiting for scene reload, then recreating container")
 	await get_tree().process_frame
 	await get_tree().process_frame  # Wait a bit more to ensure scene is fully loaded
 	
 	# Try to recreate tracer container immediately
 	_setup_tracer_container()
-	print("TracerManager: Tracer system reset complete")
+	if debug_reset:
+		print("TracerManager: Tracer system reset complete")
 
 # === BULLET RECALL SYSTEM ===
 
@@ -702,7 +754,8 @@ func notify_bullet_fired(bullet_id: int):
 	"""Notify that a bullet was fired (add to recall queue)."""
 	if bullet_id >= 0 and active_tracers.has(bullet_id):
 		fired_bullets_queue.append(bullet_id)
-		print("TracerManager: Bullet ", bullet_id, " added to recall queue (queue size: ", fired_bullets_queue.size(), ")")
+		if debug_recall:
+			print("TracerManager: Bullet ", bullet_id, " added to recall queue (queue size: ", fired_bullets_queue.size(), ")")
 
 func recall_most_recent_bullet() -> bool:
 	"""Recall the most recently fired bullet that's still active."""
@@ -717,19 +770,24 @@ func recall_most_recent_bullet() -> bool:
 				if bullet.recall_to_player():
 					# Successfully recalled - remove from queue
 					fired_bullets_queue.pop_back()
-					print("TracerManager: Successfully recalled bullet ", bullet_id)
+					if debug_recall:
+						print("TracerManager: Successfully recalled bullet ", bullet_id)
 					return true
 				else:
-					print("TracerManager: Bullet ", bullet_id, " could not be recalled")
+					if debug_recall:
+						print("TracerManager: Bullet ", bullet_id, " could not be recalled")
 					fired_bullets_queue.pop_back()
 			else:
-				print("TracerManager: Bullet ", bullet_id, " is invalid or doesn't support recall")
+				if debug_recall:
+					print("TracerManager: Bullet ", bullet_id, " is invalid or doesn't support recall")
 				fired_bullets_queue.pop_back()
 		else:
-			print("TracerManager: Bullet ", bullet_id, " no longer exists, removing from queue")
+			if debug_recall:
+				print("TracerManager: Bullet ", bullet_id, " no longer exists, removing from queue")
 			fired_bullets_queue.pop_back()
 	
-	print("TracerManager: No bullets available for recall")
+	if debug_recall:
+		print("TracerManager: No bullets available for recall")
 	return false
 
 func _remove_from_recall_queue(bullet_id: int):
@@ -737,7 +795,8 @@ func _remove_from_recall_queue(bullet_id: int):
 	var index = fired_bullets_queue.find(bullet_id)
 	if index >= 0:
 		fired_bullets_queue.remove_at(index)
-		print("TracerManager: Removed bullet ", bullet_id, " from recall queue")
+		if debug_recall:
+			print("TracerManager: Removed bullet ", bullet_id, " from recall queue")
 
 func update_bullet_color(bullet_id: int):
 	"""Update tracer color for a bullet (call after bullet configuration)."""

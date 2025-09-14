@@ -1,38 +1,101 @@
 extends CharacterBody3D
 
-# === MOVEMENT CONSTANTS ===
-const WALK_SPEED := 7.5   # Reduced by 25% from 10.0
-const SPRINT_SPEED := 15.0  # Reduced by 25% from 20.0
-const CROUCH_SPEED := 3.75  # Reduced by 25% from 5.0
-const SLIDE_SPEED := 18.75  # Reduced by 25% from 25.0
-const JUMP_VELOCITY := 8.5  # Keep jump velocity the same
-const DOUBLE_JUMP_VELOCITY := 8.5  # Keep jump velocity the same
+## === EXPORTED CONFIGURATION ===
+@export_group("Movement Speeds")
+## Walking speed when moving normally
+@export var walk_speed: float = 7.5
+## Sprinting speed when holding sprint key
+@export var sprint_speed: float = 15.0
+## Crouching speed when crouched
+@export var crouch_speed: float = 3.75
+## Sliding speed during slide maneuver
+@export var slide_speed: float = 18.75
 
-# Dash systemLOL
-const DASH_SPEED := 15.0  # Reduced by 25% from 20.0
-const DASH_DURATION := 0.25
-const DASH_COOLDOWN := 0.5
+@export_group("Jump System")
+## Velocity applied for normal jump
+@export var jump_velocity: float = 8.5
+## Velocity applied for double jump
+@export var double_jump_velocity: float = 8.5
 
-# Smooth movement
-const ACCELERATION := 3.0   # Slower acceleration (takes ~0.5 seconds to reach full speed)
-const DECELERATION := 3.0   # Slower deceleration (takes ~0.3 seconds to stop)
-const DASH_DECELERATION := 35.0
+@export_group("Dash System")
+## Speed applied during dash movement
+@export var dash_speed: float = 15.0
+## How long dash lasts (seconds)
+@export var dash_duration: float = 0.25
+## Cooldown between dashes (seconds)
+@export var dash_cooldown: float = 0.5
+## How quickly dash velocity decelerates after dash ends
+@export var dash_deceleration: float = 35.0
 
-# Crouch system
-const CROUCH_HEIGHT := 1.0
-const STAND_HEIGHT := 1.5
-const SLIDE_TIME := 0.5
+@export_group("Movement Physics")
+## Acceleration rate for reaching target speed
+@export var acceleration: float = 3.0
+## Deceleration rate when stopping movement
+@export var deceleration: float = 3.0
+
+@export_group("Crouch and Slide System")
+## Player height when crouching
+@export var crouch_height: float = 1.0
+## Player height when standing
+@export var stand_height: float = 1.5
+## Duration of slide maneuver (seconds)
+@export var slide_time: float = 0.5
+## Additional clearance needed above player to stand up
+@export var stand_clearance: float = 0.1
+
+@export_group("Bullet Pickup System")
+## Range within which bullets can be picked up
+@export var pickup_range: float = 5.0
+## Maximum time scale threshold for bullet pickup (below this allows pickup)
+@export var pickup_time_threshold: float = 0.5
+
+@export_group("Bullet Deflection System")
+## Range within which bullets can be deflected
+@export var deflect_range: float = 8.0
+## Maximum angle from camera forward for deflectable bullets (degrees)
+@export var deflect_angle: float = 90.0
+## Speed multiplier applied to deflected bullets
+@export var deflect_speed_boost: float = 1.5
+## Cooldown between deflection attempts (seconds)
+@export var deflect_cooldown: float = 0.3
+
+@export_group("Movement Thresholds")
+## Minimum movement input magnitude to register as moving
+@export var movement_input_threshold: float = 0.1
+## Speed percentage threshold for movement state changes
+@export var speed_percentage_threshold_high: float = 0.99
+## Speed percentage threshold for movement state changes (low)
+@export var speed_percentage_threshold_low: float = 0.01
+## Minimum dash velocity magnitude to apply dash movement
+@export var dash_velocity_threshold: float = 0.01
+
+@export_group("Target Position System")
+## Downward offset from camera for enemy targeting (chest level)
+@export var target_position_offset: float = 0.3
+
+@export_group("Debug Settings")
+## Enable debug output for movement system
+@export var debug_movement: bool = false
+## Enable debug output for pickup system
+@export var debug_pickup: bool = false
+## Enable debug output for deflection system
+@export var debug_deflection: bool = false
+## Enable debug output for energy system integration
+@export var debug_energy: bool = false
+## Enable debug output for damage system
+@export var debug_damage: bool = false
 
 @onready var GRAVITY: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
-# === COMPONENTS ===
+## === COMPONENTS ===
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 @onready var camera: Camera3D = $Camera3D
 @onready var gun: Node3D = $Camera3D/Gun
 @onready var action_tracker: PlayerActionTracker = $PlayerActionTracker
 
-# === MOVEMENT STATE ===
+## === RUNTIME STATE ===
+# Movement states
 var is_sprinting := false
 var is_crouching := false
 var is_sliding := false
@@ -56,21 +119,13 @@ var move_input := Vector2.ZERO
 var was_on_floor := true
 
 # Movement intent for time system (tracks input intensity, not velocity)
-var movement_intent: float = 0.0  # 0.0 to 1.0, based on input not velocity
+var movement_intent: float = 0.0
 
 # Time system integration
 var time_manager: Node = null
 var time_energy_manager: Node = null
 
-# Bullet pickup system
-@export var pickup_range: float = 5.0
-@export var pickup_time_threshold: float = 0.5
-
-# Bullet deflection system
-@export var deflect_range: float = 8.0  # Increased from 3.0 for easier deflection
-@export var deflect_angle: float = 90.0  # Increased from 45.0 - much wider cone
-@export var deflect_speed_boost: float = 1.5  # Multiplier for deflected bullet speed
-@export var deflect_cooldown: float = 0.3  # Reduced from 0.5 for more responsive deflection
+# Deflection system state
 var deflect_cooldown_timer: float = 0.0
 
 # === SIGNALS FOR GUN SYSTEM ===
@@ -93,21 +148,25 @@ func _ready():
 	# Connect to TimeManager
 	time_manager = get_node("/root/TimeManager")
 	if time_manager:
-		print("Player connected to TimeManager")
+		if debug_energy:
+			print("Player connected to TimeManager")
 	else:
-		print("WARNING: Player can't find TimeManager!")
+		if debug_energy:
+			print("WARNING: Player can't find TimeManager!")
 	
 	# Connect to TimeEnergyManager
 	time_energy_manager = get_node("/root/TimeEnergyManager")
 	if time_energy_manager:
-		print("Player connected to TimeEnergyManager")
+		if debug_energy:
+			print("Player connected to TimeEnergyManager")
 		# Connect to energy manager signals
 		time_energy_manager.movement_lock_started.connect(_on_movement_locked)
 		time_energy_manager.movement_unlocked.connect(_on_movement_unlocked)
 		time_energy_manager.energy_depleted.connect(_on_energy_depleted)
 		time_energy_manager.energy_restored.connect(_on_energy_restored)
 	else:
-		print("WARNING: Player can't find TimeEnergyManager!")
+		if debug_energy:
+			print("WARNING: Player can't find TimeEnergyManager!")
 	
 	# Connect to gun if it exists
 	if gun and gun.has_method("_on_player_movement_started"):
@@ -131,7 +190,8 @@ func _input(event):
 	
 	# Handle pickup input (bullets and gun)
 	if event.is_action_pressed("action_pickup"):
-		print("action_pickup pressed - attempting pickup")
+		if debug_pickup:
+			print("action_pickup pressed - attempting pickup")
 		if not _try_pickup_gun():
 			_try_pickup_bullet()
 	
@@ -196,38 +256,39 @@ func handle_movement_input(delta):
 	# Add dash velocity if dashing
 	if is_dashing:
 		target_velocity += dash_velocity
-	elif dash_velocity.length() > 0.01:
+	elif dash_velocity.length() > dash_velocity_threshold:
 		# Decelerate dash velocity after dash ends
 		var dash_speed = dash_velocity.length()
-		dash_speed = max(0.0, dash_speed - DASH_DECELERATION * delta)
+		dash_speed = max(0.0, dash_speed - dash_deceleration * delta)
 		dash_velocity = dash_velocity.normalized() * dash_speed
 		target_velocity += dash_velocity
 	
 	# Apply acceleration/deceleration
-	if direction.length() > 0.01 or dash_velocity.length() > 0.01:
-		velocity.x = lerp(velocity.x, target_velocity.x, min(1.0, ACCELERATION * delta))
-		velocity.z = lerp(velocity.z, target_velocity.z, min(1.0, ACCELERATION * delta))
+	if direction.length() > dash_velocity_threshold or dash_velocity.length() > dash_velocity_threshold:
+		velocity.x = lerp(velocity.x, target_velocity.x, min(1.0, acceleration * delta))
+		velocity.z = lerp(velocity.z, target_velocity.z, min(1.0, acceleration * delta))
 	else:
-		velocity.x = lerp(velocity.x, 0.0, min(1.0, DECELERATION * delta))
-		velocity.z = lerp(velocity.z, 0.0, min(1.0, DECELERATION * delta))
+		velocity.x = lerp(velocity.x, 0.0, min(1.0, deceleration * delta))
+		velocity.z = lerp(velocity.z, 0.0, min(1.0, deceleration * delta))
 
 func get_movement_speed() -> float:
 	if is_sliding:
-		return SLIDE_SPEED
+		return slide_speed
 	elif is_crouching:
-		return CROUCH_SPEED
+		return crouch_speed
 	elif is_sprinting and not is_crouching:
-		return SPRINT_SPEED
+		return sprint_speed
 	else:
-		return WALK_SPEED
+		return walk_speed
 
 func get_movement_speed_percentage() -> float:
-	var speed_percentage : float = velocity.length() / WALK_SPEED
-	if speed_percentage >= 0.99:
+	var speed_percentage : float = velocity.length() / walk_speed
+	if speed_percentage >= speed_percentage_threshold_high:
 		speed_percentage = 1.0
-	elif speed_percentage <= 0.01:
+	elif speed_percentage <= speed_percentage_threshold_low:
 		speed_percentage = 0
-	print("player movement speed percentage:", speed_percentage)
+	if debug_movement:
+		print("player movement speed percentage:", speed_percentage)
 	return speed_percentage
 
 func update_movement_intent(delta: float):
@@ -247,10 +308,10 @@ func update_movement_intent(delta: float):
 	
 	if has_movement_input and movement_allowed:
 		# Increase intent using same acceleration as movement
-		movement_intent = min(1.0, movement_intent + ACCELERATION * delta)
+		movement_intent = min(1.0, movement_intent + acceleration * delta)
 	else:
 		# Decrease intent using same deceleration as movement
-		movement_intent = max(0.0, movement_intent - DECELERATION * delta)
+		movement_intent = max(0.0, movement_intent - deceleration * delta)
 		
 		# If movement is not allowed, force stop velocity immediately
 		if not movement_allowed:
@@ -291,12 +352,12 @@ func handle_jump_input():
 			if was_crouched and can_stand_up():
 				stand()
 			
-			velocity.y = JUMP_VELOCITY
+			velocity.y = jump_velocity
 			can_double_jump = true
 			action_tracker.record_jump()
 			jump_performed.emit()
 		elif can_double_jump:
-			velocity.y = DOUBLE_JUMP_VELOCITY
+			velocity.y = double_jump_velocity
 			can_double_jump = false
 			action_tracker.record_double_jump()
 			jump_performed.emit()
@@ -315,7 +376,7 @@ func update_movement_state():
 		Input.get_action_strength("action_move_back") - Input.get_action_strength("action_move_forward")
 	)
 	
-	var moving_now = move_input.length() > 0.1
+	var moving_now = move_input.length() > movement_input_threshold
 	
 	if moving_now and not is_moving:
 		is_moving = true
@@ -377,15 +438,15 @@ func perform_dash():
 	var dash_direction = get_dash_direction()
 	
 	is_dashing = true
-	dash_timer = DASH_DURATION
-	dash_cooldown_timer = DASH_COOLDOWN
-	dash_velocity = dash_direction * DASH_SPEED
+	dash_timer = dash_duration
+	dash_cooldown_timer = dash_cooldown
+	dash_velocity = dash_direction * dash_speed
 	
 	dash_performed.emit()
 
 func get_dash_direction() -> Vector3:
 	# Use movement input if available, otherwise forward
-	if move_input.length() > 0.1:
+	if move_input.length() > movement_input_threshold:
 		var forward = -transform.basis.z
 		var right = transform.basis.x
 		return (forward * -move_input.y + right * move_input.x).normalized()
@@ -401,28 +462,28 @@ func crouch():
 	is_crouching = true
 	# Change collision shape height
 	var shape = collision_shape.shape as CapsuleShape3D
-	shape.height = CROUCH_HEIGHT
+	shape.height = crouch_height
 	
 	# Change visual mesh height  
 	if mesh.mesh is CapsuleMesh:
-		(mesh.mesh as CapsuleMesh).height = CROUCH_HEIGHT
+		(mesh.mesh as CapsuleMesh).height = crouch_height
 
 func stand():
 	is_crouching = false
 	# Restore collision shape height
 	var shape = collision_shape.shape as CapsuleShape3D
-	shape.height = STAND_HEIGHT
+	shape.height = stand_height
 	
 	# Restore visual mesh height
 	if mesh.mesh is CapsuleMesh:
-		(mesh.mesh as CapsuleMesh).height = STAND_HEIGHT
+		(mesh.mesh as CapsuleMesh).height = stand_height
 
 func can_stand_up() -> bool:
 	# Check if there's room above to stand up
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(
-		global_position + Vector3(0, CROUCH_HEIGHT/2, 0),
-		global_position + Vector3(0, STAND_HEIGHT/2 + 0.1, 0),
+		global_position + Vector3(0, crouch_height/2, 0),
+		global_position + Vector3(0, stand_height/2 + stand_clearance, 0),
 		collision_mask
 	)
 	query.exclude = [self]
@@ -431,7 +492,7 @@ func can_stand_up() -> bool:
 
 func start_slide():
 	is_sliding = true
-	slide_timer = SLIDE_TIME
+	slide_timer = slide_time
 	crouch()
 
 func end_slide():
@@ -465,7 +526,8 @@ func is_player_dashing() -> bool:
 
 func _on_movement_locked():
 	"""Called when energy system locks player movement."""
-	print("Player received movement lock signal")
+	if debug_energy:
+		print("Player received movement lock signal")
 	# Force stop any current movement
 	velocity.x = 0
 	velocity.z = 0
@@ -474,16 +536,19 @@ func _on_movement_locked():
 
 func _on_movement_unlocked():
 	"""Called when energy system unlocks player movement."""
-	print("Player received movement unlock signal")
+	if debug_energy:
+		print("Player received movement unlock signal")
 
 func _on_energy_depleted():
 	"""Called when energy is completely depleted."""
-	print("Player received energy depleted signal")
+	if debug_energy:
+		print("Player received energy depleted signal")
 	# Could add visual/audio feedback here
 
 func _on_energy_restored():
 	"""Called when energy is restored after depletion."""
-	print("Player received energy restored signal")
+	if debug_energy:
+		print("Player received energy restored signal")
 	# Could add visual/audio feedback here
 
 # === DAMAGE SYSTEM ===
@@ -494,15 +559,19 @@ func take_damage(damage: int) -> bool:
 	# Check if damage should be prevented due to time dilation
 	var time_manager = get_node_or_null("/root/TimeManager")
 	if time_manager and time_manager.is_damage_prevented():
-		print("Player: Damage prevented due to time dilation (", time_manager.get_time_scale(), ")")
+		if debug_damage:
+			print("Player: Damage prevented due to time dilation (", time_manager.get_time_scale(), ")")
 		return false  # Damage was prevented
 	
-	print("Player took damage: ", damage, " - Player dies!")
+	if debug_damage:
+		print("Player took damage: ", damage, " - Player dies!")
 	
 	# Emit death signal
-	print("Player: Emitting player_died signal")
+	if debug_damage:
+		print("Player: Emitting player_died signal")
 	player_died.emit()
-	print("Player: player_died signal emitted")
+	if debug_damage:
+		print("Player: player_died signal emitted")
 	
 	# Stop all movement
 	velocity = Vector3.ZERO
@@ -528,7 +597,8 @@ func take_damage(damage: int) -> bool:
 	
 	# Optional: Add death visual/audio effects here
 	# For now, just print death message
-	print("PLAYER DIED - Game Over!")
+	if debug_damage:
+		print("PLAYER DIED - Game Over!")
 	
 	return true  # Damage was taken
 
@@ -600,12 +670,14 @@ func _try_recall_bullet():
 	"""Try to recall the most recently fired bullet."""
 	if TracerManager:
 		var success = TracerManager.recall_most_recent_bullet()
-		if success:
-			print("Player: Bullet recall successful!")
-		else:
-			print("Player: No bullets available for recall")
+		if debug_pickup:
+			if success:
+				print("Player: Bullet recall successful!")
+			else:
+				print("Player: No bullets available for recall")
 	else:
-		print("Player: TracerManager not found - cannot recall bullets")
+		if debug_pickup:
+			print("Player: TracerManager not found - cannot recall bullets")
 
 # === BULLET DEFLECTION SYSTEM ===
 
@@ -613,13 +685,15 @@ func _try_deflect_bullet():
 	"""Try to deflect a bullet in melee range."""
 	# Check cooldown
 	if deflect_cooldown_timer > 0.0:
-		print("Deflection on cooldown")
+		if debug_deflection:
+			print("Deflection on cooldown")
 		return false
 	
 	# Find the closest bullet in deflection range and view
 	var target_bullet = _find_deflectable_bullet()
 	if not target_bullet:
-		print("No deflectable bullet found")
+		if debug_deflection:
+			print("No deflectable bullet found")
 		return false
 	
 	# Get deflection direction (where player is looking)
@@ -631,7 +705,8 @@ func _try_deflect_bullet():
 	# Start cooldown
 	deflect_cooldown_timer = deflect_cooldown
 	
-	print("Bullet deflected!")
+	if debug_deflection:
+		print("Bullet deflected!")
 	return true
 
 func _find_deflectable_bullet() -> Node:
@@ -664,8 +739,9 @@ func _find_deflectable_bullet() -> Node:
 			continue
 		
 		# Debug: Show what bullets are deflectable
-		var bullet_type = "Player" if bullet.is_player_bullet else "Enemy"
-		print("DEFLECT: Found deflectable ", bullet_type, " bullet at distance ", distance, " angle ", angle)
+		if debug_deflection:
+			var bullet_type = "Player" if bullet.is_player_bullet else "Enemy"
+			print("DEFLECT: Found deflectable ", bullet_type, " bullet at distance ", distance, " angle ", angle)
 		
 		# This bullet is valid and closer
 		if distance < closest_distance:
@@ -678,14 +754,16 @@ func _create_deflection_effect(position: Vector3):
 	"""Create visual effect at deflection point."""
 	var deflect_scene = load("res://scenes/effects/BulletDeflect.tscn")
 	if not deflect_scene:
-		print("WARNING: Could not load BulletDeflect.tscn")
+		if debug_deflection:
+			print("WARNING: Could not load BulletDeflect.tscn")
 		return
 	
 	var effect = deflect_scene.instantiate()
 	get_tree().current_scene.add_child(effect)
 	effect.global_position = position
 	
-	print("Deflection effect created at: ", position)
+	if debug_deflection:
+		print("Deflection effect created at: ", position)
 
 # === TARGET POSITION FOR ENEMIES ===
 func get_camera_position() -> Vector3:
@@ -700,4 +778,4 @@ func get_target_position(shooter_position: Vector3 = Vector3.ZERO) -> Vector3:
 	"""Get the position enemies should aim at - targets player's head/chest area."""
 	# Return camera position with a slight downward adjustment to aim at chest level
 	# This feels more natural than aiming at the very top of the head
-	return get_camera_position() + Vector3.DOWN * 0.3
+	return get_camera_position() + Vector3.DOWN * target_position_offset

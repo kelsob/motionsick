@@ -187,6 +187,98 @@ enum FireMode {
 @export_group("Recoil Settings")
 @export var recoil_randomness: float = 0.25  # Random variation in recoil direction
 
+@export_group("Animation Timing")
+## Duration for muzzle flash animation
+@export var muzzle_flash_duration: float = 0.2
+## Scale factor for muzzle flash growth phase
+@export var muzzle_flash_min_scale: float = 0.5
+## Maximum scale for muzzle flash
+@export var muzzle_flash_max_scale: float = 1.2
+## Percentage of animation time for growth phase
+@export var muzzle_flash_grow_phase_ratio: float = 0.25
+
+@export_group("Hitscan System")
+## Maximum range for hitscan weapons
+@export var hitscan_max_range: float = 1000.0
+## Collision mask for hitscan weapons (Environment + Enemy)
+@export var hitscan_collision_mask: int = 132
+## Delay for delayed hitscan weapons
+@export var delayed_hitscan_delay: float = 0.15
+
+@export_group("Tracer System")
+## Tracer cylinder radius for hitscan weapons
+@export var tracer_radius: float = 0.02
+## Tracer shrink rate for animations (units per second)
+@export var tracer_shrink_rate: float = 400.0
+## Base tracer duration divisor
+@export var tracer_duration_divisor: float = 16.0
+
+@export_group("Muzzle Flash Properties")
+## Muzzle flash sphere radius
+@export var muzzle_flash_radius: float = 0.3
+## Muzzle flash sphere height
+@export var muzzle_flash_height: float = 0.6
+## Muzzle flash emission energy
+@export var muzzle_flash_emission_energy: float = 5.0
+
+@export_group("Impact Effects")
+## Duration for impact effects
+@export var impact_effect_duration: float = 0.2
+## Duration for shotgun pellet impact effects
+@export var shotgun_impact_duration: float = 0.1
+
+@export_group("Explosion Animation")
+## Explosion scale-up duration
+@export var explosion_scale_up_duration: float = 0.1
+## Explosion scale-down duration
+@export var explosion_scale_down_duration: float = 0.4
+## Total explosion animation duration
+@export var explosion_total_duration: float = 0.5
+## Explosion fade delay timing
+@export var explosion_fade_delay_1: float = 0.1
+## Explosion fade delay timing
+@export var explosion_fade_delay_2: float = 0.3
+## Maximum explosion scale
+@export var explosion_max_scale: float = 2.0
+## Initial explosion emission energy
+@export var explosion_initial_emission: float = 5.0
+
+@export_group("Equip Animation")
+## Duration for gun equip animation
+@export var equip_animation_duration: float = 0.3
+## Bounce factor for equip animation (overshoot)
+@export var equip_animation_bounce_factor: float = 1.2
+## Growth phase ratio for equip animation
+@export var equip_grow_phase_ratio: float = 0.7
+## Settle phase ratio for equip animation
+@export var equip_settle_phase_ratio: float = 0.3
+
+@export_group("Travel Configuration")
+## Assault rifle fire rate for continuous fire
+@export var assault_rifle_fire_rate: float = 0.15
+## Fast fire mode fire rate
+@export var fast_fire_rate: float = 0.05
+## Heavy blast damage value
+@export var heavy_blast_damage: int = 300
+
+@export_group("Debug Settings")
+## Enable debug output for gun initialization and setup
+@export var debug_initialization: bool = false
+## Enable debug output for firing events
+@export var debug_firing: bool = false
+## Enable debug output for state changes
+@export var debug_state_changes: bool = false
+## Enable debug output for ammo system
+@export var debug_ammo: bool = false
+## Enable debug output for recoil system
+@export var debug_recoil: bool = false
+## Enable debug output for explosion system
+@export var debug_explosions: bool = false
+## Enable debug output for equip/unequip system
+@export var debug_equipment: bool = false
+## Enable debug output for energy system integration
+@export var debug_energy: bool = false
+
 @export_group("Bullet Travel Behaviors")
 @export var rapid_fire_travel: int = 2  # Pistol: CONSTANT_FAST projectiles
 @export var charge_blast_travel: int = 2  # Assault rifle: CONSTANT_FAST projectiles  
@@ -301,21 +393,22 @@ func _update_muzzle_flash_animation(flash_data: Dictionary, time_adjusted_delta:
 	
 	match phase:
 		"grow":
-			# Grow phase (0.0 to 0.25 of total time)
-			var grow_progress = min(1.0, progress / 0.25)
-			muzzle_flash.scale = Vector3.ONE * (0.5 + grow_progress * 0.7)  # Scale from 0.5 to 1.2
+			# Grow phase (0.0 to grow_phase_ratio of total time)
+			var grow_progress = min(1.0, progress / muzzle_flash_grow_phase_ratio)
+			var scale_range = muzzle_flash_max_scale - muzzle_flash_min_scale
+			muzzle_flash.scale = Vector3.ONE * (muzzle_flash_min_scale + grow_progress * scale_range)
 			
 			if grow_progress >= 1.0:
 				phase = "shrink"
 				flash_data["phase"] = phase
 		
 		"shrink":
-			# Shrink and hide phase (0.25 to 1.0 of total time)
-			var shrink_progress = (progress - 0.25) / 0.75
+			# Shrink and hide phase (grow_phase_ratio to 1.0 of total time)
+			var shrink_progress = (progress - muzzle_flash_grow_phase_ratio) / (1.0 - muzzle_flash_grow_phase_ratio)
 			if shrink_progress >= 1.0:
 				shrink_progress = 1.0
 			
-			muzzle_flash.scale = Vector3.ONE * (1.2 - shrink_progress * 1.2)  # Scale from 1.2 to 0.0
+			muzzle_flash.scale = Vector3.ONE * (muzzle_flash_max_scale - shrink_progress * muzzle_flash_max_scale)
 			
 			if shrink_progress >= 1.0:
 				# Animation complete
@@ -374,14 +467,17 @@ func _ready():
 	# Connect to time manager for visual effects
 	time_manager = get_node("/root/TimeManager")
 	if time_manager:
-		print("Gun connected to TimeManager for visual effects")
+		if debug_initialization:
+			print("Gun connected to TimeManager for visual effects")
 	
 	# Connect to time energy manager
 	time_energy_manager = get_node("/root/TimeEnergyManager")
 	if time_energy_manager:
-		print("Gun connected to TimeEnergyManager")
+		if debug_initialization:
+			print("Gun connected to TimeEnergyManager")
 	else:
-		print("WARNING: Gun can't find TimeEnergyManager!")
+		if debug_initialization:
+			print("WARNING: Gun can't find TimeEnergyManager!")
 	
 	# Set initial state
 	_change_state(State.IDLE)
@@ -397,23 +493,24 @@ func _ready():
 	# Start unequipped (hidden) - player must find gun pickup
 	unequip_gun()
 	
-	print("Gun ready! Testing mode: ", testing_mode)
-	if testing_mode:
-		print("\n=== GUN TESTING CONTROLS ===")
-		print("Fire mode controls:")
-		print("1 - Pistol (", "%.1f" % rapid_fire_spread, "° spread) - Single shot, moderate damage")
-		print("2 - Assault Rifle (", "%.1f" % charge_blast_spread, "° spread) - Continuous fire, hold to spray")
-		print("3 - Shotgun (", "%.1f" % dash_attack_spread, "° spread) - ", dash_attack_pellets, " pellets, high damage")
-		print("4 - Triple Shot (", "%.1f" % jump_burst_spread, "° spread) - 3 shot burst")
-		print("5 - Rocket Launcher (", "%.1f" % slow_fire_spread, "° spread) - High damage explosive")
-		print("6 - Fast Fire (", "%.1f" % fast_fire_spread, "° spread) - Unused") 
-		print("7 - Heavy Blast (", "%.1f" % heavy_blast_spread, "° spread) - Unused")
-		print("8 - Shotgun Old (", "%.1f" % triple_shot_spread, "° spread) - Unused")
-		print("9 - Auto Charge (", "%.1f" % auto_charge_spread, "° spread) - Unused")
-		print("\nControls:")
-		print("Left Click - Fire in selected mode")
-		print("Q - Dash")
-		print("================================\n")
+	if debug_initialization:
+		print("Gun ready! Testing mode: ", testing_mode)
+		if testing_mode:
+			print("\n=== GUN TESTING CONTROLS ===")
+			print("Fire mode controls:")
+			print("1 - Pistol (", "%.1f" % rapid_fire_spread, "° spread) - Single shot, moderate damage")
+			print("2 - Assault Rifle (", "%.1f" % charge_blast_spread, "° spread) - Continuous fire, hold to spray")
+			print("3 - Shotgun (", "%.1f" % dash_attack_spread, "° spread) - ", dash_attack_pellets, " pellets, high damage")
+			print("4 - Triple Shot (", "%.1f" % jump_burst_spread, "° spread) - 3 shot burst")
+			print("5 - Rocket Launcher (", "%.1f" % slow_fire_spread, "° spread) - High damage explosive")
+			print("6 - Fast Fire (", "%.1f" % fast_fire_spread, "° spread) - Unused") 
+			print("7 - Heavy Blast (", "%.1f" % heavy_blast_spread, "° spread) - Unused")
+			print("8 - Shotgun Old (", "%.1f" % triple_shot_spread, "° spread) - Unused")
+			print("9 - Auto Charge (", "%.1f" % auto_charge_spread, "° spread) - Unused")
+			print("\nControls:")
+			print("Left Click - Fire in selected mode")
+			print("Q - Dash")
+			print("================================\n")
 
 func _input(event):
 	# Don't process input if gun is disabled or not equipped
@@ -528,46 +625,52 @@ func _stop_test_firing():
 # === NEW FIRE MODES FOR TESTING ===
 func _start_assault_rifle():
 	# Assault rifle: fast continuous fire
-	rapid_fire_current_rate = 0.15  # Fast fire rate for assault rifle
+	rapid_fire_current_rate = assault_rifle_fire_rate
 	_change_state(State.FIRING)
 
 func _fire_shotgun_blast():
 	# Shotgun: single blast with multiple pellets
 	_fire_bullet(dash_attack_damage)
 	fired_shot.emit(dash_attack_damage)
-	print("Shotgun blast! Damage: ", dash_attack_damage)
+	if debug_firing:
+		print("Shotgun blast! Damage: ", dash_attack_damage)
 
 func _start_slow_fire():
 	# Rocket launcher: single shot with high damage
 	_fire_bullet(slow_fire_damage)
 	fired_shot.emit(slow_fire_damage)
-	print("Rocket fired! Damage: ", slow_fire_damage)
+	if debug_firing:
+		print("Rocket fired! Damage: ", slow_fire_damage)
 
 func _start_fast_fire():
-	rapid_fire_current_rate = 0.05  # Much faster than normal
+	rapid_fire_current_rate = fast_fire_rate
 	_change_state(State.FIRING)
 
 func _fire_heavy_blast():
-	_fire_bullet(300)  # Heavy damage single shot
-	fired_shot.emit(300)
-	print("Heavy blast! Damage: 300")
+	_fire_bullet(heavy_blast_damage)
+	fired_shot.emit(heavy_blast_damage)
+	if debug_firing:
+		print("Heavy blast! Damage: ", heavy_blast_damage)
 
 func _fire_triple_shot():
 	# Now handled by shotgun system - this is just for backward compatibility
 	_fire_bullet(rapid_fire_damage)
 	fired_shot.emit(rapid_fire_damage)
-	print("Shotgun blast!")
+	if debug_firing:
+		print("Shotgun blast!")
 
 func _start_auto_charge():
 	_change_state(State.CHARGING)
 
 # === DEBUG FIRING (for movement-based mode) ===
 func _start_debug_firing():
-	print("Debug firing started")
+	if debug_firing:
+		print("Debug firing started")
 	_change_state(State.FIRING)
 
 func _stop_debug_firing():
-	print("Debug firing stopped")
+	if debug_firing:
+		print("Debug firing stopped")
 	_change_state(State.IDLE)
 
 # === PLAYER SIGNAL HANDLERS (only used if movement_based is true) ===
@@ -645,7 +748,8 @@ func _change_state(new_state: State):
 			pass  # Dash is instantaneous
 	
 	state_changed.emit(new_state)
-	print("Gun state: ", State.keys()[new_state])
+	if debug_state_changes:
+		print("Gun state: ", State.keys()[new_state])
 
 func _change_state_with_delay(new_state: State, delay: float):
 	var delay_timer = Timer.new()
@@ -703,7 +807,8 @@ func _on_rapid_fire_timer_timeout():
 func _start_charging():
 	charge_level = 0.0
 	charge_timer.start()
-	print("Started charging...")
+	if debug_state_changes:
+		print("Started charging...")
 
 func _stop_charging():
 	charge_timer.stop()
@@ -718,7 +823,8 @@ func _update_charge():
 		
 		if charge_level >= 1.0:
 			_change_state(State.CHARGED)
-			print("*** GUN FULLY CHARGED! Release to fire! ***")
+			if debug_state_changes:
+				print("*** GUN FULLY CHARGED! Release to fire! ***")
 
 func _fire_charged_blast():
 	# We only call this when fully charged, so no need to check minimum
@@ -726,7 +832,8 @@ func _fire_charged_blast():
 	_fire_bullet(damage)
 	fired_shot.emit(damage)
 	
-	print("Charged blast fired! Damage: ", damage, " (charge: ", "%.1f" % (charge_level * 100), "%)")
+	if debug_firing:
+		print("Charged blast fired! Damage: ", damage, " (charge: ", "%.1f" % (charge_level * 100), "%)")
 	charge_level = 0.0
 	charge_level_changed.emit(0.0)
 
@@ -734,7 +841,8 @@ func _fire_charged_blast():
 func _fire_dash_attack():
 	_fire_bullet(dash_attack_damage)
 	fired_shot.emit(dash_attack_damage)
-	print("Dash attack! Damage: ", dash_attack_damage)
+	if debug_firing:
+		print("Dash attack! Damage: ", dash_attack_damage)
 
 func _fire_jump_burst():
 	burst_shots_remaining = jump_burst_count
@@ -764,7 +872,8 @@ func _fire_burst_shot():
 func _prepare_next_bullet():
 	# Only prepare a bullet if we have ammo remaining
 	if current_ammo <= 0:
-		print("Not preparing bullet - no ammo remaining")
+		if debug_ammo:
+			print("Not preparing bullet - no ammo remaining")
 		return
 		
 	# Instantiate a bullet ahead of time so it's ready when we need to fire
@@ -774,7 +883,8 @@ func _prepare_next_bullet():
 	
 	# Setup the bullet after it's added to the scene
 	_setup_prepared_bullet.call_deferred()
-	print("Prepared next bullet - ammo remaining: ", current_ammo)
+	if debug_ammo:
+		print("Prepared next bullet - ammo remaining: ", current_ammo)
 
 func _setup_prepared_bullet():
 	if not prepared_bullet:
@@ -796,25 +906,29 @@ func _setup_prepared_bullet():
 func _fire_bullet(damage: int):
 	# Check if we have ammo
 	if current_ammo <= 0:
-		print("Cannot fire - no ammo remaining!")
+		if debug_ammo:
+			print("Cannot fire - no ammo remaining!")
 		return
 	
 	# Check if firing is allowed by energy system
 	if time_energy_manager and not time_energy_manager.can_fire():
-		print("Firing blocked - insufficient energy or in forced recharge")
+		if debug_energy:
+			print("Firing blocked - insufficient energy or in forced recharge")
 		return
 	
 	# Drain energy for firing
 	if time_energy_manager:
 		var energy_drained = time_energy_manager.drain_energy_for_firing()
 		if not energy_drained:
-			print("Firing blocked - energy drain failed")
+			if debug_energy:
+				print("Firing blocked - energy drain failed")
 			return
 	
 	# Consume ammo
 	current_ammo -= 1
 	ammo_changed.emit(current_ammo, max_ammo)
-	print("Ammo: ", current_ammo, "/", max_ammo)
+	if debug_ammo:
+		print("Ammo: ", current_ammo, "/", max_ammo)
 	
 	# Apply velocity loss to player when firing
 	_apply_firing_velocity_loss()
@@ -841,28 +955,30 @@ func _fire_hitscan(damage: int, travel_type: int):
 	var spawn_position = get_muzzle_position()
 	var fire_direction = get_firing_direction()
 	
-	print("FIRING HITSCAN - Type: ", travel_type, " Damage: ", damage)
+	if debug_firing:
+		print("FIRING HITSCAN - Type: ", travel_type, " Damage: ", damage)
 	
 	# For delayed hitscan, add a brief delay
 	if travel_type == 7:  # DELAYED_HITSCAN
-		await get_tree().create_timer(0.15).timeout
+		await get_tree().create_timer(delayed_hitscan_delay).timeout
 	
 	# Perform raycast
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(
 		spawn_position,
-		spawn_position + fire_direction * 1000.0  # 1000 unit range
+		spawn_position + fire_direction * hitscan_max_range
 	)
 	
 	# Set collision mask - hit Environment (4) + Enemy (128) = 132
-	query.collision_mask = 132
+	query.collision_mask = hitscan_collision_mask
 	query.exclude = [get_tree().get_first_node_in_group("player")]  # Don't hit player
 	
 	var result = space_state.intersect_ray(query)
 	var impact_position: Vector3
 	
 	if result:
-		print("Hitscan hit: ", result.collider.name, " at ", result.position)
+		if debug_firing:
+			print("Hitscan hit: ", result.collider.name, " at ", result.position)
 		impact_position = result.position
 		
 		# Deal direct damage if we hit an enemy
@@ -875,8 +991,9 @@ func _fire_hitscan(damage: int, travel_type: int):
 		# Create visual effects
 		_create_hitscan_effects(spawn_position, result.position)
 	else:
-		print("Hitscan missed")
-		impact_position = spawn_position + fire_direction * 1000.0
+		if debug_firing:
+			print("Hitscan missed")
+		impact_position = spawn_position + fire_direction * hitscan_max_range
 		# Create tracer to max range
 		_create_hitscan_effects(spawn_position, impact_position)
 	
@@ -955,8 +1072,8 @@ func create_muzzle_flash_node() -> MeshInstance3D:
 	
 	# Create sphere mesh
 	var sphere = SphereMesh.new()
-	sphere.radius = 0.3
-	sphere.height = 0.6
+	sphere.radius = muzzle_flash_radius
+	sphere.height = muzzle_flash_height
 	flash.mesh = sphere
 	
 	# Create bright yellow material
@@ -964,7 +1081,7 @@ func create_muzzle_flash_node() -> MeshInstance3D:
 	material.albedo_color = Color.YELLOW
 	material.emission_enabled = true
 	material.emission = Color.YELLOW
-	material.emission_energy = 5.0
+	material.emission_energy = muzzle_flash_emission_energy
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	flash.material_override = material
 	
@@ -984,13 +1101,13 @@ func _show_muzzle_flash():
 	muzzle_flash.visible = true
 	
 	# Start with small scale
-	muzzle_flash.scale = Vector3(0.5, 0.5, 0.5)
+	muzzle_flash.scale = Vector3.ONE * muzzle_flash_min_scale
 	
 	# Add to active muzzle flashes list for manual animation
 	var flash_data = {
 		"muzzle_flash": muzzle_flash,
 		"age": 0.0,
-		"total_duration": 0.2,
+		"total_duration": muzzle_flash_duration,
 		"phase": "grow"
 	}
 	active_muzzle_flashes.append(flash_data)
@@ -1025,8 +1142,8 @@ func _create_hitscan_tracer(start_pos: Vector3, end_pos: Vector3):
 	var cylinder = CylinderMesh.new()
 	var line_length = start_pos.distance_to(end_pos)
 	cylinder.height = line_length
-	cylinder.top_radius = 0.02
-	cylinder.bottom_radius = 0.02
+	cylinder.top_radius = tracer_radius
+	cylinder.bottom_radius = tracer_radius
 	tracer.mesh = cylinder
 	
 	# Position at center of line (normal positioning)
@@ -1065,7 +1182,7 @@ func _create_hitscan_tracer(start_pos: Vector3, end_pos: Vector3):
 	var tracer_data = {
 		"tracer": tracer,
 		"age": 0.0,
-		"total_duration": line_length / 16.0,
+		"total_duration": line_length / tracer_duration_divisor,
 		"original_height": line_length,
 		"impact_end": end_pos,
 		"line_direction": line_direction
@@ -1076,7 +1193,7 @@ func _create_impact_effect(pos: Vector3):
 	"""Create impact effect at hit location."""
 	# Use TracerManager to create impact effect
 	if TracerManager:
-		TracerManager.create_impact(pos, Color.ORANGE, 0.2)
+		TracerManager.create_impact(pos, Color.ORANGE, impact_effect_duration)
 
 func _animate_hitscan_tracer_fadeout(tracer: MeshInstance3D, tracer_length: float, impact_end: Vector3, line_dir: Vector3):
 	"""Animate hitscan tracer fade out with consistent shrink rate."""
@@ -1088,11 +1205,7 @@ func _animate_hitscan_tracer_fadeout(tracer: MeshInstance3D, tracer_length: floa
 	var time_scale = time_manager.get_time_scale() if time_manager else 1.0
 	
 	# Calculate duration based on length for consistent shrink rate
-	# Shrink rate: 400 units per second (adjust this value to taste)
-	var shrink_rate = 400.0  # units per second
-
-	
-	var base_duration = tracer_length / 16.0
+	var base_duration = tracer_length / tracer_duration_divisor
 	
 	# Scale duration by time scale (slower when time is slowed)
 	var duration = base_duration * time_scale
@@ -1155,7 +1268,8 @@ func _fire_shotgun(damage: int, travel_type: int):
 	var shotgun_spread = get_current_shotgun_spread()
 	var pellet_damage = max(1, damage / pellet_count)  # Distribute damage across pellets
 	
-	print("FIRING SHOTGUN - ", pellet_count, " pellets, ", pellet_damage, " damage each, ", shotgun_spread, "° spread")
+	if debug_firing:
+		print("FIRING SHOTGUN - ", pellet_count, " pellets, ", pellet_damage, " damage each, ", shotgun_spread, "° spread")
 	
 	# Note: Energy was already drained in _fire_bullet, so we don't drain again here
 	
@@ -1202,17 +1316,17 @@ func _fire_shotgun_hitscan_pellet(damage: int, travel_type: int, direction: Vect
 	
 	# For delayed hitscan, add a brief delay
 	if travel_type == 7:  # DELAYED_HITSCAN
-		await get_tree().create_timer(0.15).timeout
+		await get_tree().create_timer(delayed_hitscan_delay).timeout
 	
 	# Perform raycast
 	var space_state = get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(
 		spawn_position,
-		spawn_position + direction * 1000.0  # 1000 unit range
+		spawn_position + direction * hitscan_max_range
 	)
 	
 	# Set collision mask - hit Environment (4) + Enemy (128) = 132
-	query.collision_mask = 132
+	query.collision_mask = hitscan_collision_mask
 	query.exclude = [get_tree().get_first_node_in_group("player")]  # Don't hit player
 	
 	var result = space_state.intersect_ray(query)
@@ -1251,7 +1365,7 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 	
 	# Configure bullet collision
 	bullet.collision_layer = 2  # Bullets layer  
-	bullet.collision_mask = 132  # Environment (bit 3=4) + Enemy (bit 8=128) = 132 (NO player layer)
+	bullet.collision_mask = hitscan_collision_mask  # Environment + Enemy (NO player layer)
 	
 	# Area3D automatically handles collision detection
 	
@@ -1285,7 +1399,7 @@ func _create_shotgun_impact_effect(position: Vector3):
 	"""Create smaller impact effect for shotgun pellets."""
 	# Use TracerManager to create smaller impact effect
 	if TracerManager:
-		TracerManager.create_impact(position, Color.ORANGE, 0.1)
+		TracerManager.create_impact(position, Color.ORANGE, shotgun_impact_duration)
 	
 
 
@@ -1298,7 +1412,8 @@ func _create_explosion(position: Vector3):
 	if explosion_radius <= 0.0:
 		return
 	
-	print("EXPLOSION at ", position, " - Radius: ", explosion_radius, " Damage: ", explosion_damage)
+	if debug_explosions:
+		print("EXPLOSION at ", position, " - Radius: ", explosion_radius, " Damage: ", explosion_damage)
 	
 	# Apply area damage
 	_apply_explosion_damage(position, explosion_radius, explosion_damage)
@@ -1328,7 +1443,8 @@ func _apply_explosion_damage(explosion_pos: Vector3, radius: float, damage: int)
 			var damage_multiplier = 1.0 - (distance / radius)  # Linear falloff
 			var final_damage = int(damage * damage_multiplier)
 			
-			print("Explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
+			if debug_explosions:
+				print("Explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
 			enemy.take_damage(final_damage)
 
 func _create_explosion_visual(position: Vector3, radius: float):
@@ -1845,7 +1961,8 @@ func _apply_recoil():
 	if camera.has_method("add_recoil_offset"):
 		camera.add_recoil_offset(initial_kick_degrees)  # Update camera script's internal tracking
 	
-	print("Started recoil - Base: ", base_recoil, "° Duration: ", get_current_recoil_duration(), "s")
+	if debug_recoil:
+		print("Started recoil - Base: ", base_recoil, "° Duration: ", get_current_recoil_duration(), "s")
 
 # === RECOIL SYSTEM API ===
 func set_recoil_for_mode(mode: FireMode, recoil_degrees: float):
@@ -1903,11 +2020,13 @@ func pickup_bullet():
 	var was_empty = (current_ammo == 0)
 	current_ammo += 1
 	ammo_changed.emit(current_ammo, max_ammo)
-	print("Bullet picked up! Ammo: ", current_ammo, "/", max_ammo)
+	if debug_ammo:
+		print("Bullet picked up! Ammo: ", current_ammo, "/", max_ammo)
 	
 	# If we were empty and now have ammo, prepare a bullet
 	if was_empty and not prepared_bullet:
-		print("Was empty, preparing first bullet")
+		if debug_ammo:
+			print("Was empty, preparing first bullet")
 		_prepare_next_bullet()
 	
 	return true
@@ -1948,10 +2067,11 @@ func _apply_firing_velocity_loss():
 	# CRITICAL: Also reduce movement_intent which drives the time system
 	player.movement_intent *= velocity_multiplier
 	
-	print("Firing velocity loss:")
-	print("  Velocity: ", old_velocity, " -> ", player.velocity)
-	print("  Movement intent: ", old_movement_intent, " -> ", player.movement_intent)
-	print("  Reduction: ", velocity_loss_on_firing * 100, "%")
+	if debug_firing:
+		print("Firing velocity loss:")
+		print("  Velocity: ", old_velocity, " -> ", player.velocity)
+		print("  Movement intent: ", old_movement_intent, " -> ", player.movement_intent)
+		print("  Reduction: ", velocity_loss_on_firing * 100, "%")
 
 # === GUN EQUIP/UNEQUIP SYSTEM ===
 
@@ -1960,7 +2080,8 @@ func equip_gun():
 	if is_gun_equipped or equip_animation_active:
 		return
 	
-	print("Equipping gun...")
+	if debug_equipment:
+		print("Equipping gun...")
 	equip_animation_active = true
 	is_gun_equipped = true
 	
@@ -1979,7 +2100,8 @@ func equip_gun():
 
 func unequip_gun():
 	"""Unequip the gun (hide it)."""
-	print("Unequipping gun...")
+	if debug_equipment:
+		print("Unequipping gun...")
 	is_gun_equipped = false
 	equip_animation_active = false
 	visible = false
@@ -1995,8 +2117,8 @@ func _start_equip_animation():
 	# Simple animation data with just what we need
 	set_meta("equip_animation", {
 		"elapsed": 0.0,
-		"duration": 0.3,
-		"bounce_factor": 1.2
+		"duration": equip_animation_duration,
+		"bounce_factor": equip_animation_bounce_factor
 	})
 
 func _update_equip_animation(delta: float):
@@ -2006,8 +2128,8 @@ func _update_equip_animation(delta: float):
 	
 	var animation_data = get_meta("equip_animation")
 	var elapsed = animation_data.get("elapsed", 0.0)
-	var duration = animation_data.get("duration", 0.3)
-	var bounce_factor = animation_data.get("bounce_factor", 1.2)
+	var duration = animation_data.get("duration", equip_animation_duration)
+	var bounce_factor = animation_data.get("bounce_factor", equip_animation_bounce_factor)
 	
 	# Use raw delta time - ignore time manager for consistent animation speed
 	elapsed += delta
@@ -2020,18 +2142,19 @@ func _update_equip_animation(delta: float):
 		scale = Vector3.ONE
 		equip_animation_active = false
 		remove_meta("equip_animation")
-		print("Gun equip animation complete")
+		if debug_equipment:
+			print("Gun equip animation complete")
 		return true
 	
 	# Calculate bouncy scale
 	var scale_value: float
-	if progress < 0.7:
+	if progress < equip_grow_phase_ratio:
 		# Growing phase with bounce
-		var bounce_progress = progress / 0.7
+		var bounce_progress = progress / equip_grow_phase_ratio
 		scale_value = bounce_progress * bounce_factor
 	else:
 		# Settling phase
-		var settle_progress = (progress - 0.7) / 0.3
+		var settle_progress = (progress - equip_grow_phase_ratio) / equip_settle_phase_ratio
 		scale_value = bounce_factor - (bounce_factor - 1.0) * settle_progress
 	
 	scale = Vector3.ONE * scale_value
@@ -2046,7 +2169,8 @@ func is_equipped() -> bool:
 func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 	"""Create wall ripple effect at impact position."""
 	if not wall_ripple_scene:
-		print("WARNING: No wall ripple scene assigned")
+		if debug_firing:
+			print("WARNING: No wall ripple scene assigned")
 		return
 	
 	# Instantiate the ripple effect
@@ -2060,4 +2184,5 @@ func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 		# Fallback setup
 		ripple.global_position = impact_position
 	
-	print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)
+	if debug_firing:
+		print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)

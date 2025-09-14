@@ -5,24 +5,49 @@ class_name Grunt
 # Basic melee enemy that chases the player relentlessly
 # Role: Tests basic movement and close combat awareness
 
+## === GRUNT CONFIGURATION ===
+@export_group("Grunt Stats")
+## Health points for Grunt enemies
+@export var grunt_health: int = 80
+## Movement speed for Grunt enemies
+@export var grunt_movement_speed: float = 6.0
+## Detection range for Grunt enemies
+@export var grunt_detection_range: float = 15.0
+## Attack range for Grunt enemies
+@export var grunt_attack_range: float = 3.0
+## Rotation speed for Grunt enemies
+@export var grunt_turn_speed: float = 15.0
+## Piercing resistance for Grunt enemies
+@export var grunt_piercability: float = 1.0
+
+@export_group("Grunt Appearance")
+## Color for Grunt enemies
+@export var grunt_color: Color = Color.ORANGE_RED
+## Size scale for Grunt enemies
+@export var grunt_size_scale: float = 1.0
+
+@export_group("Grunt Behavior")
+## Movement behavior type for Grunt enemies
+@export var grunt_movement_behavior: MovementBehavior.Type = MovementBehavior.Type.CHASE
+## Attack behavior type for Grunt enemies
+@export var grunt_attack_behavior: AttackBehavior.Type = AttackBehavior.Type.MELEE
+
 func _ready():
-	# Configure as melee chaser
-	max_health = 80
-	movement_speed = 6.0
-	detection_range = 15.0
-	attack_range = 3.0
-	turn_speed = 15.0  # Faster rotation to keep up with direction changes
+	# Configure as melee chaser using exported values
+	max_health = grunt_health
+	movement_speed = grunt_movement_speed
+	detection_range = grunt_detection_range
+	attack_range = grunt_attack_range
+	turn_speed = grunt_turn_speed
+	piercability = grunt_piercability
 	
 	# Set behaviors
-	movement_behavior_type = MovementBehavior.Type.CHASE
-	attack_behavior_type = AttackBehavior.Type.MELEE
+	movement_behavior_type = grunt_movement_behavior
+	attack_behavior_type = grunt_attack_behavior
 	
 	# Appearance
-	enemy_color = Color.ORANGE_RED
-	size_scale = 1.0
-	
-	# Piercing resistance
-	piercability = 1.0  # Standard piercability
+	enemy_color = grunt_color
+	size_scale = grunt_size_scale
 	
 	# Call parent ready
 	super()

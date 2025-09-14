@@ -7,6 +7,32 @@ enum GameState {
 	PAUSED
 }
 
+## === EXPORTED CONFIGURATION ===
+@export_group("Scene Paths")
+## Path to player node in scene
+@export var player_path: String = "/root/Main/Player"
+## Path to main scene node
+@export var main_scene_path: String = "/root/Main"
+## Path to death screen UI
+@export var death_screen_path: String = "/root/Main/UI/DeathScreen"
+## Path to restart button in death screen
+@export var restart_button_path: String = "VBoxContainer/RestartButton"
+
+@export_group("Input Settings")
+## Key code for restart input when dead
+@export var restart_key: int = KEY_R
+
+@export_group("Debug Settings")
+## Enable debug output for connection setup
+@export var debug_connections: bool = false
+## Enable debug output for state changes
+@export var debug_state_changes: bool = false
+## Enable debug output for restart system
+@export var debug_restart: bool = false
+## Enable debug output for player death events
+@export var debug_death: bool = false
+
+## === RUNTIME STATE ===
 # Current game state
 var current_state: GameState = GameState.PLAYING
 
@@ -35,59 +61,70 @@ func _ready():
 
 func _setup_connections():
 	"""Setup connections to player and death screen"""
-	print("GameManager: Setting up connections...")
+	if debug_connections:
+		print("GameManager: Setting up connections...")
 	
 	# Find player
-	player = get_node_or_null("/root/Main/Player")
+	player = get_node_or_null(player_path)
 	if player:
-		print("GameManager: Found player, connecting death signal")
+		if debug_connections:
+			print("GameManager: Found player, connecting death signal")
 		# Connect to player death signal
 		if player.has_signal("player_died"):
 			# Disconnect first to avoid duplicate connections
 			if player.player_died.is_connected(_on_player_died):
 				player.player_died.disconnect(_on_player_died)
 			player.player_died.connect(_on_player_died)
-			print("GameManager: Successfully connected to player death signal")
+			if debug_connections:
+				print("GameManager: Successfully connected to player death signal")
 		else:
-			print("Warning: Player doesn't have player_died signal")
+			if debug_connections:
+				print("Warning: Player doesn't have player_died signal")
 	else:
-		print("GameManager: Player not found")
+		if debug_connections:
+			print("GameManager: Player not found")
 	
 	# Find main scene
-	main_scene = get_node_or_null("/root/Main")
+	main_scene = get_node_or_null(main_scene_path)
 	
 	# Find death screen
-	death_screen = get_node_or_null("/root/Main/UI/DeathScreen")
+	death_screen = get_node_or_null(death_screen_path)
 	if death_screen:
-		print("GameManager: Found death screen")
+		if debug_connections:
+			print("GameManager: Found death screen")
 		death_screen.hide()
 		# Connect restart button
-		var restart_button = death_screen.get_node_or_null("VBoxContainer/RestartButton")
+		var restart_button = death_screen.get_node_or_null(restart_button_path)
 		if restart_button:
 			# Disconnect first to avoid duplicate connections
 			if restart_button.pressed.is_connected(_on_restart_button_pressed):
 				restart_button.pressed.disconnect(_on_restart_button_pressed)
 			restart_button.pressed.connect(_on_restart_button_pressed)
-			print("GameManager: Successfully connected restart button")
+			if debug_connections:
+				print("GameManager: Successfully connected restart button")
 		else:
-			print("GameManager: Restart button not found")
+			if debug_connections:
+				print("GameManager: Restart button not found")
 	else:
-		print("GameManager: DeathScreen not found in scene")
+		if debug_connections:
+			print("GameManager: DeathScreen not found in scene")
 
 func _on_node_added(node: Node):
 	"""Called when a new node is added to the scene tree"""
 	# Check if this is the player or death screen being added
-	if str(node.get_path()) == "/root/Main/Player":
-		print("GameManager: Player node added, reconnecting signals")
+	if str(node.get_path()) == player_path:
+		if debug_connections:
+			print("GameManager: Player node added, reconnecting signals")
 		_setup_connections()
-	elif str(node.get_path()) == "/root/Main/UI/DeathScreen":
-		print("GameManager: DeathScreen node added, reconnecting signals")
+	elif str(node.get_path()) == death_screen_path:
+		if debug_connections:
+			print("GameManager: DeathScreen node added, reconnecting signals")
 		_setup_connections()
 
 func _input(event):
 	# Handle restart input when dead
 	if current_state == GameState.PLAYER_DEAD:
-		if (event is InputEventKey and event.pressed and event.keycode == KEY_R):
+		if (event is InputEventKey and event.pressed and event.keycode == restart_key):
 			restart_game()
 
 func change_game_state(new_state: GameState):
@@ -135,8 +172,9 @@ func _handle_paused_state():
 
 func _on_player_died():
 	"""Called when player dies"""
-	print("GameManager: Received player_died signal!")
-	print("GameManager: Player died!")
+	if debug_death:
+		print("GameManager: Received player_died signal!")
+		print("GameManager: Player died!")
 	change_game_state(GameState.PLAYER_DEAD)
 
 func _on_restart_button_pressed():
@@ -145,7 +183,8 @@ func _on_restart_button_pressed():
 
 func restart_game():
 	"""Restart the current level"""
-	print("GameManager: Restarting game...")
+	if debug_restart:
+		print("GameManager: Restarting game...")
 	
 	# Emit restart signal
 	game_restart_requested.emit()
@@ -156,7 +195,8 @@ func restart_game():
 	# Clean up TracerManager before scene reload to prevent lambda errors
 	var tracer_manager = get_node_or_null("/root/TracerManager")
 	if tracer_manager:
-		print("GameManager: Cleaning up TracerManager before scene reload")
+		if debug_restart:
+			print("GameManager: Cleaning up TracerManager before scene reload")
 		tracer_manager.reset_tracer_system()
 		# Wait a frame for cleanup to complete
 		await get_tree().process_frame

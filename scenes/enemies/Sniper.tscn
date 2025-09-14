@@ -5,3 +5,13 @@
 
 [node name="Sniper" instance=ExtResource("1_vc3vq")]
 script = ExtResource("2_1qpc2")
+sniper_health = 60
+sniper_movement_speed = 3.0
+sniper_detection_range = 999.0
+sniper_attack_range = 999.0
+sniper_turn_speed = 3.0
+sniper_piercability = 0.5
+sniper_color = Color(0, 0, 1, 1)
+sniper_size_scale = 0.8
+sniper_movement_behavior = 1
+sniper_attack_behavior = 3

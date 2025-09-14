@@ -26,11 +26,46 @@ extends Node3D
 
 @export var base_ring_scale: float = 0.1  # Starting scale for all rings
 
+@export_group("Animation Phases")
+## Progress ratio for explosion expand phase
+@export var explosion_expand_phase_ratio: float = 0.33
+## Progress ratio for explosion fade phase
+@export var explosion_fade_phase_ratio: float = 0.34
+## Progress ratio for explosion scale down phase
+@export var explosion_scale_down_phase_ratio: float = 0.33
+## Progress ratio for impact scale up phase
+@export var impact_scale_up_phase_ratio: float = 0.21
+## Progress ratio for impact scale down phase
+@export var impact_scale_down_phase_ratio: float = 0.79
+
+@export_group("Effect Properties")
+## Default explosion duration
+@export var default_explosion_duration: float = 0.6
+## Default impact duration
+@export var default_impact_duration: float = 0.7
+## Impact emission energy
+@export var impact_emission_energy: float = 8.0
+## Explosion emission energy
+@export var explosion_emission_energy: float = 5.0
+## Impact scale multiplier (scales from 1.0 to this value)
+@export var impact_max_scale_multiplier: float = 2.0
+## Explosion sphere radius multiplier
+@export var explosion_radius_multiplier: float = 0.3
+## Explosion sphere height multiplier
+@export var explosion_height_multiplier: float = 0.6
+
+@export_group("Debug Settings")
+## Enable debug output for ripple animation events
+@export var debug_animation: bool = false
+## Enable debug output for setup and positioning
+@export var debug_setup: bool = false
+
 # Ring references (assigned from scene)
 @onready var ring1: MeshInstance3D = $Ring1
 @onready var ring2: MeshInstance3D = $Ring2
 @onready var ring3: MeshInstance3D = $Ring3
 
+## === RUNTIME STATE ===
 # Animation data
 var animation_data: Array[Dictionary] = []
 var time_manager: Node
@@ -113,14 +148,16 @@ func _start_ripple_animation():
 	# Start ring1 immediately (it has no delay)
 	_start_ring_animation(animation_data[0])
 	
-	print("Wall ripple animation started")
+	if debug_animation:
+		print("Wall ripple animation started")
 
 func _start_ring_animation(ring_data: Dictionary):
 	"""Start animation for a specific ring."""
 	var ring = ring_data.ring
 	if ring:
 		ring.visible = true
-		print("Started ring animation: ", ring.name)
+		if debug_animation:
+			print("Started ring animation: ", ring.name)
 
 func _process(delta: float):
 	"""Update ripple animation."""
@@ -215,4 +252,5 @@ func setup_ripple(impact_position: Vector3, surface_normal: Vector3):
 		# Create the basis and apply it
 		global_transform.basis = Basis(right, up, forward)
 	
-	print("Wall ripple setup at: ", impact_position, " normal: ", surface_normal)
+	if debug_setup:
+		print("Wall ripple setup at: ", impact_position, " normal: ", surface_normal)
