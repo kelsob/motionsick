@@ -64,7 +64,7 @@ layout_mode = 2
 [node name="GraphicsSection" type="VBoxContainer" parent="OptionsContainer/SettingsContainer"]
 layout_mode = 2
 
-[node name="FullScreenCheckbox" type="CheckBox" parent="OptionsContainer/SettingsContainer/GraphicsSection"]
+[node name="FullscreenCheckbox" type="CheckBox" parent="OptionsContainer/SettingsContainer/GraphicsSection"]
 layout_mode = 2
 text = "Full-Screen"
 
