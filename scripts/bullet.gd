@@ -100,6 +100,10 @@ enum TravelType {
 @export var corner_detection_radius: float = 0.5
 ## Maximum corner detection distance for emergency situations
 @export var corner_danger_distance: float = 0.3
+## Distance to check ahead for immediate corner collisions
+@export var corner_check_distance: float = 0.2
+## Small offset from wall after corner bounce
+@export var corner_bounce_offset: float = 0.1
 
 @export_group("Debug Settings")
 ## Enable debug output for explosion events
@@ -672,20 +676,18 @@ func _on_body_entered(body):
 
 func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bounced_from_body: Node3D):
 	"""Handle bouncing using precise vertex impact data."""
-	# DEBUG: Check if we're in a corner situation
-	_debug_corner_detection(impact_position)
-	
 	# Calculate reflection: new_direction = incident - 2 * (incident · normal) * normal
 	var incident_direction = travel_direction.normalized()
 	var dot_product = incident_direction.dot(surface_normal)
 	var reflected_direction = incident_direction - 2.0 * dot_product * surface_normal
 	
-	# ATOMIC UPDATE: Set position, direction, AND orientation together to prevent tracer artifacts
+	# ATOMIC UPDATE: IGNORE impact_position completely - it's from spinning collision shape
 	var old_position = global_position
 	var old_speed = current_speed
 	
 	# Update ALL properties atomically in one operation
-	global_position = impact_position
+	# COMPLETELY IGNORE impact_position - just change direction, NO position offset
+	global_position = old_position  # Keep bullet exactly where it is
 	travel_direction = reflected_direction.normalized()
 	current_bounces += 1
 	current_speed *= (1.0 - bounce_energy_loss)
@@ -698,46 +700,58 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 		look_at(global_position + travel_direction, up_vector)
 	
 	if debug_bouncing:
-		print("BULLET BOUNCE: Atomic update - Position: ", old_position, " -> ", global_position)
+		print("BULLET BOUNCE: Atomic update - Position unchanged: ", old_position)
 		print("BULLET BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
 		print("BULLET BOUNCE: New direction: ", travel_direction)
+		print("BULLET BOUNCE: Impact position IGNORED: ", impact_position)
+		print("BULLET BOUNCE: NO position offset applied")
 	
-	var shapecast = get_node_or_null("ShapeCast3D")
-	if shapecast:
-		# Point the ShapeCast3D in the new travel direction to detect upcoming collisions
-		var original_target = shapecast.target_position
-		shapecast.target_position = travel_direction * 1.0  # Look 1 unit ahead in bounce direction
-		
-		shapecast.force_shapecast_update()
-		var additional_collisions = shapecast.get_collision_count()
-		
-		# Filter out collisions with the SAME SHAPE we just bounced from
-		var bounced_shape_idx = get_meta("bounced_from_shape") if has_meta("bounced_from_shape") else -1
-		var new_collisions = 0
-		for i in range(additional_collisions):
-			var collider = shapecast.get_collider(i)
-			var shape_idx = shapecast.get_collider_shape(i)
-			
-			# Only count as new collision if it's a DIFFERENT shape
-			if shape_idx != bounced_shape_idx:
-				new_collisions += 1
-		
-		# Restore original ShapeCast3D direction
-		shapecast.target_position = original_target
-		
-		if new_collisions > 0:
-			_create_environment_impact_effect(global_position)
-			has_hit_target = true
-			_cleanup_bullet()
-			queue_free()
-			return
+	# CORNER HANDLING: Check if new trajectory immediately hits another wall
+	_handle_corner_bounce_check()
+
+func _handle_corner_bounce_check():
+	"""Simple corner bounce check - if new trajectory hits another wall, bounce again."""
+	if current_bounces >= max_bounces:
+		return  # Don't check if we're at max bounces
 	
-
+	# Cast a ray in the new travel direction to see if we immediately hit another wall
+	var space_state = get_world_3d().direct_space_state
+	var ray_end = global_position + travel_direction * corner_check_distance
 	
-	# Orientation already updated in atomic update above
-
-
-
+	var query = PhysicsRayQueryParameters3D.create(global_position, ray_end)
+	query.collision_mask = environment_collision_mask
+	query.exclude = [self]
+	
+	var result = space_state.intersect_ray(query)
+	if result:
+		if debug_bouncing:
+			print("CORNER: Immediate collision detected, performing additional bounce")
+		
+		# We're hitting another wall immediately - perform another bounce
+		var new_incident = travel_direction.normalized()
+		var new_normal = result.normal
+		var new_dot = new_incident.dot(new_normal)
+		var new_reflection = new_incident - 2.0 * new_dot * new_normal
+		
+		# Update direction only - NO position changes
+		travel_direction = new_reflection.normalized()
+		# Don't move bullet position at all - just change direction
+		current_bounces += 1
+		current_speed *= (1.0 - bounce_energy_loss)
+		
+		# Update orientation
+		if travel_direction.length() > 0.01:
+			var up_vector = Vector3.UP
+			if abs(travel_direction.dot(Vector3.UP)) > 0.99:
+				up_vector = Vector3.FORWARD
+			look_at(global_position + travel_direction, up_vector)
+		
+		if debug_bouncing:
+			print("CORNER: Additional bounce complete - new direction: ", travel_direction)
+		
+		# Check one more time (but limit to prevent infinite loops)
+		if current_bounces < max_bounces:
+			_handle_corner_bounce_check()
 
 func _handle_simple_fallback_bounce():
 	"""Smart fallback bounce when vertex raycasts fail - works for floors AND walls."""
@@ -782,6 +796,9 @@ func _handle_simple_fallback_bounce():
 	if debug_bouncing:
 		print("FALLBACK Smart bounce complete - new direction: ", travel_direction)
 		print("FALLBACK New position: ", global_position)
+	
+	# CORNER HANDLING: Check for additional bounces after fallback bounce
+	_handle_corner_bounce_check()
 
 func _is_environment(body: Node3D) -> bool:
 	"""Check if the body is environment (walls, floors, etc.) based on collision layer."""
@@ -1225,46 +1242,6 @@ func get_tracer_color() -> Color:
 
 # === DEBUG FUNCTIONS ===
 
-func _debug_corner_detection(impact_position: Vector3):
-	"""Debug function to detect corner situations."""
-	# Simple corner detection - only cardinal directions + closest corners
-	var directions = [
-		Vector3.RIGHT, Vector3.LEFT, 
-		Vector3.FORWARD, Vector3.BACK,
-		Vector3.UP, Vector3.DOWN
-	]
-	
-	var wall_count = 0
-	var detected_walls = []
-	
-	for direction in directions:
-		var space_state = get_world_3d().direct_space_state
-		var query = PhysicsRayQueryParameters3D.create(
-			impact_position, 
-			impact_position + direction * corner_detection_radius
-		)
-		query.collision_mask = environment_collision_mask
-		query.exclude = [self]  # Don't hit ourselves
-		
-		var result = space_state.intersect_ray(query)
-		if result:
-			wall_count += 1
-			detected_walls.append({
-				"direction": direction,
-				"normal": result.normal,
-				"distance": impact_position.distance_to(result.position)
-			})
-	
-	# Only trigger for VERY close corners that would cause immediate problems
-	var very_close_walls = 0
-	for wall in detected_walls:
-		if wall.distance < corner_danger_distance:
-			very_close_walls += 1
-	
-	if very_close_walls >= 2:
-		# SIMPLE FIX: Set a flag and store the detected wall data
-		set_meta("corner_bounce", true)
-		set_meta("corner_walls", detected_walls)
 
 
 
