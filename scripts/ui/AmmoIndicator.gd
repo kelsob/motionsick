@@ -30,16 +30,20 @@ func _ready():
 	bullet_container.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	bullet_container.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	
-	# Find and connect to gun
-	_connect_to_gun()
+	# Find and connect to gun with delay
+	call_deferred("_connect_to_gun")
 
 func _connect_to_gun():
 	"""Find the player's gun and connect to its ammo system."""
 	# Find player first
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
-		print("AmmoIndicator: Could not find player!")
-		return
+		# Try again after a short delay
+		await get_tree().create_timer(0.1).timeout
+		player = get_tree().get_first_node_in_group("player")
+		if not player:
+			print("AmmoIndicator: Could not find player after delay!")
+			return
 	
 	# Find gun (should be child of camera which is child of player)
 	var camera = player.get_node("Camera3D")

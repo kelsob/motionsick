@@ -1,0 +1,198 @@
+[gd_scene load_steps=9 format=3 uid="uid://blu3n01wkgsbv"]
+
+[ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/UI.gd" id="1_i67xx"]
+[ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="2_aglok"]
+[ext_resource type="Texture2D" uid="uid://bxpc2ma6gsowc" path="res://assets/ui/crosshair-thread.png" id="3_mfe3c"]
+[ext_resource type="Script" uid="uid://b8rqy2kqwh2qi" path="res://scripts/ui/AmmoIndicator.gd" id="4_vwqld"]
+[ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="5_j7l4n"]
+[ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="6_chitb"]
+[ext_resource type="Script" uid="uid://bqm8n2x7vwh3g" path="res://scripts/ui/TimerLabel.gd" id="7_gpcf8"]
+[ext_resource type="Script" uid="uid://c5riax4mp6ov2" path="res://scripts/ui/RealTimerLabel.gd" id="8_4mhe6"]
+
+[node name="UI" type="CanvasLayer"]
+script = ExtResource("1_i67xx")
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Crosshair" type="Control" parent="Control"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -10.5
+offset_top = -10.5
+offset_right = 29.5
+offset_bottom = 29.5
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+script = ExtResource("2_aglok")
+
+[node name="TextureRect1" type="TextureRect" parent="Control/Crosshair"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -9.0
+offset_top = -48.0
+offset_right = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_mfe3c")
+flip_v = true
+
+[node name="TextureRect2" type="TextureRect" parent="Control/Crosshair"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 49.0
+offset_top = -10.0
+offset_right = 68.0
+offset_bottom = 38.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = 1.5708
+texture = ExtResource("3_mfe3c")
+flip_v = true
+
+[node name="TextureRect3" type="TextureRect" parent="Control/Crosshair"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -9.0
+offset_right = 10.0
+offset_bottom = 48.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_mfe3c")
+
+[node name="TextureRect4" type="TextureRect" parent="Control/Crosshair"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 1.0
+offset_top = -10.0
+offset_right = 20.0
+offset_bottom = 38.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = 1.5708
+texture = ExtResource("3_mfe3c")
+
+[node name="AmmoIndicator" type="HBoxContainer" parent="Control"]
+modulate = Color(1, 1, 1, 0.52549)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = 106.0
+offset_right = 20.0
+offset_bottom = 146.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_vwqld")
+
+[node name="ActionHistoryPanel" type="Panel" parent="Control"]
+visible = false
+custom_minimum_size = Vector2(200, 120)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+offset_right = 40.0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("5_j7l4n")
+
+[node name="MarginContainer" type="MarginContainer" parent="Control/ActionHistoryPanel"]
+layout_mode = 2
+offset_right = 200.0
+offset_bottom = 120.0
+size_flags_vertical = 3
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/ActionHistoryPanel/MarginContainer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TitleLabel" type="Label" parent="Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Recent Actions"
+
+[node name="ActionContainer" type="VBoxContainer" parent="Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="EnergyBar" type="ProgressBar" parent="Control"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -70.0
+offset_right = 300.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 0
+script = ExtResource("6_chitb")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -20.0
+offset_right = 20.0
+offset_bottom = 50.0
+grow_horizontal = 2
+
+[node name="ScoreLabel" type="Label" parent="Control/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
+text = "0"
+horizontal_alignment = 1
+
+[node name="TimerLabel" type="Label" parent="Control/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
+text = "0"
+script = ExtResource("7_gpcf8")
+
+[node name="RealTimerLabel" type="Label" parent="Control/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
+text = "0"
+script = ExtResource("8_4mhe6")

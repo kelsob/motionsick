@@ -15,15 +15,15 @@ enum EnemyType {
 
 ## === EXPORTED CONFIGURATION ===
 @export_group("Spawning System")
-## Automatically start spawning when scene loads
-@export var auto_start: bool = true
-## Time between spawn attempts (seconds)
+## Automatically start spawning when configured by level (usually false for singleton)
+@export var auto_start: bool = false
+## Time between spawn attempts (seconds) - configured by level
 @export var spawn_interval: float = 2.0
-## Enable difficulty scaling over time
+## Enable difficulty scaling over time - configured by level
 @export var difficulty_scaling: bool = true
-## Absolute maximum enemies alive at once
+## Absolute maximum enemies alive at once - configured by level
 @export var max_total_enemies: int = 50
-## Warning time before enemy spawns (telegraph duration)
+## Warning time before enemy spawns (telegraph duration) - configured by level
 @export var telegraph_duration: float = 3.0
 
 @export_group("Time System Integration")
@@ -530,6 +530,62 @@ func set_enemy_unlock_time(enemy_type: int, unlock_time: float):
 func set_enemy_growth_rate(enemy_type: int, growth_rate: float):
 	"""Set how quickly an enemy type's maximum count increases."""
 	enemy_growth_rates[enemy_type] = growth_rate
+
+func set_spawn_markers(markers: Array[Marker3D]):
+	"""Set spawn markers from level configuration."""
+	spawn_markers.clear()
+	spawn_markers = markers
+	if debug_spawning:
+		print("ArenaSpawnManager: Configured with ", markers.size(), " spawn markers from level")
+
+func set_difficulty_scaling(health_per_minute: float, speed_per_minute: float):
+	"""Configure difficulty scaling rates."""
+	health_scaling_per_minute = health_per_minute
+	speed_scaling_per_minute = speed_per_minute
+	if debug_difficulty:
+		print("ArenaSpawnManager: Difficulty scaling configured - Health: ", health_per_minute, "/min, Speed: ", speed_per_minute, "/min")
+
+func configure_for_level(config: Dictionary):
+	"""Configure spawn manager with level-specific settings."""
+	if config.has("spawn_interval"):
+		spawn_interval = config.spawn_interval
+		if spawn_timer:
+			spawn_timer.wait_time = spawn_interval
+	
+	if config.has("max_total_enemies"):
+		max_total_enemies = config.max_total_enemies
+	
+	if config.has("telegraph_duration"):
+		telegraph_duration = config.telegraph_duration
+	
+	if config.has("difficulty_scaling"):
+		difficulty_scaling = config.difficulty_scaling
+	
+	if config.has("enemy_max_counts"):
+		enemy_max_counts = config.enemy_max_counts
+	
+	if config.has("enemy_unlock_times"):
+		enemy_unlock_times = config.enemy_unlock_times
+	
+	if debug_spawning:
+		print("ArenaSpawnManager: Configured for level with settings: ", config.keys())
+
+func reset_for_level():
+	"""Reset spawn manager state for a new level."""
+	stop_spawning()
+	game_time = 0.0
+	enemies_alive = 0
+	
+	# Reset enemy counts
+	for enemy_type in EnemyType.values():
+		enemies_by_type[enemy_type] = 0
+		pending_spawns_by_type[enemy_type] = 0
+	
+	# Clear spawn markers - will be set by level
+	spawn_markers.clear()
+	
+	if debug_spawning:
+		print("ArenaSpawnManager: Reset for new level")
 
 func force_spawn_enemy(enemy_type: int):
 	"""Force spawn a specific enemy type (ignores limits)."""

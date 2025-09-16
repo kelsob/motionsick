@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="motionsick"
+run/main_scene="res://scenes/ui/MainMenu.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -19,6 +20,8 @@ config/icon="res://icon.svg"
 TimeManager="*res://scripts/TimeManager.gd"
 TracerManager="*res://scripts/TracerManager.gd"
 TimeEnergyManager="*res://scripts/TimeEnergyManager.gd"
+LevelManager="*res://scripts/LevelManager.gd"
+GameplayUIManager="*res://scripts/ui/GameplayUIManager.gd"
 GameManager="*res://scripts/GameManager.gd"
 ScoreManager="*res://scripts/ScoreManager.gd"
 ArenaSpawnManager="*res://scripts/ArenaSpawnManager.gd"

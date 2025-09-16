@@ -36,6 +36,8 @@ extends Node
 var custom_time_scale: float = 1.0
 # Player reference
 var player: CharacterBody3D = null
+# Whether TimeManager is active (only during gameplay)
+var is_active: bool = false
 
 # Signals for time scale changes
 signal time_scale_changed(new_scale: float)
@@ -43,9 +45,6 @@ signal time_scale_changed(new_scale: float)
 func _ready():
 	# Initialize time scale to default
 	custom_time_scale = default_time_scale
-	
-	# Find player reference
-	call_deferred("_find_player")
 	
 	# Connect to GameManager for restart events
 	var game_manager = get_node_or_null("/root/GameManager")
@@ -56,6 +55,8 @@ func _ready():
 	else:
 		if debug_gamemanager_connection:
 			print("WARNING: TimeManager can't find GameManager")
+	
+	# Don't find player immediately - wait for level to load
 
 func _find_player():
 	player = get_tree().get_first_node_in_group("player")
@@ -68,6 +69,10 @@ func _find_player():
 		player = null
 
 func _process(delta: float):
+	# Only process when active (during gameplay)
+	if not is_active:
+		return
+	
 	# Update time scale smoothly
 	_update_time_scale(delta)
 
@@ -128,6 +133,22 @@ func set_damage_prevention_threshold(threshold: float):
 	damage_prevention_threshold = clamp(threshold, 0.0, 1.0)
 	print("TimeManager: Damage prevention threshold set to ", damage_prevention_threshold)
 
+
+func activate_for_gameplay():
+	"""Activate TimeManager for gameplay - find player and start processing."""
+	if debug_gamemanager_connection:
+		print("TimeManager: Activating for gameplay")
+	is_active = true
+	_find_player()
+
+func deactivate_for_menus():
+	"""Deactivate TimeManager when returning to menus."""
+	if debug_gamemanager_connection:
+		print("TimeManager: Deactivating for menus")
+	is_active = false
+	player = null
+	custom_time_scale = default_time_scale
+	time_scale_changed.emit(custom_time_scale)
 
 func _on_game_restart_requested():
 	"""Called when game is restarting - reset player reference."""

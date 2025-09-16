@@ -1,17 +1,9 @@
-[gd_scene load_steps=20 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=12 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="Script" uid="uid://di6plg2y6ce4w" path="res://scripts/main/Main.gd" id="1_blune"]
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
-[ext_resource type="Texture2D" uid="uid://bxpc2ma6gsowc" path="res://assets/ui/crosshair-thread.png" id="4_b1x3f"]
-[ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/UI.gd" id="4_l3cfh"]
-[ext_resource type="Script" uid="uid://b8rqy2kqwh2qi" path="res://scripts/ui/AmmoIndicator.gd" id="4_yyfjg"]
-[ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="5_6q06x"]
-[ext_resource type="Script" uid="uid://dks5k6selpsot" path="res://scripts/ui/ActionHistoryPanel.gd" id="6_ow5a4"]
-[ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="7_hujxm"]
-[ext_resource type="PackedScene" uid="uid://bocrtujbrxx4h" path="res://scenes/UI/DeathScreen.tscn" id="7_yyfjg"]
-[ext_resource type="Script" uid="uid://bqm8n2x7vwh3g" path="res://scripts/ui/TimerLabel.gd" id="8_a8run"]
-[ext_resource type="Script" uid="uid://c5riax4mp6ov2" path="res://scripts/ui/RealTimerLabel.gd" id="9_ouso4"]
 [ext_resource type="PackedScene" uid="uid://spf1uba54en5" path="res://scenes/GunPickup.tscn" id="11_ouso4"]
+[ext_resource type="Script" uid="uid://xypdm50ppsha" path="res://scripts/levels/LevelSpawnConfig.gd" id="13_hfyti"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_blune"]
 vertices = PackedVector3Array(-79.5, 0.5, 9, -5.5, 0.5, 9, -5.25, 0.5, 8, -3.25, 0.5, -79.5, -79.5, 0.5, -79.5, -3.25, 0.5, 8, 3.5, 0.5, 8, 3.5, 0.5, -79.5, 5.25, 0.5, 8, 37, 0.75, 2.75, 37, 0.5, 2, 41.75, 0.5, 2, 79.5, 0.5, -79.5, 41.75, 0.75, 2.5, 79.5, 0.5, 2.5, 39.5, 2.75, 3, 39.5, 2.75, 7, 41.75, 0.75, 7, 41.75, 0.75, 3, 42, 0.5, 7.75, 79.5, 0.5, 7.75, 37, 0.75, 7, 5.75, 0.5, 8.5, 37, 0.5, 8.25, 41.75, 0.5, 8.25, 40.5, 0.5, 79.5, 79.5, 0.5, 79.5, 40.25, 0.5, 8.25, 5.5, 0.5, 10.25, 4.25, 0.5, 79.5, 38.25, 0.5, 79.5, 38.5, 0.5, 8.25, 4, 0.5, 10.25, -4, 0.5, 79.5, -3.75, 0.5, 10.25, -5.25, 0.5, 10.25, -79.5, 0.5, 79.5)
@@ -35,7 +27,7 @@ size = Vector3(5, 2.5, 5)
 [sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_th5th"]
 data = PackedVector3Array(0, 1.25, 2.5, 2.5, -1.25, 2.5, -2.5, -1.25, 2.5, 0, 1.25, -2.5, -2.5, -1.25, -2.5, 2.5, -1.25, -2.5, 0, 1.25, 2.5, 0, 1.25, -2.5, 2.5, -1.25, 2.5, 0, 1.25, -2.5, 2.5, -1.25, -2.5, 2.5, -1.25, 2.5, 0, 1.25, -2.5, 0, 1.25, 2.5, -2.5, -1.25, -2.5, 0, 1.25, 2.5, -2.5, -1.25, 2.5, -2.5, -1.25, -2.5, -2.5, -1.25, 2.5, 2.5, -1.25, 2.5, -2.5, -1.25, -2.5, 2.5, -1.25, 2.5, 2.5, -1.25, -2.5, -2.5, -1.25, -2.5)
 
-[node name="Main" type="Node3D"]
+[node name="Arena" type="Node3D"]
 script = ExtResource("1_blune")
 
 [node name="Lights" type="Node3D" parent="."]
@@ -46,197 +38,6 @@ transform = Transform3D(1, 0, 0, 0, -0.988014, 0.154366, 0, -0.154366, -0.988014
 [node name="Player" parent="." instance=ExtResource("1_hyk8p")]
 
 [node name="PlayerBullets" type="Node3D" parent="."]
-
-[node name="UI" type="CanvasLayer" parent="."]
-script = ExtResource("4_l3cfh")
-
-[node name="Control" type="Control" parent="UI"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="Crosshair" type="Control" parent="UI/Control"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -10.5
-offset_top = -10.5
-offset_right = 29.5
-offset_bottom = 29.5
-grow_horizontal = 2
-grow_vertical = 2
-scale = Vector2(0.5, 0.5)
-mouse_filter = 2
-script = ExtResource("5_6q06x")
-
-[node name="TextureRect1" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -9.0
-offset_top = -48.0
-offset_right = 10.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("4_b1x3f")
-flip_v = true
-
-[node name="TextureRect2" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = 49.0
-offset_top = -10.0
-offset_right = 68.0
-offset_bottom = 38.0
-grow_horizontal = 2
-grow_vertical = 2
-rotation = 1.5708
-texture = ExtResource("4_b1x3f")
-flip_v = true
-
-[node name="TextureRect3" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -9.0
-offset_right = 10.0
-offset_bottom = 48.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("4_b1x3f")
-
-[node name="TextureRect4" type="TextureRect" parent="UI/Control/Crosshair"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = 1.0
-offset_top = -10.0
-offset_right = 20.0
-offset_bottom = 38.0
-grow_horizontal = 2
-grow_vertical = 2
-rotation = 1.5708
-texture = ExtResource("4_b1x3f")
-
-[node name="AmmoIndicator" type="HBoxContainer" parent="UI/Control"]
-modulate = Color(1, 1, 1, 0.52549)
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -20.0
-offset_top = 106.0
-offset_right = 20.0
-offset_bottom = 146.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("4_yyfjg")
-
-[node name="ActionHistoryPanel" type="Panel" parent="UI/Control"]
-visible = false
-custom_minimum_size = Vector2(200, 120)
-layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_top = -40.0
-offset_right = 40.0
-grow_vertical = 0
-mouse_filter = 2
-script = ExtResource("6_ow5a4")
-
-[node name="MarginContainer" type="MarginContainer" parent="UI/Control/ActionHistoryPanel"]
-layout_mode = 2
-offset_right = 200.0
-offset_bottom = 120.0
-size_flags_vertical = 3
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 6
-
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/Control/ActionHistoryPanel/MarginContainer"]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="TitleLabel" type="Label" parent="UI/Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Recent Actions"
-
-[node name="ActionContainer" type="VBoxContainer" parent="UI/Control/ActionHistoryPanel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="EnergyBar" type="ProgressBar" parent="UI/Control"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -300.0
-offset_top = -70.0
-offset_right = 300.0
-offset_bottom = -6.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("7_hujxm")
-
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/Control"]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -20.0
-offset_right = 20.0
-offset_bottom = 50.0
-grow_horizontal = 2
-
-[node name="ScoreLabel" type="Label" parent="UI/Control/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 6
-text = "0"
-horizontal_alignment = 1
-
-[node name="TimerLabel" type="Label" parent="UI/Control/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 6
-text = "0"
-script = ExtResource("8_a8run")
-
-[node name="RealTimerLabel" type="Label" parent="UI/Control/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 6
-text = "0"
-script = ExtResource("9_ouso4")
-
-[node name="DeathScreen" parent="UI" instance=ExtResource("7_yyfjg")]
-visible = false
 
 [node name="SpawnMarkers" type="Node3D" parent="."]
 
@@ -292,3 +93,6 @@ mesh = SubResource("PrismMesh_blune")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/Environment/Ramp"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 5)
 shape = SubResource("ConcavePolygonShape3D_th5th")
+
+[node name="LevelSpawnConfig" type="Node" parent="."]
+script = ExtResource("13_hfyti")

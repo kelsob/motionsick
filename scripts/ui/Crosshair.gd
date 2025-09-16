@@ -21,15 +21,19 @@ func _ready():
 	original_positions["down"] = down_pip.position
 	original_positions["left"] = left_pip.position
 	
-	# Connect to gun firing signal
-	_connect_to_gun()
+	# Connect to gun firing signal with delay
+	call_deferred("_connect_to_gun")
 
 func _connect_to_gun():
 	"""Find and connect to the gun's firing signal."""
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
-		print("Crosshair: Could not find player!")
-		return
+		# Try again after a short delay
+		await get_tree().create_timer(0.1).timeout
+		player = get_tree().get_first_node_in_group("player")
+		if not player:
+			print("Crosshair: Could not find player after delay!")
+			return
 	
 	var camera = player.get_node("Camera3D")
 	if not camera:

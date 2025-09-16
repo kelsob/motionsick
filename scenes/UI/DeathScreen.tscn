@@ -37,13 +37,18 @@ grow_vertical = 2
 [node name="DeathText" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
-text = "YOU DIED"
+text = "dead."
 horizontal_alignment = 1
 
 [node name="RestartButton" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
-text = "REWIND?"
+text = "rewind"
+
+[node name="MainMenuButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "main"
 
 [node name="HighScoreText" type="Label" parent="VBoxContainer"]
 layout_mode = 2
