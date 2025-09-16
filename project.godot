@@ -26,10 +26,6 @@ GameManager="*res://scripts/GameManager.gd"
 ScoreManager="*res://scripts/ScoreManager.gd"
 ArenaSpawnManager="*res://scripts/ArenaSpawnManager.gd"
 
-[display]
-
-window/size/mode=3
-
 [input]
 
 action_move_forward={

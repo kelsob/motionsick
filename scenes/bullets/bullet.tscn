@@ -50,6 +50,7 @@ size = Vector3(0.3, 0.3, 1)
 collision_layer = 2
 collision_mask = 132
 script = ExtResource("1_mkf8s")
+debug_bouncing = true
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)

@@ -41,3 +41,4 @@ autowrap_mode = 3
 custom_minimum_size = Vector2(64, 48)
 layout_mode = 2
 size_flags_horizontal = 4
+mouse_filter = 2
