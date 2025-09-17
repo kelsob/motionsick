@@ -18,8 +18,8 @@ extends Control
 @export var default_fullscreen: bool = false
 ## Default VSync state
 @export var default_vsync: bool = true
-## Default mouse sensitivity
-@export var default_mouse_sensitivity: float = 1.0
+## Default mouse sensitivity (will be scaled to camera range)
+@export var default_mouse_sensitivity: float = 0.5
 
 @export_group("Audio Bus Names")
 ## Master audio bus name
@@ -39,20 +39,57 @@ extends Control
 
 @export_group("Debug Settings")
 ## Enable debug output for settings changes
-@export var debug_settings: bool = false
+@export var debug_settings: bool = true
 ## Enable debug output for save/load operations
-@export var debug_save_load: bool = false
+@export var debug_save_load: bool = true
 ## Enable debug output for scene transitions
 @export var debug_transitions: bool = false
 
 ## === RUNTIME STATE ===
-# UI references
-@onready var master_volume_slider: HSlider = $OptionsContainer/SettingsContainer/AudioSection/MasterVolumeSlider
-@onready var sfx_volume_slider: HSlider = $OptionsContainer/SettingsContainer/AudioSection/SFXVolumeSlider
-@onready var fullscreen_checkbox: CheckBox = $OptionsContainer/SettingsContainer/GraphicsSection/FullscreenCheckbox
-@onready var vsync_checkbox: CheckBox = $OptionsContainer/SettingsContainer/GraphicsSection/VSyncCheckbox
-@onready var mouse_sensitivity_slider: HSlider = $OptionsContainer/SettingsContainer/ControlsSection/MouseSensitivitySlider
-@onready var back_button: Button = $OptionsContainer/BackButton
+# UI references - lazy loaded to avoid timing issues
+var _master_volume_slider: HSlider
+var _sfx_volume_slider: HSlider
+var _fullscreen_checkbox: CheckBox
+var _vsync_checkbox: CheckBox
+var _mouse_sensitivity_slider: HSlider
+var _back_button: Button
+
+# Lazy-loaded getters for UI elements
+var master_volume_slider: HSlider:
+	get:
+		if not _master_volume_slider:
+			_master_volume_slider = get_node_or_null("OptionsContainer/SettingsContainer/AudioSection/MasterVolumeSlider")
+		return _master_volume_slider
+
+var sfx_volume_slider: HSlider:
+	get:
+		if not _sfx_volume_slider:
+			_sfx_volume_slider = get_node_or_null("OptionsContainer/SettingsContainer/AudioSection/SFXVolumeSlider")
+		return _sfx_volume_slider
+
+var fullscreen_checkbox: CheckBox:
+	get:
+		if not _fullscreen_checkbox:
+			_fullscreen_checkbox = get_node_or_null("OptionsContainer/SettingsContainer/GraphicsSection/FullscreenCheckbox")
+		return _fullscreen_checkbox
+
+var vsync_checkbox: CheckBox:
+	get:
+		if not _vsync_checkbox:
+			_vsync_checkbox = get_node_or_null("OptionsContainer/SettingsContainer/GraphicsSection/VSyncCheckbox")
+		return _vsync_checkbox
+
+var mouse_sensitivity_slider: HSlider:
+	get:
+		if not _mouse_sensitivity_slider:
+			_mouse_sensitivity_slider = get_node_or_null("OptionsContainer/SettingsContainer/ControlsSection/MouseSensitivitySlider")
+		return _mouse_sensitivity_slider
+
+var back_button: Button:
+	get:
+		if not _back_button:
+			_back_button = get_node_or_null("OptionsContainer/BackButton")
+		return _back_button
 
 # Current settings
 var current_settings: Dictionary = {}
@@ -78,22 +115,6 @@ func _ready():
 	if debug_settings:
 		print("OptionsManager: Options menu ready")
 
-func _setup_ui():
-	"""Connect UI elements."""
-	# Connect signals
-	if master_volume_slider:
-		master_volume_slider.value_changed.connect(_on_master_volume_changed)
-	if sfx_volume_slider:
-		sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
-	if fullscreen_checkbox:
-		fullscreen_checkbox.toggled.connect(_on_fullscreen_toggled)
-	if vsync_checkbox:
-		vsync_checkbox.toggled.connect(_on_vsync_toggled)
-	if mouse_sensitivity_slider:
-		mouse_sensitivity_slider.value_changed.connect(_on_mouse_sensitivity_changed)
-	if back_button:
-		back_button.pressed.connect(_on_back_pressed)
-
 func _load_settings():
 	"""Load settings from save file."""
 	# Set defaults first
@@ -105,6 +126,9 @@ func _load_settings():
 		"mouse_sensitivity": default_mouse_sensitivity
 	}
 	
+	if debug_save_load:
+		print("OptionsManager: Default settings: ", current_settings)
+	
 	# Try to load saved settings
 	if FileAccess.file_exists(settings_save_file):
 		var save_file = FileAccess.open(settings_save_file, FileAccess.READ)
@@ -112,12 +136,15 @@ func _load_settings():
 			var loaded_settings = save_file.get_var()
 			save_file.close()
 			
+			if debug_save_load:
+				print("OptionsManager: Loaded settings from file: ", loaded_settings)
+			
 			# Merge loaded settings with defaults
 			for key in loaded_settings:
 				current_settings[key] = loaded_settings[key]
 			
 			if debug_save_load:
-				print("OptionsManager: Settings loaded from file")
+				print("OptionsManager: Final merged settings: ", current_settings)
 		else:
 			if debug_save_load:
 				print("OptionsManager: Failed to load settings file")
@@ -162,17 +189,26 @@ func _apply_audio_settings():
 
 func _apply_graphics_settings():
 	"""Apply graphics settings to the game."""
-	# Set fullscreen
+	if debug_settings:
+		print("OptionsManager: Applying graphics settings")
+		print("  Fullscreen setting: ", current_settings.fullscreen)
+		print("  Current window mode: ", DisplayServer.window_get_mode())
+	
+	# Simple fullscreen toggle
 	if current_settings.fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	
+	if debug_settings:
+		print("  Window mode after change: ", DisplayServer.window_get_mode())
 	
 	# Set VSync
 	if current_settings.vsync:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
 	else:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+
 
 func _apply_input_settings():
 	"""Apply input settings to the game."""
@@ -202,12 +238,16 @@ func _on_sfx_volume_changed(value: float):
 
 func _on_fullscreen_toggled(pressed: bool):
 	"""Handle fullscreen checkbox toggle."""
+	if debug_settings:
+		print("OptionsManager: Fullscreen checkbox toggled to: ", pressed)
+		print("OptionsManager: Previous fullscreen setting: ", current_settings.fullscreen)
+	
 	current_settings.fullscreen = pressed
 	_apply_graphics_settings()
 	_save_settings()
 	
 	if debug_settings:
-		print("OptionsManager: Fullscreen changed to: ", pressed)
+		print("OptionsManager: Fullscreen setting updated and saved")
 
 func _on_vsync_toggled(pressed: bool):
 	"""Handle VSync checkbox toggle."""
@@ -251,6 +291,10 @@ func _transition_to_main_menu():
 
 func _save_settings():
 	"""Save current settings to file."""
+	if debug_save_load:
+		print("OptionsManager: Saving settings to: ", settings_save_file)
+		print("OptionsManager: Settings to save: ", current_settings)
+	
 	var save_file = FileAccess.open(settings_save_file, FileAccess.WRITE)
 	if save_file:
 		save_file.store_var(current_settings)
@@ -258,10 +302,10 @@ func _save_settings():
 		settings_saved.emit()
 		
 		if debug_save_load:
-			print("OptionsManager: Settings saved")
+			print("OptionsManager: Settings saved successfully")
 	else:
 		if debug_save_load:
-			print("OptionsManager: Failed to save settings")
+			print("OptionsManager: Failed to save settings - could not open file")
 
 # === PUBLIC API ===
 
@@ -311,3 +355,25 @@ func print_settings_status():
 	print("  Mouse sensitivity slider: ", "Connected" if mouse_sensitivity_slider else "Missing")
 	print("  Back button: ", "Connected" if back_button else "Missing")
 	print("===============================\n")
+
+func _setup_ui():
+	"""Connect UI elements."""
+	# Configure slider ranges
+	if mouse_sensitivity_slider:
+		mouse_sensitivity_slider.min_value = 0.01
+		mouse_sensitivity_slider.max_value = 1.0
+		mouse_sensitivity_slider.step = 0.05
+	
+	# Connect signals
+	if master_volume_slider:
+		master_volume_slider.value_changed.connect(_on_master_volume_changed)
+	if sfx_volume_slider:
+		sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
+	if fullscreen_checkbox:
+		fullscreen_checkbox.toggled.connect(_on_fullscreen_toggled)
+	if vsync_checkbox:
+		vsync_checkbox.toggled.connect(_on_vsync_toggled)
+	if mouse_sensitivity_slider:
+		mouse_sensitivity_slider.value_changed.connect(_on_mouse_sensitivity_changed)
+	if back_button:
+		back_button.pressed.connect(_on_back_pressed)

@@ -25,6 +25,12 @@ GameplayUIManager="*res://scripts/ui/GameplayUIManager.gd"
 GameManager="*res://scripts/GameManager.gd"
 ScoreManager="*res://scripts/ScoreManager.gd"
 ArenaSpawnManager="*res://scripts/ArenaSpawnManager.gd"
+BootManager="*res://scripts/BootManager.gd"
+OptionsManager="*res://scripts/ui/OptionsManager.gd"
+
+[display]
+
+window/size/mode=3
 
 [input]
 

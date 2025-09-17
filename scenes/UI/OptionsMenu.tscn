@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://dk6sornm8w0iq"]
+[gd_scene load_steps=2 format=3 uid="uid://ioso3gx35o0m"]
 
 [ext_resource type="Script" uid="uid://1toaw10fotc1" path="res://scripts/ui/OptionsManager.gd" id="1_jivf8"]
 
@@ -11,15 +11,6 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_jivf8")
 
-[node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0, 0, 0, 1)
-
 [node name="OptionsContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
@@ -27,17 +18,12 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -31.0
-offset_top = -127.5
-offset_right = 31.0
-offset_bottom = 127.5
+offset_left = -59.0
+offset_top = -100.5
+offset_right = 59.0
+offset_bottom = 100.5
 grow_horizontal = 2
 grow_vertical = 2
-
-[node name="OptionsLabel" type="Label" parent="OptionsContainer"]
-layout_mode = 2
-text = "Options"
-horizontal_alignment = 1
 
 [node name="SettingsContainer" type="VBoxContainer" parent="OptionsContainer"]
 layout_mode = 2
@@ -45,18 +31,16 @@ layout_mode = 2
 [node name="AudioSection" type="VBoxContainer" parent="OptionsContainer/SettingsContainer"]
 layout_mode = 2
 
-[node name="MasterVolumeLabel" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
+[node name="Label" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
 text = "Master Volume"
-horizontal_alignment = 1
 
 [node name="MasterVolumeSlider" type="HSlider" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
 
-[node name="SFXVolumeLabel" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
+[node name="Label2" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
 text = "SFX Volume"
-horizontal_alignment = 1
 
 [node name="SFXVolumeSlider" type="HSlider" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
@@ -66,19 +50,14 @@ layout_mode = 2
 
 [node name="FullscreenCheckbox" type="CheckBox" parent="OptionsContainer/SettingsContainer/GraphicsSection"]
 layout_mode = 2
-text = "Full-Screen"
+text = "Fullscreen"
 
 [node name="VSyncCheckbox" type="CheckBox" parent="OptionsContainer/SettingsContainer/GraphicsSection"]
 layout_mode = 2
-text = "V-Sync"
+text = "Vsync"
 
 [node name="ControlsSection" type="VBoxContainer" parent="OptionsContainer/SettingsContainer"]
 layout_mode = 2
-
-[node name="MouseSensitivityLabel" type="Label" parent="OptionsContainer/SettingsContainer/ControlsSection"]
-layout_mode = 2
-text = "Mouse Sensitivity"
-horizontal_alignment = 1
 
 [node name="MouseSensitivitySlider" type="HSlider" parent="OptionsContainer/SettingsContainer/ControlsSection"]
 layout_mode = 2
@@ -86,5 +65,3 @@ layout_mode = 2
 [node name="BackButton" type="Button" parent="OptionsContainer"]
 layout_mode = 2
 text = "back"
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]

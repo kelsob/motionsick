@@ -158,6 +158,10 @@ var has_been_deflected: bool = false
 # Bounce properties (runtime)
 var current_bounces: int = 0
 
+# Bounce exclusion system
+var bounce_exclusion_array: Array = []
+var bounce_exclusion_positions: Dictionary = {}  # body -> position
+
 # Travel behavior state (runtime)
 var current_speed: float = 0.0
 var travel_direction: Vector3 = Vector3.ZERO
@@ -199,12 +203,65 @@ func _ready():
 	
 	# Bullet ready with bouncy physics and time system
 
-func _physics_process(delta):
+func _process(delta):
 	# If not fired yet, track the gun's muzzle position and rotation (ONLY FOR PLAYER BULLETS!)
 	if not has_been_fired and muzzle_marker and is_player_bullet:
 		global_position = muzzle_marker.global_position
 		global_rotation = muzzle_marker.global_rotation
 		return
+
+func _physics_process(delta):
+	# Skip if we're tracking muzzle in _process
+	if not has_been_fired and muzzle_marker and is_player_bullet:
+		return
+	
+	# Update bounce exclusion list
+	if bounce_exclusion_array.size() > 0:
+		var bodies_to_remove = []
+		
+		for excluded_body in bounce_exclusion_array:
+			if not is_instance_valid(excluded_body):
+				bodies_to_remove.append(excluded_body)
+				continue
+				
+			# Check if we're still overlapping with this body
+			var still_overlapping = false
+			var overlapping_bodies = get_overlapping_bodies()
+			
+			for body in overlapping_bodies:
+				if body == excluded_body:
+					still_overlapping = true
+					break
+			
+			# Calculate distance from bounce point
+			var distance = 999.0  # Large default
+			if bounce_exclusion_positions.has(excluded_body):
+				var bounce_pos = bounce_exclusion_positions[excluded_body]
+				distance = global_position.distance_to(bounce_pos)
+			
+			# SAFETY: Keep excluded if overlapping OR too close to bounce point
+			var min_safe_distance = 0.5  # Minimum distance before considering removal
+			
+			if still_overlapping or distance < min_safe_distance:
+				if debug_bouncing:
+					print("EXCLUSION: Maintaining exclusion for ", excluded_body.name, 
+						" (overlapping: ", still_overlapping, ", distance: ", distance, ")")
+			else:
+				# Not overlapping AND far enough away, safe to remove
+				bodies_to_remove.append(excluded_body)
+				if debug_bouncing:
+					print("EXCLUSION: Removing ", excluded_body.name, " from exclusion",
+						" (no overlap, distance: ", distance, " > ", min_safe_distance, ")")
+		
+		# Remove bodies that are no longer excluded
+		for body in bodies_to_remove:
+			bounce_exclusion_array.erase(body)
+			if bounce_exclusion_positions.has(body):
+				bounce_exclusion_positions.erase(body)
+		
+		if debug_bouncing and bodies_to_remove.size() > 0:
+			print("EXCLUSION ARRAY after cleanup: ", _get_exclusion_array_names())
+
 	
 	# Only count lifetime after being fired
 	if has_been_fired:
@@ -529,21 +586,31 @@ func _cleanup_bullet():
 		tracer_id = -1
 
 func _on_body_entered(body):
-	# Check if this is the body we just bounced from (avoid immediate re-collision)
-	if has_meta("last_bounced_body") and has_meta("bounce_cooldown_frames"):
-		var last_body = get_meta("last_bounced_body")
-		var cooldown_frames = get_meta("bounce_cooldown_frames")
-		
-		if body == last_body and cooldown_frames > 0:
-			# Decrement cooldown and ignore this collision
-			set_meta("bounce_cooldown_frames", cooldown_frames - 1)
-			if debug_bouncing:
-				print("BOUNCE COOLDOWN: Ignoring collision with ", body.name, " (cooldown: ", cooldown_frames - 1, " frames)")
-			return
-		elif cooldown_frames <= 0:
-			# Cooldown expired, remove metadata
-			remove_meta("last_bounced_body")
-			remove_meta("bounce_cooldown_frames")
+	# Force ShapeCast update at the very start of collision handling
+	var shapecast = get_node_or_null("ShapeCast3D")
+	if shapecast:
+		shapecast.force_shapecast_update()
+		if debug_bouncing:
+			print("COLLISION: Force-updated ShapeCast3D at _on_body_entered start.")
+	
+	# Debug: Always print exclusion state at collision entry
+	if debug_bouncing:
+		print("\n=== COLLISION DETECTED ===")
+		print("Body: ", body.name)
+		print("EXCLUSION ARRAY: ", _get_exclusion_array_names())
+		print("Bullet position: ", global_position)
+		print("Bullet direction: ", travel_direction)
+		print("Current bounces: ", current_bounces, "/", max_bounces)
+	
+	# Check if this body is in our exclusion list
+	if body in bounce_exclusion_array:
+		if debug_bouncing:
+			print("EXCLUSION: IGNORING collision with ", body.name, " (in exclusion list)")
+			if bounce_exclusion_positions.has(body):
+				var bounce_pos = bounce_exclusion_positions[body]
+				var distance = global_position.distance_to(bounce_pos)
+				print("  Distance from original bounce: ", distance)
+		return
 	
 	# Check if we hit an enemy first (has take_damage method)
 	if body.has_method("take_damage"):
@@ -606,11 +673,6 @@ func _on_body_entered(body):
 		if debug_bouncing:
 			print("COLLISION: Hit environment body: ", body.name)
 			print("COLLISION: Can bounce: ", can_bounce, " Current bounces: ", current_bounces, "/", max_bounces)
-		
-		# EMERGENCY BOUNCE: If we just did a corner cascade and hit another wall immediately
-		if has_meta("emergency_bounce_active"):
-			_handle_emergency_corner_bounce(body)
-			return
 		
 		# Use ShapeCast3D for precise collision detection
 		var impact_data = _find_shapecast_impact(body)
@@ -710,154 +772,213 @@ func _on_body_entered(body):
 		print("=== END COLLISION INFO ===")
 
 func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bounced_from_body: Node3D):
-	"""Handle bouncing using precise vertex impact data."""
-	# Store original trajectory for comparison
-	var original_direction = travel_direction.normalized()
+	"""Handle bouncing using multi-collision approach for corners."""
+	if debug_bouncing:
+		print("\n=== VERTEX BOUNCE START ===")
+		print("EXCLUSION ARRAY before bounce: ", _get_exclusion_array_names())
+	
+	# Get ShapeCast3D for multi-collision detection
+	var shapecast = get_node_or_null("ShapeCast3D")
+	if not shapecast:
+		if debug_bouncing:
+			print("BOUNCE: No ShapeCast3D found, using single bounce")
+		_handle_single_surface_bounce(surface_normal, bounced_from_body)
+		return
+	
+	# Force update to get all current collisions
+	shapecast.force_shapecast_update()
+	var collision_count = shapecast.get_collision_count()
 	
 	if debug_bouncing:
-		print("BULLET BOUNCE: Starting bounce calculation")
-		print("BULLET BOUNCE: Original trajectory: ", original_direction)
-		print("BULLET BOUNCE: Surface normal: ", surface_normal)
+		print("MULTI-BOUNCE: Starting multi-collision bounce")
+		print("MULTI-BOUNCE: Collision count: ", collision_count)
+		print("MULTI-BOUNCE: Original direction: ", travel_direction)
 	
-	# Calculate reflection: new_direction = incident - 2 * (incident · normal) * normal
-	var incident_direction = travel_direction.normalized()
-	var dot_product = incident_direction.dot(surface_normal)
-	var reflected_direction = incident_direction - 2.0 * dot_product * surface_normal
+	# If only one collision, use simple bounce
+	if collision_count <= 1:
+		_handle_single_surface_bounce(surface_normal, bounced_from_body)
+		return
 	
-	# ATOMIC UPDATE: IGNORE impact_position completely - it's from spinning collision shape
-	var old_position = global_position
-	var old_speed = current_speed
+	# MULTI-COLLISION HANDLING
+	# Collect all collision data and sort by distance
+	var collisions = []
+	for i in range(collision_count):
+		var col_point = shapecast.get_collision_point(i)
+		var col_normal = shapecast.get_collision_normal(i)
+		var col_object = shapecast.get_collider(i)
+		var col_distance = global_position.distance_to(col_point)
+		
+		# Skip if this object is in the exclusion array
+		if col_object in bounce_exclusion_array:
+			if debug_bouncing:
+				print("MULTI-BOUNCE: Skipping excluded body: ", col_object.name)
+			continue
+		
+		# Only process environment collisions
+		if _is_environment(col_object):
+			collisions.append({
+				"point": col_point,
+				"normal": col_normal,
+				"object": col_object,
+				"distance": col_distance
+			})
 	
-	# Update ALL properties atomically in one operation
-	# COMPLETELY IGNORE impact_position - just change direction
-	# BUT add tiny offset to prevent getting stuck in corner geometry
-	var safety_offset = surface_normal * 0.05  # Very small offset to clear collision
-	global_position = old_position + safety_offset
-	travel_direction = reflected_direction.normalized()
+	# Sort by distance (closest first)
+	collisions.sort_custom(func(a, b): return a.distance < b.distance)
+	
+	if debug_bouncing:
+		print("MULTI-BOUNCE: Processing ", collisions.size(), " environment collisions (after exclusion)")
+		for i in range(collisions.size()):
+			var col = collisions[i]
+			print("  Collision ", i, ": ", col.object.name, " at distance ", "%.3f" % col.distance, " normal: ", col.normal)
+	
+	# If no valid collisions after filtering, fall back to single bounce
+	if collisions.is_empty():
+		if debug_bouncing:
+			print("MULTI-BOUNCE: No valid collisions after exclusion filtering")
+		_handle_single_surface_bounce(surface_normal, bounced_from_body)
+		return
+
+	# Process all collisions to get final trajectory
+	var current_direction = travel_direction.normalized()
+	var total_energy_loss = 0.0
+	
+	# Iterate through each collision and adjust trajectory
+	for i in range(collisions.size()):
+		var col = collisions[i]
+		var incident = current_direction
+		var normal = col.normal.normalized()
+		
+		# Check if normal might be inverted (pointing into the surface instead of out)
+		# This can happen with some collision shapes or edge cases
+		var to_bullet = (global_position - col.point).normalized()
+		var normal_dot_to_bullet = normal.dot(to_bullet)
+		
+		# If normal is pointing away from bullet (negative dot), it might be inverted
+		if normal_dot_to_bullet < -0.1:
+			if debug_bouncing:
+				print("MULTI-BOUNCE: Detected inverted normal, flipping it")
+				print("  Original normal: ", normal)
+			normal = -normal
+			if debug_bouncing:
+				print("  Flipped normal: ", normal)
+		
+		var dot_product = incident.dot(normal)
+		
+		if debug_bouncing:
+			print("MULTI-BOUNCE: Collision ", i, " dot product: ", dot_product)
+			print("  Incident: ", incident)
+			print("  Normal: ", normal)
+			print("  Normal dot to bullet: ", normal_dot_to_bullet)
+		
+		# Always reflect, regardless of dot product sign
+		# This handles edge cases like hitting undersides of surfaces
+		var reflected = incident - 2.0 * dot_product * normal
+		current_direction = reflected.normalized()
+		
+		# Accumulate energy loss
+		total_energy_loss += bounce_energy_loss * (1.0 - total_energy_loss)
+		
+		if debug_bouncing:
+			print("MULTI-BOUNCE: Bounce ", i, " - reflected: ", current_direction)
+	
+	# Apply final trajectory
+	travel_direction = current_direction
 	current_bounces += 1
-	current_speed *= (1.0 - bounce_energy_loss)
+	current_speed *= (1.0 - total_energy_loss)
 	
-	# Update orientation immediately as part of atomic update
+	# Move bullet slightly away from all surfaces
+	var safety_offset = Vector3.ZERO
+	for col in collisions:
+		if col.distance < 0.2:  # Very close to surface
+			safety_offset += col.normal * 0.05
+	
+	global_position += safety_offset
+	
+	# Update orientation
 	if travel_direction.length() > 0.01:
 		var up_vector = Vector3.UP
 		if abs(travel_direction.dot(Vector3.UP)) > 0.99:
 			up_vector = Vector3.FORWARD
 		look_at(global_position + travel_direction, up_vector)
 	
-	# FORCE UPDATE ALL RAYCASTS after direction change
-	_force_raycast_updates()
+	if debug_bouncing:
+		print("MULTI-BOUNCE: Final direction: ", travel_direction)
+		print("MULTI-BOUNCE: Final position: ", global_position)
+		print("MULTI-BOUNCE: Total energy loss: ", total_energy_loss)
+		print("MULTI-BOUNCE: Bounce count: ", current_bounces, "/", max_bounces)
+	
+	# Add ALL collided bodies to exclusion list
+	for col in collisions:
+		if not col.object in bounce_exclusion_array:
+			bounce_exclusion_array.append(col.object)
+			bounce_exclusion_positions[col.object] = col.point
+			if debug_bouncing:
+				print("EXCLUSION: Added ", col.object.name, " to exclusion list at position ", col.point)
 	
 	if debug_bouncing:
-		print("BULLET BOUNCE: Position change: ", old_position, " -> ", global_position)
-		print("BULLET BOUNCE: Safety offset applied: ", safety_offset)
-		print("BULLET BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
-		print("BULLET BOUNCE: Direction change: ", original_direction, " -> ", travel_direction)
-		print("BULLET BOUNCE: Impact position IGNORED: ", impact_position)
-		print("BULLET BOUNCE: Raycasts force updated")
+		print("EXCLUSION ARRAY after bounce: ", _get_exclusion_array_names())
+		print("=== VERTEX BOUNCE END ===\n")
+
+func _handle_single_surface_bounce(surface_normal: Vector3, bounced_from_body: Node3D):
+	"""Handle simple single-surface bounce."""
+	if debug_bouncing:
+		print("\n=== SINGLE BOUNCE START ===")
+		print("EXCLUSION ARRAY before bounce: ", _get_exclusion_array_names())
 	
-	# Store the body we just bounced from to avoid immediate re-collision
-	set_meta("last_bounced_body", bounced_from_body)
-	set_meta("bounce_cooldown_frames", 2)  # Ignore this body for 2 frames
+	var original_direction = travel_direction.normalized()
 	
-	# CORNER HANDLING: Check if new trajectory immediately hits another wall
-	_handle_corner_bounce_check()
+	if debug_bouncing:
+		print("SINGLE BOUNCE: Starting bounce calculation")
+		print("SINGLE BOUNCE: Original trajectory: ", original_direction)
+		print("SINGLE BOUNCE: Surface normal: ", surface_normal)
+	
+	# Calculate reflection
+	var incident_direction = travel_direction.normalized()
+	var dot_product = incident_direction.dot(surface_normal)
+	var reflected_direction = incident_direction - 2.0 * dot_product * surface_normal
+	
+	# Update bullet properties
+	var old_position = global_position
+	var old_speed = current_speed
+	
+	# Apply small safety offset
+	var safety_offset = surface_normal * 0.05
+	global_position = old_position + safety_offset
+	travel_direction = reflected_direction.normalized()
+	current_bounces += 1
+	current_speed *= (1.0 - bounce_energy_loss)
+	
+	# Update orientation
+	if travel_direction.length() > 0.01:
+		var up_vector = Vector3.UP
+		if abs(travel_direction.dot(Vector3.UP)) > 0.99:
+			up_vector = Vector3.FORWARD
+		look_at(global_position + travel_direction, up_vector)
+	
+	if debug_bouncing:
+		print("SINGLE BOUNCE: Direction change: ", original_direction, " -> ", travel_direction)
+		print("SINGLE BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
+		print("SINGLE BOUNCE: Bounce count: ", current_bounces, "/", max_bounces)
+	
+	# Add to exclusion list
+	if not bounced_from_body in bounce_exclusion_array:
+		bounce_exclusion_array.append(bounced_from_body)
+		bounce_exclusion_positions[bounced_from_body] = global_position
+		if debug_bouncing:
+			print("EXCLUSION: Added ", bounced_from_body.name, " to exclusion list at position ", global_position)
+	
+	if debug_bouncing:
+		print("EXCLUSION ARRAY after bounce: ", _get_exclusion_array_names())
+		print("=== SINGLE BOUNCE END ===\n")
 
 func _handle_corner_bounce_check():
-	"""Simple corner bounce check - if new trajectory hits another wall, bounce again."""
-	if current_bounces >= max_bounces:
-		if debug_bouncing:
-			print("CORNER: At max bounces, skipping corner check")
-		return  # Don't check if we're at max bounces
-	
-	# FORCE UPDATE PHYSICS STATE before corner check
-	await get_tree().process_frame  # Let physics settle after direction change
-	
-	# Cast a ray in the new travel direction to see if we immediately hit another wall
-	var space_state = get_world_3d().direct_space_state
-	var ray_end = global_position + travel_direction * corner_check_distance
-	
-	if debug_bouncing:
-		print("CORNER CHECK: Casting ray from ", global_position, " to ", ray_end)
-		print("CORNER CHECK: Ray direction: ", travel_direction.normalized())
-		print("CORNER CHECK: Ray distance: ", corner_check_distance)
-		print("CORNER CHECK: Physics frame processed for fresh collision data")
-	
-	var query = PhysicsRayQueryParameters3D.create(global_position, ray_end)
-	query.collision_mask = environment_collision_mask
-	query.exclude = [self]
-	
-	var result = space_state.intersect_ray(query)
-	
-	if debug_bouncing and result:
-		print("CORNER CHECK: Raycast hit: ", result.collider.name)
-		print("CORNER CHECK: Hit position: ", result.position)
-		print("CORNER CHECK: Hit normal: ", result.normal)
-		print("CORNER CHECK: Hit distance: ", global_position.distance_to(result.position))
-	if result:
-		if debug_bouncing:
-			print("CORNER: Immediate collision detected at distance: ", global_position.distance_to(result.position))
-			print("CORNER: Hit surface: ", result.collider.name)
-			print("CORNER: Current bounces: ", current_bounces, "/", max_bounces)
-			print("CORNER: Current travel direction (incident): ", travel_direction.normalized())
-		
-		# We're hitting another wall immediately - perform another bounce
-		# Use the raycast result normal (more reliable than ShapeCast3D for corners)
-		var new_incident = travel_direction.normalized()
-		var new_normal = result.normal.normalized()  # This comes from the raycast, should be correct
-		var new_dot = new_incident.dot(new_normal)
-		var new_reflection = new_incident - 2.0 * new_dot * new_normal
-		
-		if debug_bouncing:
-			print("CORNER: Calculating reflection:")
-			print("  Incident: ", new_incident)
-			print("  Normal: ", new_normal)
-			print("  Dot product: ", new_dot)
-			print("  Reflection calculation: ", new_incident, " - 2.0 * ", new_dot, " * ", new_normal)
-			print("  Raw reflection: ", new_reflection)
-			print("  Normalized reflection: ", new_reflection.normalized())
-			print("  Angle change: ", rad_to_deg(new_incident.angle_to(new_reflection.normalized())), "°")
-		
-		# Validate the reflection makes sense
-		var reflection_normalized = new_reflection.normalized()
-		var validation_dot = reflection_normalized.dot(new_normal)
-		
-		if debug_bouncing:
-			print("CORNER: Validation - reflected dot with normal: ", validation_dot)
-			print("CORNER: Should be roughly equal to negative incident dot: ", -new_dot)
-		
-		# Update direction and add tiny safety offset to clear collision
-		travel_direction = reflection_normalized
-		# Add tiny offset to prevent getting stuck in corner geometry
-		var corner_safety_offset = new_normal * 0.05  # Very small offset
-		global_position = global_position + corner_safety_offset
-		current_bounces += 1
-		current_speed *= (1.0 - bounce_energy_loss)
-		
-		if debug_bouncing:
-			print("CORNER: Safety offset applied: ", corner_safety_offset)
-		
-		# Update orientation
-		if travel_direction.length() > 0.01:
-			var up_vector = Vector3.UP
-			if abs(travel_direction.dot(Vector3.UP)) > 0.99:
-				up_vector = Vector3.FORWARD
-			look_at(global_position + travel_direction, up_vector)
-		
-		if debug_bouncing:
-			print("CORNER: Additional bounce complete - new direction: ", travel_direction)
-			print("CORNER: Bounce count now: ", current_bounces, "/", max_bounces)
-		
-		# Check one more time (but limit to prevent infinite loops)
-		if current_bounces < max_bounces:
-			if debug_bouncing:
-				print("CORNER: Checking for additional corner collisions...")
-			_handle_corner_bounce_check()
-		else:
-			if debug_bouncing:
-				print("CORNER: Max bounces reached, stopping corner checks")
-	else:
-		if debug_bouncing:
-			print("CORNER: No immediate collision detected, trajectory clear")
+	"""Removed - no longer needed with multi-collision approach."""
+	pass
+
+func _handle_emergency_corner_bounce(hit_body: Node3D):
+	"""Removed - no longer needed with multi-collision approach."""
+	pass
 
 func _handle_simple_fallback_bounce():
 	"""Smart fallback bounce when vertex raycasts fail - works for floors AND walls."""
@@ -1441,132 +1562,6 @@ func _calculate_corner_safe_position(impact_position: Vector3, primary_normal: V
 	
 	return safe_position
 
-func _resolve_cascading_bounces(initial_impact: Vector3, initial_normal: Vector3):
-	"""Resolve multiple bounces in a single frame for corner situations."""
-	#print("CASCADE === STARTING CASCADING BOUNCE RESOLUTION ===")
-	
-	# Store original direction for validation
-	set_meta("original_direction", travel_direction)
-	
-	var max_cascade_bounces = 3  # Prevent infinite loops
-	var cascade_count = 0
-	var current_pos = global_position
-	var current_dir = travel_direction
-	var test_distance = 2.0  # How far ahead to check for collisions (increased)
-	
-	#print("CASCADE Original direction: ", travel_direction)
-	#print("CASCADE Original position: ", global_position)
-	
-	while cascade_count < max_cascade_bounces:
-		cascade_count += 1
-		#print("CASCADE Bounce ", cascade_count, "/", max_cascade_bounces)
-		#print("CASCADE Current pos: ", current_pos)
-		#print("CASCADE Current dir: ", current_dir)
-		
-		# Test if the current trajectory would hit another wall
-		var space_state = get_world_3d().direct_space_state
-		var test_end = current_pos + current_dir * test_distance
-		var query = PhysicsRayQueryParameters3D.create(current_pos, test_end)
-		query.collision_mask = environment_collision_mask
-		query.exclude = [self]
-		
-		var result = space_state.intersect_ray(query)
-		if result:
-			#print("CASCADE Hit detected! Collider: ", result.collider.name)
-			#print("CASCADE Hit position: ", result.position)
-			#print("CASCADE Hit normal: ", result.normal)
-			#print("CASCADE Hit distance: ", current_pos.distance_to(result.position))
-			
-			# Calculate if bullet will hit this wall in the next frame
-			var hit_distance = current_pos.distance_to(result.position)
-			var time_to_impact = hit_distance / current_speed
-			var frames_to_impact = time_to_impact / (1.0 / 60.0)  # Assume 60 FPS
-			
-			#print("CASCADE Time to impact: ", time_to_impact, "s (", frames_to_impact, " frames)")
-			
-			# If hit within 2 frames, we need another bounce
-			if frames_to_impact < 2.0:
-				#print("CASCADE Close hit - performing additional bounce")
-				
-				# Calculate new reflection - with detailed vector validation
-				var incident = current_dir.normalized()
-				var normal = result.normal
-				var dot_product = incident.dot(normal)
-				var reflected = incident - 2.0 * dot_product * normal
-				
-				#print("CASCADE === VECTOR MATH VALIDATION ===")
-				#print("CASCADE Raw current_dir: ", current_dir)
-				#print("CASCADE Incident (normalized): ", incident)
-				#print("CASCADE Incident length: ", incident.length())
-				#print("CASCADE Surface normal: ", normal)
-				#print("CASCADE Normal length: ", normal.length())
-				#print("CASCADE Dot product: ", dot_product)
-				#print("CASCADE Expected angle: ", rad_to_deg(acos(abs(dot_product))), "°")
-				#print("CASCADE Reflection component: ", 2.0 * dot_product * normal)
-				#print("CASCADE Raw reflected: ", reflected)
-				#print("CASCADE Reflected normalized: ", reflected.normalized())
-				#print("CASCADE Reflected length: ", reflected.length())
-				
-				# Validate reflection makes sense
-				var reflected_norm = reflected.normalized()
-				var reflected_dot = reflected_norm.dot(normal)
-				#print("CASCADE Reflected dot with normal: ", reflected_dot)
-				#print("CASCADE Reflected angle: ", rad_to_deg(acos(abs(reflected_dot))), "°")
-				
-				# Check if angles match (should be equal)
-				var angle_diff = abs(abs(dot_product) - abs(reflected_dot))
-				
-				# Update for next iteration
-				current_dir = reflected.normalized()
-				current_pos = result.position + normal * 0.2  # Move away from surface
-				
-				# CRITICAL: Update bullet's actual position and force raycast updates
-				global_position = current_pos
-				# Force raycast updates
-				_force_raycast_updates()
-				
-				# Track this bounce
-				if current_bounces < max_bounces:
-					current_bounces += 1
-					current_speed *= (1.0 - bounce_energy_loss)
-					#print("CASCADE Updated bounce count to: ", current_bounces)
-				else:
-					#print("CASCADE Max bounces reached, stopping")
-					break
-					
-				continue  # Check for another potential collision
-			else:
-				#print("CASCADE Hit is far enough, no additional bounce needed")
-				break
-		else:
-			#print("CASCADE No collision detected, trajectory is clear")
-			break
-	
-	# Apply final trajectory and position
-	#print("CASCADE === FINAL STATE VALIDATION ===")
-	#print("CASCADE Old bullet direction: ", travel_direction)
-	#print("CASCADE New bullet direction: ", current_dir)
-	#print("CASCADE Direction length: ", current_dir.length())
-	#print("CASCADE Old bullet position: ", global_position)
-	#print("CASCADE New bullet position: ", current_pos)
-	
-	
-	# Check if direction changed dramatically from original
-	var original_dir = get_meta("original_direction") if has_meta("original_direction") else Vector3.ZERO
-	if original_dir != Vector3.ZERO:
-		var angle_change = rad_to_deg(acos(current_dir.dot(original_dir)))
-		#print("CASCADE Total direction change: ", angle_change, "°")
-	
-	travel_direction = current_dir
-	global_position = current_pos  # Apply the final position
-	#print("CASCADE Final direction: ", travel_direction)
-	#print("CASCADE Final position: ", global_position)
-	#print("CASCADE Final bounce count: ", current_bounces)
-	
-	# BACKUP SAFETY: Enable emergency collision monitoring
-	set_meta("emergency_bounce_active", true)
-
-
 func _force_raycast_updates():
 	"""Force all raycasts to update immediately."""
 	var raycasts = [forward_raycast, backward_raycast, left_raycast, right_raycast, up_raycast, down_raycast]
@@ -1575,100 +1570,103 @@ func _force_raycast_updates():
 			raycast.force_raycast_update()
 
 func _find_shapecast_impact(target_body: Node3D) -> Dictionary:
-	"""Use ShapeCast3D for precise collision detection with bullet geometry."""
+	"""Use ShapeCast3D for consistent collision detection."""
 	var shapecast = get_node_or_null("ShapeCast3D")
 	if not shapecast:
+		if debug_bouncing:
+			print("SHAPECAST: ERROR - No ShapeCast3D found! Using fallback.")
 		return _fallback_collision_detection(target_body)
 	
-	# Force update to get current collision state
+	# Force update to get fresh collision data
 	shapecast.force_shapecast_update()
 	
 	var collision_count = shapecast.get_collision_count()
 	
+	if debug_bouncing:
+		print("SHAPECAST: === COLLISION DETECTION START ===")
+		print("SHAPECAST: Collision count: ", collision_count)
+		print("SHAPECAST: Bullet position: ", global_position)
+		print("SHAPECAST: Travel direction: ", travel_direction.normalized())
+		print("SHAPECAST: EXCLUSION ARRAY: ", _get_exclusion_array_names())
+	
 	if collision_count == 0:
+		if debug_bouncing:
+			print("SHAPECAST: NO COLLISIONS DETECTED")
 		return {}
 	
-	# CORNER SITUATION: Multiple collisions detected - handle as corner bounce
-	if collision_count > 1:
-		if debug_bouncing:
-			print("SHAPECAST: Multiple collisions detected (", collision_count, ") - corner situation")
-			print("SHAPECAST: ========== ALL COLLISION DATA ==========")
-			
-			# Print ALL collision data for analysis
-			for i in range(collision_count):
-				var col_point = shapecast.get_collision_point(i)
-				var col_normal = shapecast.get_collision_normal(i)
-				var col_object = shapecast.get_collider(i)
-				var col_shape_idx = shapecast.get_collider_shape(i)
-				var col_distance = global_position.distance_to(col_point)
-				
-				print("SHAPECAST: Collision ", i, ":")
-				print("  Object: ", col_object.name)
-				print("  Position: ", col_point)
-				print("  Normal: ", col_normal)
-				print("  Distance: ", "%.3f" % col_distance)
-				print("  Shape Index: ", col_shape_idx)
-				print("  Object Layer: ", col_object.collision_layer)
-				
-				# Analyze normal direction
-				var normal_type = "Unknown"
-				if abs(col_normal.y) > 0.8:
-					normal_type = "Floor/Ceiling" if col_normal.y > 0 else "Ceiling/Floor"
-				elif abs(col_normal.x) > 0.8:
-					normal_type = "Wall (X-axis)"
-				elif abs(col_normal.z) > 0.8:
-					normal_type = "Wall (Z-axis)"
-				else:
-					normal_type = "Angled Surface"
-				print("  Surface Type: ", normal_type)
-				print("  ---")
-			
-			print("SHAPECAST: =======================================")
-		
-		# Use the first collision for bouncing (closest/most relevant)
-		var collision_point = shapecast.get_collision_point(0)
-		var collision_normal = shapecast.get_collision_normal(0)
-		var collision_object = shapecast.get_collider(0)
-		var collision_shape_idx = shapecast.get_collider_shape(0)
-		
-		if debug_bouncing:
-			print("SHAPECAST: SELECTED collision 0 for bounce:")
-			print("SHAPECAST: Point: ", collision_point)
-			print("SHAPECAST: Normal: ", collision_normal)
-			print("SHAPECAST: Object: ", collision_object.name)
-		
-		return {
-			"position": collision_point,
-			"normal": collision_normal,
-			"object": collision_object,
-			"shape_index": collision_shape_idx,
-			"method": "shapecast_corner"
-		}
+	# Filter out excluded bodies
+	var valid_collisions = []
 	
-	# Single collision - process normally
-	var collision_point = shapecast.get_collision_point(0)
-	var collision_normal = shapecast.get_collision_normal(0)
-	var collision_object = shapecast.get_collider(0)
-	var collision_shape_idx = shapecast.get_collider_shape(0)
+	# Print all collision data if debugging
+	if debug_bouncing:
+		print("SHAPECAST: ========== ALL COLLISION DATA ==========")
+		for i in range(collision_count):
+			var col_point = shapecast.get_collision_point(i)
+			var col_normal = shapecast.get_collision_normal(i)
+			var col_object = shapecast.get_collider(i)
+			var col_shape_idx = shapecast.get_collider_shape(i)
+			var col_distance = global_position.distance_to(col_point)
+			
+			var is_excluded = col_object in bounce_exclusion_array
+			
+			print("SHAPECAST: Collision ", i, ":")
+			print("  Object: ", col_object.name, " [EXCLUDED]" if is_excluded else "")
+			print("  Position: ", col_point)
+			print("  Normal: ", col_normal)
+			print("  Distance: ", "%.3f" % col_distance)
+			print("  Shape Index: ", col_shape_idx)
+			print("  Object Layer: ", col_object.collision_layer)
+			
+			# Analyze normal direction
+			var normal_type = "Unknown"
+			if abs(col_normal.y) > 0.8:
+				normal_type = "Floor/Ceiling" if col_normal.y > 0 else "Ceiling/Floor"
+			elif abs(col_normal.x) > 0.8:
+				normal_type = "Wall (X-axis)"
+			elif abs(col_normal.z) > 0.8:
+				normal_type = "Wall (Z-axis)"
+			else:
+				normal_type = "Angled Surface"
+			print("  Surface Type: ", normal_type)
+			print("  ---")
+			
+			# Only add to valid collisions if not excluded
+			if not is_excluded:
+				valid_collisions.append({
+					"point": col_point,
+					"normal": col_normal,
+					"object": col_object,
+					"shape_idx": col_shape_idx,
+					"distance": col_distance,
+					"index": i
+				})
+		print("SHAPECAST: =======================================")
+		print("SHAPECAST: Valid collisions after exclusion: ", valid_collisions.size())
 	
-	# Verify this is the collision we're interested in
-	if collision_object == target_body:
-		return {
-			"position": collision_point,
-			"normal": collision_normal,
-			"object": collision_object,
-			"shape_index": collision_shape_idx,
-			"method": "shapecast"
-		}
-	else:
-		# Still return the collision data - might be valid
-		return {
-			"position": collision_point,
-			"normal": collision_normal,
-			"object": collision_object,
-			"shape_index": collision_shape_idx,
-			"method": "shapecast"
-		}
+	# If all collisions were excluded, return empty
+	if valid_collisions.is_empty():
+		if debug_bouncing:
+			print("SHAPECAST: All collisions were excluded!")
+		return {}
+	
+	# Sort valid collisions by distance and use the closest
+	valid_collisions.sort_custom(func(a, b): return a.distance < b.distance)
+	var closest = valid_collisions[0]
+	
+	if debug_bouncing:
+		print("SHAPECAST: SELECTED collision ", closest.index, " for bounce:")
+		print("SHAPECAST: Point: ", closest.point)
+		print("SHAPECAST: Normal: ", closest.normal)
+		print("SHAPECAST: Object: ", closest.object.name)
+		print("SHAPECAST: Method: ", "shapecast_filtered")
+	
+	return {
+		"position": closest.point,
+		"normal": closest.normal,
+		"object": closest.object,
+		"shape_index": closest.shape_idx,
+		"method": "shapecast_filtered"
+	}
 
 func _fallback_collision_detection(target_body: Node3D) -> Dictionary:
 	"""Fallback collision detection if ShapeCast3D is not available."""
@@ -1684,24 +1682,15 @@ func _fallback_collision_detection(target_body: Node3D) -> Dictionary:
 		"method": "fallback"
 	}
 
-func _handle_emergency_corner_bounce(hit_body: Node3D):
-	"""Handle immediate collision after cascade - emergency escape system."""
-	# Get surface normal from the wall we just hit
-	var surface_normal = _get_surface_normal(hit_body, global_position)
-	if surface_normal.length() < 0.1:
-		surface_normal = Vector3.UP  # Fallback
+func _get_exclusion_array_names() -> String:
+	"""Helper to get readable names of excluded bodies."""
+	if bounce_exclusion_array.is_empty():
+		return "[]"
 	
-	# Calculate reflection
-	var incident = travel_direction.normalized()
-	var dot_product = incident.dot(surface_normal)
-	var reflected = incident - 2.0 * dot_product * surface_normal
-	
-	# Update bullet
-	travel_direction = reflected.normalized()
-	current_bounces += 1
-	current_speed *= (1.0 - bounce_energy_loss)
-	
-
-	
-	# Disable emergency mode after one use
-	remove_meta("emergency_bounce_active")
+	var names = []
+	for body in bounce_exclusion_array:
+		if is_instance_valid(body):
+			names.append(body.name)
+		else:
+			names.append("<invalid>")
+	return "[" + ", ".join(names) + "]"
