@@ -36,6 +36,7 @@ simplify_path = true
 avoidance_enabled = true
 radius = 0.75
 use_3d_avoidance = true
+debug_enabled = true
 
 [node name="AttackTimer" type="Timer" parent="."]
 

@@ -184,6 +184,8 @@ func _activate_gameplay_systems():
 	var arena_spawn_manager = get_node_or_null("/root/ArenaSpawnManager")
 	if arena_spawn_manager and arena_spawn_manager.has_method("reset_for_level"):
 		arena_spawn_manager.reset_for_level()
+		
+	arena_spawn_manager.start_spawning()
 
 func deactivate_gameplay_systems():
 	"""Deactivate gameplay systems when returning to menus."""

@@ -45,7 +45,7 @@ class_name BaseEnemy
 
 @export_group("Movement Physics")
 ## Velocity interpolation rate for smooth movement
-@export var velocity_interpolation_rate: float = 0.25
+@export var velocity_interpolation_rate: float = 0.0125
 ## Minimum velocity magnitude to trigger rotation
 @export var min_velocity_for_rotation: float = 0.1
 ## Raycast distance for line-of-sight checks
@@ -214,32 +214,14 @@ func _physics_process(delta):
 	
 	# Full enemy logic - optimized movement system
 	_update_player_tracking()
-	_update_movement(time_delta)
-	_update_attack_logic(time_delta)
+	#_update_attack_logic(time_delta)
 	_apply_movement(time_delta)
 
 func _update_player_tracking():
 	"""Update distance and direction to player."""
-	if not player:
-		return
-		
 	# Calculate distance to player camera position for consistency
 	var target_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
-	distance_to_player = global_position.distance_to(target_position)
-	
-	# Check if player is in detection range - only emit signal once per detection
-	if distance_to_player <= detection_range:
-		if not player_detection_signaled:
-			player_detected.emit(player)
-			player_detection_signaled = true
-	else:
-		# Reset signal flag when player moves out of range
-		player_detection_signaled = false
-
-func _update_movement(delta):
-	"""Movement handled by basic navigation - no behavior system needed."""
-	# Basic navigation handles movement directly via _apply_movement()
-	pass
+	nav_agent.target_position = target_position
 
 func _update_attack_logic(delta):
 	"""Update attack logic using the assigned attack behavior."""
@@ -252,27 +234,14 @@ func _apply_movement(delta):
 	"""EXACT implementation from video tutorial with debug for grunts."""
 	# Get time-adjusted delta for consistent movement speed
 	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
-	
-	if not is_on_floor():
-		velocity.y -= gravity_force * delta  # Keep gravity at real-time
-	else:
-		velocity.y -= 2
-	
 	var next_location = nav_agent.get_next_path_position()
 	var current_location = global_transform.origin
 	
-	# Scale speed by time for proper time dilation
-	var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
-	var time_scaled_speed = speed * effective_time_scale
-	var new_velocity = (next_location - current_location).normalized() * time_scaled_speed
+	var new_velocity = (next_location - current_location).normalized() * speed
+	velocity = new_velocity
 	
 	# Debug removed for cleaner console output
-	
-	# Use normal movement interpolation (velocity is already time-scaled)
-	velocity = velocity.move_toward(new_velocity, velocity_interpolation_rate)
-	move_and_slide()
-	
-	# Leave raycast alone - it should rotate with the enemy automatically
+	global_position += new_velocity * time_delta
 	
 	# Use actual velocity direction for rotation
 	var velocity_direction = Vector3(velocity.x, 0, velocity.z)
@@ -285,14 +254,7 @@ func _apply_movement(delta):
 		
 		# Smooth rotation with time-scaled interpolation
 		rotation.y = lerp_angle(rotation.y, velocity_angle, rotation_speed * time_delta)
-		
-		# Debug removed for cleaner console output
 
-func target_position(target):
-	"""Set the navigation target position - called by Main script."""
-	nav_agent.target_position = target
-	
-	# Debug removed for cleaner console output
 
 func _start_attack():
 	"""Initiate an attack."""

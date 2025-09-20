@@ -112,11 +112,6 @@ func _configure_spawn_manager():
 	# Find and configure spawn markers
 	_setup_spawn_markers()
 	
-	# Start spawning if auto-start is enabled
-	if auto_start_spawning and enable_spawning:
-		arena_spawn_manager.start_spawning()
-		if debug_spawn_config:
-			print("LevelSpawnConfig: Started spawning with auto-start")
 	
 	is_configured = true
 	

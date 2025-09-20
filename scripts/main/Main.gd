@@ -18,7 +18,3 @@ func _ready():
 			print("Main: Enemy spawning disabled via debug toggle")
 	
 	print("Main scene ready")
-
-func _process(delta):
-	# Update all enemies with player position for navigation targeting
-	get_tree().call_group("enemy", "target_position", target.global_transform.origin)
