@@ -214,7 +214,7 @@ func _physics_process(delta):
 	
 	# Full enemy logic - optimized movement system
 	_update_player_tracking()
-	#_update_attack_logic(time_delta)
+	_update_attack_logic(time_delta)
 	_apply_movement(time_delta)
 
 func _update_player_tracking():
@@ -225,7 +225,7 @@ func _update_player_tracking():
 
 func _update_attack_logic(delta):
 	"""Update attack logic using the assigned attack behavior."""
-	if attack_behavior and distance_to_player <= attack_range and not is_attacking:
+	if attack_behavior and not is_attacking:
 		# Check line of sight before attacking
 		if _has_line_of_sight_to_player() and attack_behavior.should_attack(delta):
 			_start_attack()
@@ -395,7 +395,15 @@ func get_direction_to_player(from_position: Vector3 = Vector3.ZERO) -> Vector3:
 
 func is_player_in_range(range: float) -> bool:
 	"""Check if player is within specified range."""
-	return distance_to_player <= range
+	if not player:
+		return false
+	
+	# Calculate distance directly instead of relying on distance_to_player variable
+	var player_position = player.get_target_position() if player.has_method("get_target_position") else player.global_position
+	var actual_distance = global_position.distance_to(player_position)
+	
+	#print("enemy attack, actual distance to player:", actual_distance, ", range", range)
+	return actual_distance <= range
 
 # Visibility check optimization
 var visibility_cache: bool = false  # Start as false - force check on first frame

@@ -40,16 +40,6 @@ size_flags_horizontal = 4
 text = "dead."
 horizontal_alignment = 1
 
-[node name="RestartButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-text = "rewind"
-
-[node name="MainMenuButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-text = "main"
-
 [node name="HighScoreText" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
@@ -61,3 +51,18 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "Score: 0"
 horizontal_alignment = 1
+
+[node name="RestartButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "rewind"
+
+[node name="StatsButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "stats"
+
+[node name="MainMenuButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "main"

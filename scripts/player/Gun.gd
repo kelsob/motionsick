@@ -927,6 +927,10 @@ func _fire_bullet(damage: int):
 	# Consume ammo
 	current_ammo -= 1
 	ammo_changed.emit(current_ammo, max_ammo)
+	
+	# Track bullet fired for analytics
+	AnalyticsManager.track_bullet_fired()
+	
 	if debug_ammo:
 		print("Ammo: ", current_ammo, "/", max_ammo)
 	

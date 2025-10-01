@@ -78,13 +78,7 @@ func _on_level_selected(level_data):
 	if debug_selection:
 		print("LevelSelectionManager: Level selected: ", level_data.display_name)
 	
-	# Transition effect
-	if enable_animations:
-		var tween = create_tween()
-		tween.tween_property(self, "modulate:a", 0.0, fade_duration)
-		await tween.finished
-	
-	# Load the selected level
+	# Load the selected level immediately - no fade animations
 	var load_success = await level_data_manager.load_selected_level()
 	if load_success:
 		if debug_transitions:
@@ -92,8 +86,6 @@ func _on_level_selected(level_data):
 	else:
 		if debug_transitions:
 			print("LevelSelectionManager: Failed to load level")
-		# Restore visibility if level load failed
-		modulate.a = 1.0
 
 func _on_back_pressed():
 	"""Handle back button press."""
@@ -103,22 +95,15 @@ func _on_back_pressed():
 	_transition_to_main_menu()
 
 func _transition_to_main_menu():
-	"""Transition back to main menu."""
+	"""Transition back to main menu immediately."""
 	if debug_transitions:
 		print("LevelSelectionManager: Returning to main menu")
 	
-	if enable_animations:
-		var tween = create_tween()
-		tween.tween_property(self, "modulate:a", 0.0, fade_duration)
-		await tween.finished
-	
-	# Change scene
+	# Change scene immediately - no fade animations
 	var error = get_tree().change_scene_to_file(main_menu_scene)
 	if error != OK:
 		if debug_transitions:
 			print("LevelSelectionManager: Failed to load main menu: ", error)
-		# Restore visibility if scene load failed
-		modulate.a = 1.0
 
 func refresh_level_grid():
 	"""Refresh the level grid (useful if levels are added/removed dynamically)."""

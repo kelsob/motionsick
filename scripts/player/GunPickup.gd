@@ -94,16 +94,16 @@ func _update_highlight():
 		gun_mesh.material_override = original_material
 
 func _on_body_entered(body: Node3D):
-	"""Called when something enters the pickup area - instant pickup!"""
+	"""Called when something enters the pickup area - just set range flag."""
 	if body.is_in_group("player") and is_available:
-		print("Player touched gun pickup - auto pickup!")
-		_instant_pickup(body)
+		player_in_range = true
+		print("Player entered gun pickup range")
 
 func _on_body_exited(body: Node3D):
 	"""Called when something exits the pickup area."""
 	if body.is_in_group("player"):
 		player_in_range = false
-		print("Player left gun pickup collision")
+		print("Player left gun pickup range")
 
 func _instant_pickup(player: Node3D):
 	"""Instantly pick up the gun when player touches collision."""
@@ -131,8 +131,29 @@ func _instant_pickup(player: Node3D):
 	queue_free()
 
 func try_pickup(player: Node3D) -> bool:
-	"""Legacy pickup function - now redirects to instant pickup."""
-	_instant_pickup(player)
+	"""Try to pick up the gun if conditions are met."""
+	if not is_available:
+		return false
+	
+	# Check if player already has a gun
+	var gun = player.get_node_or_null("Camera3D/Gun")
+	if gun and gun.has_method("is_equipped") and gun.is_equipped():
+		print("Player already has a gun equipped")
+		return false
+	
+	# Perform pickup
+	print("Gun picked up!")
+	is_available = false
+	
+	# Emit signal
+	gun_picked_up.emit()
+	
+	# Tell the player's gun to equip
+	if gun and gun.has_method("equip_gun"):
+		gun.equip_gun()
+	
+	# Free the pickup scene immediately
+	queue_free()
 	return true
 
 func reset_pickup():

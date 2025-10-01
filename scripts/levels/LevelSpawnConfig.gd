@@ -4,49 +4,63 @@ extends Node
 # Add this to any level scene to configure enemy spawning for that specific level
 # This script tells ArenaSpawnManager what, when, and where to spawn
 
+# === SPAWN EVENT CLASS ===
+# Simple class for programmatic spawn event creation
+class SpawnEvent:
+	var enemy_type: int
+	var spawn_time: float
+	var spawn_marker_index: int
+	var telegraph_duration: float = -1.0
+	var health_multiplier: float = 1.0
+	var speed_multiplier: float = 1.0
+	
+	func _init(type: int, time: float, marker_idx: int = 0, telegraph: float = -1.0, health_mult: float = 1.0, speed_mult: float = 1.0):
+		enemy_type = type
+		spawn_time = time
+		spawn_marker_index = marker_idx
+		telegraph_duration = telegraph
+		health_multiplier = health_mult
+		speed_multiplier = speed_mult
+
 ## === EXPORTED CONFIGURATION ===
 @export_group("Spawn Control")
 ## Enable enemy spawning for this level
 @export var enable_spawning: bool = true
 ## Auto-start spawning when level loads
 @export var auto_start_spawning: bool = true
-## Time between spawn attempts (seconds)
-@export var spawn_interval: float = 2.0
-## Maximum total enemies alive at once
-@export var max_total_enemies: int = 15
-## Telegraph duration before enemy spawns
-@export var telegraph_duration: float = 3.0
+## Default telegraph duration before enemy spawns (can be overridden per spawn)
+@export var default_telegraph_duration: float = 3.0
 
-@export_group("Enemy Configuration")
-## Maximum Grunt enemies
+@export_group("Legacy Continuous Spawning")
+## Enable legacy continuous spawning system (for horde mode)
+@export var enable_continuous_spawning: bool = false
+## Time between spawn attempts (seconds) - only for continuous mode
+@export var spawn_interval: float = 2.0
+## Maximum total enemies alive at once - only for continuous mode
+@export var max_total_enemies: int = 15
+
+@export_group("Spawn Events")
+## List of scheduled spawn events for this level
+@export var spawn_events: Array[SpawnEventResource] = []
+
+@export_group("Legacy Enemy Configuration")
+## Maximum Grunt enemies - only for continuous mode
 @export var max_grunt_enemies: int = 8
-## Maximum Sniper enemies  
+## Maximum Sniper enemies - only for continuous mode
 @export var max_sniper_enemies: int = 2
-## Maximum Flanker enemies
+## Maximum Flanker enemies - only for continuous mode
 @export var max_flanker_enemies: int = 3
-## Maximum Rusher enemies
+## Maximum Rusher enemies - only for continuous mode
 @export var max_rusher_enemies: int = 2
-## Maximum Artillery enemies
+## Maximum Artillery enemies - only for continuous mode
 @export var max_artillery_enemies: int = 1
 
-@export_group("Enemy Unlock Timing")
-## When Grunt enemies start appearing (seconds)
-@export var grunt_unlock_time: float = 0.0
-## When Sniper enemies start appearing (seconds)
-@export var sniper_unlock_time: float = 30.0
-## When Flanker enemies start appearing (seconds)
-@export var flanker_unlock_time: float = 60.0
-## When Rusher enemies start appearing (seconds)
-@export var rusher_unlock_time: float = 90.0
-## When Artillery enemies start appearing (seconds)
-@export var artillery_unlock_time: float = 120.0
-
-@export_group("Difficulty Scaling")
-## Enable difficulty scaling over time
+@export_group("Legacy Difficulty Scaling")
+## Enable difficulty scaling over time - only for continuous mode
 @export var enable_difficulty_scaling: bool = true
-## Health scaling per minute (e.g., 0.1 = +10% per minute)
+## Health scaling per minute (e.g., 0.1 = +10% per minute) - only for continuous mode
 @export var health_scaling_per_minute: float = 0.1
-## Speed scaling per minute (e.g., 0.05 = +5% per minute)
+## Speed scaling per minute (e.g., 0.05 = +5% per minute) - only for continuous mode
 @export var speed_scaling_per_minute: float = 0.05
 
 @export_group("Spawn Markers")
@@ -80,10 +94,32 @@ func _configure_spawn_manager():
 	if debug_spawn_config:
 		print("LevelSpawnConfig: Configuring spawn manager for level")
 	
+	# Find and configure spawn markers first
+	_setup_spawn_markers()
+	
+	# Configure spawning mode
+	if enable_continuous_spawning:
+		# Legacy continuous spawning mode
+		if debug_spawn_config:
+			print("LevelSpawnConfig: Using continuous spawning mode")
+		_configure_continuous_spawning()
+	else:
+		# New scheduled spawn events mode
+		if debug_spawn_config:
+			print("LevelSpawnConfig: Using scheduled spawn events mode")
+		_configure_scheduled_spawning()
+	
+	is_configured = true
+	
+	if debug_spawn_config:
+		print("LevelSpawnConfig: Configuration complete")
+
+func _configure_continuous_spawning():
+	"""Configure for legacy continuous spawning mode."""
 	# Configure basic spawn settings
 	arena_spawn_manager.spawn_interval = spawn_interval
 	arena_spawn_manager.max_total_enemies = max_total_enemies
-	arena_spawn_manager.telegraph_duration = telegraph_duration
+	arena_spawn_manager.telegraph_duration = default_telegraph_duration
 	arena_spawn_manager.difficulty_scaling = enable_difficulty_scaling
 	arena_spawn_manager.disable_spawning = not enable_spawning
 	
@@ -96,30 +132,36 @@ func _configure_spawn_manager():
 		arena_spawn_manager.EnemyType.ARTILLERY: max_artillery_enemies
 	}
 	
-	# Configure enemy unlock times
-	arena_spawn_manager.enemy_unlock_times = {
-		arena_spawn_manager.EnemyType.GRUNT: grunt_unlock_time,
-		arena_spawn_manager.EnemyType.SNIPER: sniper_unlock_time,
-		arena_spawn_manager.EnemyType.FLANKER: flanker_unlock_time,
-		arena_spawn_manager.EnemyType.RUSHER: rusher_unlock_time,
-		arena_spawn_manager.EnemyType.ARTILLERY: artillery_unlock_time
-	}
-	
 	# Configure difficulty scaling
 	if arena_spawn_manager.has_method("set_difficulty_scaling"):
 		arena_spawn_manager.set_difficulty_scaling(health_scaling_per_minute, speed_scaling_per_minute)
+
+func _configure_scheduled_spawning():
+	"""Configure for new scheduled spawn events mode."""
+	# Disable continuous spawning
+	arena_spawn_manager.disable_spawning = not enable_spawning
 	
-	# Find and configure spawn markers
-	_setup_spawn_markers()
+	# Convert SpawnEventResource objects to SpawnEvent objects and pass to spawn manager
+	var parsed_events: Array[SpawnEvent] = []
+	for event_resource in spawn_events:
+		if event_resource == null:
+			continue  # Skip null entries
+		
+		var spawn_event = SpawnEvent.new(
+			event_resource.enemy_type,
+			event_resource.spawn_time,
+			event_resource.spawn_marker_index,
+			event_resource.telegraph_duration,
+			event_resource.health_multiplier,
+			event_resource.speed_multiplier
+		)
+		parsed_events.append(spawn_event)
 	
-	
-	is_configured = true
-	
-	if debug_spawn_config:
-		print("LevelSpawnConfig: Configuration complete")
-		print("  Max enemies: ", max_total_enemies)
-		print("  Spawn interval: ", spawn_interval)
-		print("  Enemy maxes: Grunt=", max_grunt_enemies, " Sniper=", max_sniper_enemies, " Flanker=", max_flanker_enemies)
+	# Pass scheduled events to spawn manager
+	if arena_spawn_manager.has_method("set_scheduled_spawns"):
+		arena_spawn_manager.set_scheduled_spawns(parsed_events, default_telegraph_duration)
+		if debug_spawn_config:
+			print("LevelSpawnConfig: Configured ", parsed_events.size(), " scheduled spawn events")
 
 func _setup_spawn_markers():
 	"""Find spawn markers and pass them to ArenaSpawnManager."""
@@ -152,6 +194,46 @@ func stop_spawning():
 	"""Stop spawning for this level."""
 	if arena_spawn_manager:
 		arena_spawn_manager.stop_spawning()
+
+func add_spawn_event(enemy_type: int, spawn_time: float, marker_index: int = 0, telegraph_duration: float = -1.0, health_mult: float = 1.0, speed_mult: float = 1.0):
+	"""Add a spawn event to the level's spawn list."""
+	var event_resource = SpawnEventResource.new()
+	event_resource.enemy_type = enemy_type
+	event_resource.spawn_time = spawn_time
+	event_resource.spawn_marker_index = marker_index
+	event_resource.telegraph_duration = telegraph_duration
+	event_resource.health_multiplier = health_mult
+	event_resource.speed_multiplier = speed_mult
+	
+	spawn_events.append(event_resource)
+	
+	if debug_spawn_config:
+		print("LevelSpawnConfig: Added spawn event - Type: ", enemy_type, " Time: ", spawn_time, " Marker: ", marker_index)
+
+func clear_spawn_events():
+	"""Clear all spawn events."""
+	spawn_events.clear()
+	if debug_spawn_config:
+		print("LevelSpawnConfig: Cleared all spawn events")
+
+func create_example_spawn_sequence():
+	"""Create an example spawn sequence for testing."""
+	clear_spawn_events()
+	
+	# Example sequence: Grunt at 5s, Sniper at 10s, two Grunts at 15s
+	add_spawn_event(0, 5.0, 0)   # Grunt at marker 0, 5 seconds
+	add_spawn_event(1, 10.0, 1)  # Sniper at marker 1, 10 seconds  
+	add_spawn_event(0, 15.0, 2)  # Grunt at marker 2, 15 seconds
+	add_spawn_event(0, 15.5, 0)  # Another Grunt at marker 0, 15.5 seconds
+	
+	if debug_spawn_config:
+		print("LevelSpawnConfig: Created example spawn sequence with ", spawn_events.size(), " events")
+
+func get_spawn_marker_count() -> int:
+	"""Get the number of available spawn markers."""
+	if spawn_markers_node:
+		return spawn_markers_node.get_child_count()
+	return 0
 
 func update_enemy_max(enemy_type: String, new_max: int):
 	"""Update maximum count for a specific enemy type at runtime."""
@@ -192,19 +274,31 @@ func print_spawn_config():
 	print("Level: ", get_parent().name if get_parent() else "Unknown")
 	print("Spawning enabled: ", enable_spawning)
 	print("Auto-start: ", auto_start_spawning)
-	print("Spawn interval: ", spawn_interval, "s")
-	print("Max total enemies: ", max_total_enemies)
-	print("Enemy maximums:")
-	print("  Grunt: ", max_grunt_enemies)
-	print("  Sniper: ", max_sniper_enemies)
-	print("  Flanker: ", max_flanker_enemies)
-	print("  Rusher: ", max_rusher_enemies)
-	print("  Artillery: ", max_artillery_enemies)
-	print("Unlock times:")
-	print("  Grunt: ", grunt_unlock_time, "s")
-	print("  Sniper: ", sniper_unlock_time, "s")
-	print("  Flanker: ", flanker_unlock_time, "s")
-	print("  Rusher: ", rusher_unlock_time, "s")
-	print("  Artillery: ", artillery_unlock_time, "s")
+	print("Spawning mode: ", "Scheduled Events" if not enable_continuous_spawning else "Continuous")
+	
+	if enable_continuous_spawning:
+		print("=== CONTINUOUS MODE SETTINGS ===")
+		print("Spawn interval: ", spawn_interval, "s")
+		print("Max total enemies: ", max_total_enemies)
+		print("Enemy maximums:")
+		print("  Grunt: ", max_grunt_enemies)
+		print("  Sniper: ", max_sniper_enemies)
+		print("  Flanker: ", max_flanker_enemies)
+		print("  Rusher: ", max_rusher_enemies)
+		print("  Artillery: ", max_artillery_enemies)
+	else:
+		print("=== SCHEDULED EVENTS MODE ===")
+		print("Default telegraph duration: ", default_telegraph_duration, "s")
+		print("Spawn events: ", spawn_events.size())
+		for i in range(spawn_events.size()):
+			var event = spawn_events[i]
+			if event == null:
+				print("  Event ", i, ": NULL")
+				continue
+			var enemy_names = ["Grunt", "Sniper", "Flanker", "Rusher", "Artillery"]
+			var enemy_name = enemy_names[event.enemy_type] if event.enemy_type < enemy_names.size() else "Unknown"
+			print("  Event ", i, ": ", enemy_name, " at ", event.spawn_time, "s (marker ", event.spawn_marker_index, ")")
+	
+	print("Spawn markers available: ", get_spawn_marker_count())
 	print("Configured: ", is_configured)
 	print("========================\n")

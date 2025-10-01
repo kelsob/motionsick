@@ -117,7 +117,9 @@ enum TravelType {
 ## Enable debug output for collision events
 @export var debug_collisions: bool = false
 ## Enable debug output for recall events
-@export var debug_recall: bool = false
+@export var debug_recall: bool = true
+## Enable debug output for bounce exclusion system
+@export var debug_exclusion: bool = true
 
 ## === RUNTIME STATE ===
 # Timing and lifecycle
@@ -148,9 +150,7 @@ var explosion_damage: int = 0
 var piercing_value: float = 0.0
 var has_pierced: bool = false
 
-# Recall properties (runtime)
-var is_being_recalled: bool = false
-var recall_target_position: Vector3 = Vector3.ZERO
+# Recall no longer uses special state - bullets just redirect and behave normally
 
 # Deflection properties (runtime)
 var has_been_deflected: bool = false
@@ -278,14 +278,10 @@ func _physics_process(delta):
 		if travel_type != TravelType.HITSCAN:
 			var time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
 			
-			# Handle recalled bullet movement
-			if is_being_recalled:
-				_update_recalled_movement(time_scale, time_delta)
-			else:
-				# Normal bullet movement
-				var movement = travel_direction * current_speed * time_scale * time_delta
-				var old_pos = global_position
-				global_position += movement
+			# Normal bullet movement - no special recall behavior needed
+			var movement = travel_direction * current_speed * time_scale * time_delta
+			var old_pos = global_position
+			global_position += movement
 				
 
 		
@@ -356,22 +352,49 @@ func set_shooter(shooting_entity: Node):
 	shooter = shooting_entity
 
 func recall_to_player():
-	"""Start recalling this bullet back to the player."""
+	"""Redirect this bullet toward the player position, then resume normal behavior."""
 	if not has_been_fired or has_hit_target or not is_player_bullet:
 		return false  # Can't recall unfired, already hit, or non-player bullets
 	
-	is_being_recalled = true
-	
 	# Find player position
 	var player = get_tree().get_first_node_in_group("player")
-	if player:
-		recall_target_position = player.global_position + Vector3(0, recall_target_offset_y, 0)
-		return true
-	else:
+	if not player:
 		if debug_recall:
 			print("WARNING: Could not find player for bullet recall")
-		is_being_recalled = false
 		return false
+	
+	var player_position = player.global_position + Vector3(0, recall_target_offset_y, 0)
+	
+	# Calculate NEW direction from bullet toward player
+	var new_direction = (player_position - global_position).normalized()
+	
+	# SIMPLY redirect the bullet - no special state needed!
+	travel_direction = new_direction
+	
+	# CLEAR BOUNCE EXCLUSION LIST - bullet should behave normally after redirect
+	var old_exclusion_count = bounce_exclusion_array.size()
+	bounce_exclusion_array.clear()
+	bounce_exclusion_positions.clear()
+	
+	# Update bullet rotation to face new direction
+	if travel_direction.length() > 0.01:
+		var up_vector = Vector3.UP
+		if abs(travel_direction.dot(Vector3.UP)) > 0.99:
+			up_vector = Vector3.FORWARD
+		look_at(global_position + travel_direction, up_vector)
+	
+	# Optional: Give bullet a speed boost for recall
+	current_speed = current_speed * recall_speed_multiplier
+	
+	if debug_recall:
+		print("Bullet redirected toward player at ", player_position)
+		print("New direction: ", travel_direction)
+		print("New speed: ", current_speed)
+		print("Cleared bounce exclusion list (was ", old_exclusion_count, " items)")
+		print("Exclusion list after clear: ", _get_exclusion_array_names())
+	
+	# That's it! Bullet now behaves completely normally in the new direction
+	return true
 
 func fire(direction: Vector3):
 	# Mark as fired so it stops tracking muzzle
@@ -477,32 +500,7 @@ func ease_out_cubic(t: float) -> float:
 	"""Cubic ease-out function for smooth acceleration."""
 	return 1.0 - pow(1.0 - t, 3.0)
 
-func _update_recalled_movement(time_scale: float, time_delta: float):
-	"""Handle movement when bullet is being recalled to player."""
-	# Update player position continuously
-	var player = get_tree().get_first_node_in_group("player")
-	if player:
-		recall_target_position = player.global_position + Vector3(0, recall_target_offset_y, 0)
-	else:
-		# Player not found, stop recall
-		is_being_recalled = false
-		return
-	
-	# Calculate direction to player
-	var to_player = (recall_target_position - global_position).normalized()
-	
-	# Turn toward player FAST
-	travel_direction = travel_direction.lerp(to_player, recall_turn_speed).normalized()
-	
-	# Move faster when recalled
-	var recall_speed = current_speed * recall_speed_multiplier
-	var movement = travel_direction * recall_speed * time_scale * time_delta
-	global_position += movement
-	
-	# Check if bullet reached player
-	var distance_to_player = global_position.distance_to(recall_target_position)
-	if distance_to_player < recall_completion_distance:
-		_handle_bullet_return_to_player()
+# Old complex recall movement function removed - now using simple redirect approach
 
 func _handle_bullet_return_to_player():
 	"""Handle what happens when recalled bullet reaches the player."""
@@ -585,6 +583,14 @@ func _on_body_entered(body):
 	# Force SHAPECASTupdate at the very start of collision handling
 	var shapecast = get_node_or_null("ShapeCast3D")
 	print("body:", body.collision_layer)
+	
+	# DEBUG: Track all collisions
+	if debug_recall:
+		print("COLLISION: Bullet hit ", body.name, " (layer: ", body.collision_layer, ")")
+		print("COLLISION: Is environment: ", _is_environment(body))
+		print("COLLISION: Body position: ", body.global_position)
+		print("COLLISION: Bullet position: ", global_position)
+	
 	if shapecast:
 		shapecast.force_shapecast_update()
 		if debug_bouncing:
@@ -601,12 +607,13 @@ func _on_body_entered(body):
 	
 	# Check if this body is in our exclusion list
 	if body in bounce_exclusion_array:
-		if debug_bouncing:
+		if debug_exclusion:
 			print("EXCLUSION: IGNORING collision with ", body.name, " (in exclusion list)")
 			if bounce_exclusion_positions.has(body):
 				var bounce_pos = bounce_exclusion_positions[body]
 				var distance = global_position.distance_to(bounce_pos)
 				print("  Distance from original bounce: ", distance)
+			print("  Current exclusion list: ", _get_exclusion_array_names())
 		return
 	
 	# Check if we hit an enemy first (has take_damage method)
@@ -648,7 +655,7 @@ func _on_body_entered(body):
 				body.apply_knockback(knockback_direction, knockback)
 
 		
-		is_being_recalled = false  # Stop any active recall
+		# Bullet hit target - normal collision behavior
 		
 		# Handle piercing logic (regardless of damage)
 		if piercing_value > 0.0:
@@ -944,8 +951,9 @@ func _handle_single_surface_bounce(surface_normal: Vector3, bounced_from_body: N
 	if not bounced_from_body in bounce_exclusion_array:
 		bounce_exclusion_array.append(bounced_from_body)
 		bounce_exclusion_positions[bounced_from_body] = global_position
-		if debug_bouncing:
+		if debug_exclusion:
 			print("EXCLUSION: Added ", bounced_from_body.name, " to exclusion list at position ", global_position)
+			print("EXCLUSION: List now contains: ", _get_exclusion_array_names())
 	
 	#if debug_bouncing:
 		#print("EXCLUSION ARRAY after bounce: ", _get_exclusion_array_names())
@@ -1091,6 +1099,7 @@ func deflect_bullet(new_direction: Vector3, speed_boost: float = 1.0):
 		print("DEFLECTION: Old direction: ", travel_direction)
 		print("DEFLECTION: New direction: ", new_direction)
 		print("DEFLECTION: Speed boost: ", speed_boost)
+		print("DEFLECTION: Clearing bounce exclusion list (had ", bounce_exclusion_array.size(), " items)")
 	
 	# Change direction
 	travel_direction = new_direction.normalized()
@@ -1101,8 +1110,10 @@ func deflect_bullet(new_direction: Vector3, speed_boost: float = 1.0):
 	# Mark as deflected
 	has_been_deflected = true
 	
-	# Stop any recall if active
-	is_being_recalled = false
+	# CLEAR BOUNCE EXCLUSION LIST - bullet should behave normally after deflection
+	var old_exclusion_count = bounce_exclusion_array.size()
+	bounce_exclusion_array.clear()
+	bounce_exclusion_positions.clear()
 	
 	# Create BulletDeflect effect at current position
 	_create_bullet_deflect_effect(global_position)

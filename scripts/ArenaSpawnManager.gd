@@ -106,6 +106,13 @@ var telegraph_scene: PackedScene = preload("res://scenes/SpawnTelegraph.tscn")
 var pending_spawns: Array[Dictionary] = []  # Queue of telegraphed spawns
 var pending_spawns_by_type: Dictionary = {}  # Track pending spawns by enemy type
 
+# === SCHEDULED SPAWN SYSTEM ===
+# New system for precise level-based spawning
+var scheduled_spawns: Array = []  # Array of SpawnEvent objects
+var completed_spawns: Array[bool] = []  # Track which spawns have been executed
+var default_telegraph_duration: float = 3.0
+var use_scheduled_spawning: bool = false
+
 # === SIGNALS ===
 signal enemy_spawned(enemy: BaseEnemy, enemy_type: EnemyType)
 signal enemy_died(enemy: BaseEnemy, enemy_type: EnemyType)
@@ -148,7 +155,11 @@ func _process(delta: float):
 			time_delta = delta * time_scale
 		
 		game_time += time_delta
-		_update_difficulty()
+		
+		if use_scheduled_spawning:
+			_process_scheduled_spawns()
+		else:
+			_update_difficulty()
 
 func _setup_spawn_markers():
 	"""Find spawn markers from the SpawnMarkers node."""
@@ -169,6 +180,104 @@ func _update_difficulty():
 	# DISABLED: Let the user control spawning via the top-level variables
 	# No more automatic difficulty scaling that overrides user settings
 	pass
+
+func _process_scheduled_spawns():
+	"""Process scheduled spawn events based on game time."""
+	for i in range(scheduled_spawns.size()):
+		if completed_spawns[i]:
+			continue  # Already spawned
+		
+		var spawn_event = scheduled_spawns[i]
+		if game_time >= spawn_event.spawn_time:
+			# Time to spawn this enemy
+			_execute_scheduled_spawn(spawn_event, i)
+
+func _execute_scheduled_spawn(spawn_event, spawn_index: int):
+	"""Execute a scheduled spawn event."""
+	if debug_spawning:
+		print("ArenaSpawnManager: Executing scheduled spawn - Type: ", EnemyType.keys()[spawn_event.enemy_type], " at time: ", "%.1f" % game_time)
+	
+	# Mark as completed first to prevent double-spawning
+	completed_spawns[spawn_index] = true
+	
+	# Get spawn position from marker
+	var spawn_pos = _get_spawn_position_from_marker(spawn_event.spawn_marker_index)
+	
+	# Determine telegraph duration
+	var telegraph_duration = spawn_event.telegraph_duration
+	if telegraph_duration < 0:
+		telegraph_duration = default_telegraph_duration
+	
+	# Start spawn telegraph with custom parameters
+	_start_scheduled_spawn_telegraph(spawn_event, spawn_pos, telegraph_duration)
+
+func _get_spawn_position_from_marker(marker_index: int) -> Vector3:
+	"""Get spawn position from a specific marker index."""
+	if spawn_markers.size() == 0:
+		if debug_spawning:
+			print("ArenaSpawnManager: WARNING - No spawn markers available!")
+		return Vector3.ZERO
+	
+	# Clamp marker index to available markers
+	var safe_index = clamp(marker_index, 0, spawn_markers.size() - 1)
+	if safe_index != marker_index and debug_spawning:
+		print("ArenaSpawnManager: WARNING - Marker index ", marker_index, " out of range, using ", safe_index)
+	
+	return spawn_markers[safe_index].global_position
+
+func _start_scheduled_spawn_telegraph(spawn_event, spawn_pos: Vector3, telegraph_duration: float):
+	"""Start a telegraph for a scheduled spawn with custom parameters."""
+	# Create telegraph effect
+	var telegraph = telegraph_scene.instantiate()
+	get_tree().current_scene.add_child(telegraph)
+	telegraph.global_position = spawn_pos + Vector3(0, telegraph_height_offset, 0)
+	
+	# Configure telegraph colors based on enemy type
+	var telegraph_color = Color.RED
+	match spawn_event.enemy_type:
+		EnemyType.GRUNT:
+			telegraph_color = Color.RED
+		EnemyType.SNIPER:
+			telegraph_color = Color.BLUE
+		EnemyType.FLANKER:
+			telegraph_color = Color.PURPLE
+		EnemyType.RUSHER:
+			telegraph_color = Color.YELLOW
+		EnemyType.ARTILLERY:
+			telegraph_color = Color.DARK_GREEN
+	
+	telegraph.set_telegraph_color(telegraph_color)
+	telegraph.set_telegraph_duration(telegraph_duration)
+	
+	# Connect completion signal with spawn event data
+	telegraph.telegraph_completed.connect(_on_scheduled_telegraph_completed.bind(spawn_event, spawn_pos))
+	
+	# Start the effect
+	telegraph.start_telegraph()
+	
+	if debug_telegraph:
+		print("ArenaSpawnManager: Started scheduled telegraph for ", EnemyType.keys()[spawn_event.enemy_type], " at marker ", spawn_event.spawn_marker_index)
+
+func _on_scheduled_telegraph_completed(spawn_event, spawn_pos: Vector3):
+	"""Called when a scheduled spawn telegraph finishes."""
+	if debug_telegraph:
+		print("ArenaSpawnManager: Scheduled telegraph completed for ", EnemyType.keys()[spawn_event.enemy_type])
+	
+	var enemy = _spawn_enemy_at_position_with_modifiers(spawn_event.enemy_type, spawn_pos, spawn_event.health_multiplier, spawn_event.speed_multiplier)
+	if enemy:
+		enemies_alive += 1
+		enemies_by_type[spawn_event.enemy_type] += 1
+		
+		if debug_spawning:
+			print("ArenaSpawnManager: === SCHEDULED ENEMY SPAWNED ===")
+			print("ArenaSpawnManager: Type: ", EnemyType.keys()[spawn_event.enemy_type])
+			print("ArenaSpawnManager: Health mult: x", spawn_event.health_multiplier, " Speed mult: x", spawn_event.speed_multiplier)
+			print("ArenaSpawnManager: New counts - Total: ", enemies_alive, ", Type: ", enemies_by_type[spawn_event.enemy_type])
+		
+		# Connect to enemy death
+		enemy.enemy_died.connect(_on_enemy_died)
+		
+		enemy_spawned.emit(enemy, spawn_event.enemy_type)
 
 func _on_spawn_timer_timeout():
 	"""Called when it's time to attempt spawning."""
@@ -311,6 +420,10 @@ func _spawn_enemy(type: int) -> BaseEnemy:
 
 func _spawn_enemy_at_position(type: int, spawn_pos: Vector3) -> BaseEnemy:
 	"""Spawn an enemy of the specified type at a specific position."""
+	return _spawn_enemy_at_position_with_modifiers(type, spawn_pos, 1.0, 1.0)
+
+func _spawn_enemy_at_position_with_modifiers(type: int, spawn_pos: Vector3, health_mult: float, speed_mult: float) -> BaseEnemy:
+	"""Spawn an enemy of the specified type at a specific position with custom modifiers."""
 	var enemy_scene: PackedScene
 	
 	match type:
@@ -331,17 +444,24 @@ func _spawn_enemy_at_position(type: int, spawn_pos: Vector3) -> BaseEnemy:
 	if not enemy:
 		return null
 	
-	# Apply difficulty scaling
-	if difficulty_scaling:
+	# Apply difficulty scaling (legacy continuous mode)
+	if difficulty_scaling and not use_scheduled_spawning:
 		var minutes_elapsed = game_time / time_conversion_factor
-		var health_mult = base_health_multiplier + (minutes_elapsed * health_scaling_per_minute)
-		var speed_mult = base_speed_multiplier + (minutes_elapsed * speed_scaling_per_minute)
+		var difficulty_health_mult = base_health_multiplier + (minutes_elapsed * health_scaling_per_minute)
+		var difficulty_speed_mult = base_speed_multiplier + (minutes_elapsed * speed_scaling_per_minute)
 		
 		if debug_difficulty:
-			print("ArenaSpawnManager: Difficulty scaling (positioned spawn) - Minutes: ", "%.1f" % minutes_elapsed, " Health: x", "%.2f" % health_mult, " Speed: x", "%.2f" % speed_mult)
+			print("ArenaSpawnManager: Difficulty scaling (positioned spawn) - Minutes: ", "%.1f" % minutes_elapsed, " Health: x", "%.2f" % difficulty_health_mult, " Speed: x", "%.2f" % difficulty_speed_mult)
 		
+		health_mult *= difficulty_health_mult
+		speed_mult *= difficulty_speed_mult
+	
+	# Apply modifiers
+	if health_mult != 1.0:
 		enemy.max_health = int(enemy.max_health * health_mult)
 		enemy.current_health = enemy.max_health
+	
+	if speed_mult != 1.0:
 		enemy.movement_speed *= speed_mult
 	
 	# Add to scene and position
@@ -451,6 +571,9 @@ func _on_game_restart_requested():
 		enemies_by_type[enemy_type] = 0
 		pending_spawns_by_type[enemy_type] = 0
 	
+	# Reset scheduled spawns
+	_reset_scheduled_spawns()
+	
 	# DON'T RESET ENEMY MAXIMUMS - RESPECT USER'S TOP-LEVEL CONFIGURATION
 	# The user controls spawning via the variables at the top of this file
 	if debug_spawning:
@@ -477,6 +600,14 @@ func _on_game_restart_requested():
 		if debug_spawning:
 			print("ArenaSpawnManager: Restarting spawning after game restart")
 		start_spawning()
+
+func _reset_scheduled_spawns():
+	"""Reset all scheduled spawn tracking."""
+	for i in range(completed_spawns.size()):
+		completed_spawns[i] = false
+	
+	if debug_spawning and use_scheduled_spawning:
+		print("ArenaSpawnManager: Reset ", completed_spawns.size(), " scheduled spawns")
 
 # === PUBLIC API ===
 
@@ -581,11 +712,61 @@ func reset_for_level():
 		enemies_by_type[enemy_type] = 0
 		pending_spawns_by_type[enemy_type] = 0
 	
+	# Reset scheduled spawns
+	_reset_scheduled_spawns()
+	
 	# Clear spawn markers - will be set by level
 	spawn_markers.clear()
 	
 	if debug_spawning:
 		print("ArenaSpawnManager: Reset for new level")
+
+func set_scheduled_spawns(spawn_events: Array, default_telegraph: float = 3.0):
+	"""Configure scheduled spawn events for level-based spawning."""
+	scheduled_spawns = spawn_events
+	default_telegraph_duration = default_telegraph
+	use_scheduled_spawning = true
+	
+	# Initialize completion tracking
+	completed_spawns.clear()
+	for i in range(spawn_events.size()):
+		completed_spawns.append(false)
+	
+	if debug_spawning:
+		print("ArenaSpawnManager: Configured ", spawn_events.size(), " scheduled spawn events")
+		print("ArenaSpawnManager: Switched to scheduled spawning mode")
+
+func add_scheduled_spawn(spawn_event):
+	"""Add a single scheduled spawn event."""
+	scheduled_spawns.append(spawn_event)
+	completed_spawns.append(false)
+	
+	if debug_spawning:
+		print("ArenaSpawnManager: Added scheduled spawn event - Type: ", EnemyType.keys()[spawn_event.enemy_type], " Time: ", spawn_event.spawn_time)
+
+func clear_scheduled_spawns():
+	"""Clear all scheduled spawn events."""
+	scheduled_spawns.clear()
+	completed_spawns.clear()
+	use_scheduled_spawning = false
+	
+	if debug_spawning:
+		print("ArenaSpawnManager: Cleared all scheduled spawns, switched to continuous mode")
+
+func get_scheduled_spawn_stats() -> Dictionary:
+	"""Get statistics about scheduled spawns."""
+	var total_spawns = scheduled_spawns.size()
+	var completed_count = 0
+	for completed in completed_spawns:
+		if completed:
+			completed_count += 1
+	
+	return {
+		"total_scheduled": total_spawns,
+		"completed": completed_count,
+		"remaining": total_spawns - completed_count,
+		"using_scheduled_mode": use_scheduled_spawning
+	}
 
 func force_spawn_enemy(enemy_type: int):
 	"""Force spawn a specific enemy type (ignores limits)."""

@@ -50,6 +50,10 @@ text = "new game"
 layout_mode = 2
 text = "options"
 
+[node name="StatsButton" type="Button" parent="MenuContainer/ButtonContainer"]
+layout_mode = 2
+text = "stats"
+
 [node name="ExitButton" type="Button" parent="MenuContainer/ButtonContainer"]
 layout_mode = 2
 text = "quit"

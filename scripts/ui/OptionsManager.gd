@@ -54,6 +54,10 @@ var _vsync_checkbox: CheckBox
 var _mouse_sensitivity_slider: HSlider
 var _back_button: Button
 
+signal sfx_volume_changed(volume: float)
+signal music_volume_changed(volume: float) 
+signal ui_volume_changed(volume: float)
+
 # Lazy-loaded getters for UI elements
 var master_volume_slider: HSlider:
 	get:
@@ -230,6 +234,7 @@ func _on_master_volume_changed(value: float):
 func _on_sfx_volume_changed(value: float):
 	"""Handle SFX volume slider change."""
 	current_settings.sfx_volume = value
+	
 	_apply_audio_settings()
 	_save_settings()
 	
@@ -275,19 +280,12 @@ func _on_back_pressed():
 	_transition_to_main_menu()
 
 func _transition_to_main_menu():
-	"""Transition back to main menu."""
-	if enable_animations:
-		var tween = create_tween()
-		tween.tween_property(self, "modulate:a", 0.0, fade_duration)
-		await tween.finished
-	
-	# Change scene
+	"""Transition back to main menu immediately."""
+	# Change scene immediately - no fade animations
 	var error = get_tree().change_scene_to_file(main_menu_scene)
 	if error != OK:
 		if debug_transitions:
 			print("OptionsManager: Failed to load main menu: ", error)
-		# Restore visibility if scene load failed
-		modulate.a = 1.0
 
 func _save_settings():
 	"""Save current settings to file."""

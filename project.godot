@@ -27,6 +27,8 @@ ScoreManager="*res://scripts/ScoreManager.gd"
 ArenaSpawnManager="*res://scripts/ArenaSpawnManager.gd"
 BootManager="*res://scripts/BootManager.gd"
 OptionsManager="*res://scripts/ui/OptionsManager.gd"
+AnalyticsManager="*res://scripts/AnalyticsManager.gd"
+AudioManager="*res://scripts/AudioManager.gd"
 
 [display]
 

@@ -42,6 +42,9 @@ var is_active: bool = false
 # Signals for time scale changes
 signal time_scale_changed(new_scale: float)
 
+# Pause state
+var is_paused: bool = false
+
 func _ready():
 	# Initialize time scale to default
 	custom_time_scale = default_time_scale
@@ -78,6 +81,10 @@ func _process(delta: float):
 
 
 func _update_time_scale(delta):
+	# If paused, don't update time scale
+	if is_paused:
+		return
+	
 	# Use movement intent instead of velocity percentage to avoid turning issues
 	var movement_intent = 0.0
 	if player and is_instance_valid(player):
@@ -167,6 +174,22 @@ func force_time_scale(scale: float):
 	time_scale_changed.emit(custom_time_scale)
 	print("Time scale forced to: ", custom_time_scale)
 
+func pause_time():
+	"""Pause the time system (for player death)."""
+	is_paused = true
+	custom_time_scale = 0.0
+	time_scale_changed.emit(custom_time_scale)
+	if debug_gamemanager_connection:
+		print("TimeManager: Time paused")
+
+func resume_time():
+	"""Resume the time system."""
+	is_paused = false
+	custom_time_scale = default_time_scale
+	time_scale_changed.emit(custom_time_scale)
+	if debug_gamemanager_connection:
+		print("TimeManager: Time resumed")
+
 func print_time_state():
 	"""Debug function to print current time state."""
 	print("=== TIME MANAGER STATE ===")
@@ -176,4 +199,5 @@ func print_time_state():
 	print("Time normal: ", is_time_normal())
 	print("Damage prevention threshold: ", "%.2f" % damage_prevention_threshold)
 	print("Damage prevented: ", is_damage_prevented())
+	print("Paused: ", is_paused)
 	print("==========================")

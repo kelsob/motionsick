@@ -58,6 +58,16 @@ extends CharacterBody3D
 @export var deflect_speed_boost: float = 1.5
 ## Cooldown between deflection attempts (seconds)
 @export var deflect_cooldown: float = 0.3
+## Movement slowdown when deflecting (added to movement intent for time scaling)
+@export var deflect_movement_slowdown: float = 0.8
+## Duration of movement slowdown after deflection (seconds)
+@export var deflect_slowdown_duration: float = 0.3
+
+@export_group("Bullet Pickup System")
+## Movement slowdown when picking up bullets (added to movement intent for time scaling)
+@export var pickup_movement_slowdown: float = 0.6
+## Duration of movement slowdown after pickup (seconds)  
+@export var pickup_slowdown_duration: float = 0.25
 
 @export_group("Movement Thresholds")
 ## Minimum movement input magnitude to register as moving
@@ -127,6 +137,13 @@ var time_energy_manager: Node = null
 
 # Deflection system state
 var deflect_cooldown_timer: float = 0.0
+var deflect_slowdown_timer: float = 0.0
+
+# Pickup system state  
+var pickup_slowdown_timer: float = 0.0
+
+# Action-based movement modifiers
+var action_movement_modifier: float = 0.0
 
 # === SIGNALS FOR GUN SYSTEM ===
 signal movement_started
@@ -210,6 +227,9 @@ func _input(event):
 			_try_recall_bullet()
 
 func _physics_process(delta):
+	# Track movement distance for analytics
+	var previous_position = global_position
+	
 	update_timers(delta)
 	handle_movement_input(delta)
 	apply_gravity(delta)
@@ -217,6 +237,11 @@ func _physics_process(delta):
 	update_movement_state()
 	update_floor_state()
 	update_action_tracking()
+	
+	# Calculate and track movement distance
+	var movement_distance = previous_position.distance_to(global_position)
+	if movement_distance > 0.0:
+		AnalyticsManager.track_movement(movement_distance)
 
 func update_timers(delta):
 	if is_dashing:
@@ -235,6 +260,13 @@ func update_timers(delta):
 	# Update deflection cooldown
 	if deflect_cooldown_timer > 0.0:
 		deflect_cooldown_timer -= delta
+	
+	# Update action-based movement slowdown timers
+	if deflect_slowdown_timer > 0.0:
+		deflect_slowdown_timer -= delta
+	
+	if pickup_slowdown_timer > 0.0:
+		pickup_slowdown_timer -= delta
 
 func handle_movement_input(delta):
 	var input_dir = get_input_direction()
@@ -318,13 +350,27 @@ func update_movement_intent(delta: float):
 			velocity.x = 0.0
 			velocity.z = 0.0
 	
-	# Send movement intent to energy manager
+	# ADD ACTION-BASED MOVEMENT MODIFIERS
+	action_movement_modifier = 0.0
+	
+	# Add deflection slowdown if active
+	if deflect_slowdown_timer > 0.0:
+		action_movement_modifier += deflect_movement_slowdown
+	
+	# Add pickup slowdown if active
+	if pickup_slowdown_timer > 0.0:
+		action_movement_modifier += pickup_movement_slowdown
+	
+	# Clamp final movement intent to valid range
+	var final_movement_intent = clamp(movement_intent + action_movement_modifier, 0.0, 1.0)
+	
+	# Send combined movement intent to energy manager
 	if time_energy_manager:
-		time_energy_manager.set_player_movement_intent(movement_intent)
+		time_energy_manager.set_player_movement_intent(final_movement_intent)
 
 func get_movement_intent() -> float:
-	"""Get current movement intent (0.0 to 1.0) based on input, not velocity."""
-	return movement_intent
+	"""Get current movement intent (0.0 to 1.0) including action-based modifiers."""
+	return clamp(movement_intent + action_movement_modifier, 0.0, 1.0)
 
 func handle_crouch_slide_input():
 	# Sprinting - only allow when on ground
@@ -355,11 +401,15 @@ func handle_jump_input():
 			velocity.y = jump_velocity
 			can_double_jump = true
 			action_tracker.record_jump()
+			# Track jump for analytics
+			AnalyticsManager.track_jump()
 			jump_performed.emit()
 		elif can_double_jump:
 			velocity.y = double_jump_velocity
 			can_double_jump = false
 			action_tracker.record_double_jump()
+			# Track double jump for analytics
+			AnalyticsManager.track_jump()
 			jump_performed.emit()
 
 func apply_gravity(delta):
@@ -442,6 +492,9 @@ func perform_dash():
 	dash_cooldown_timer = dash_cooldown
 	dash_velocity = dash_direction * dash_speed
 	
+	# Track dash usage for analytics
+	AnalyticsManager.track_dash()
+	
 	dash_performed.emit()
 
 func get_dash_direction() -> Vector3:
@@ -494,6 +547,8 @@ func start_slide():
 	is_sliding = true
 	slide_timer = slide_time
 	crouch()
+	# Track slide usage for analytics
+	AnalyticsManager.track_slide()
 
 func end_slide():
 	is_sliding = false
@@ -567,11 +622,12 @@ func take_damage(damage: int) -> bool:
 		print("Player took damage: ", damage, " - Player dies!")
 	
 	# Emit death signal
-	if debug_damage:
-		print("Player: Emitting player_died signal")
+	print("Player: Emitting player_died signal")
+	print("Player: Signal connections: ", player_died.get_connections().size())
+	for connection in player_died.get_connections():
+		print("Player: Connected to: ", connection.callable)
 	player_died.emit()
-	if debug_damage:
-		print("Player: player_died signal emitted")
+	print("Player: player_died signal emitted")
 	
 	# Stop all movement
 	velocity = Vector3.ZERO
@@ -605,19 +661,31 @@ func take_damage(damage: int) -> bool:
 # === GUN PICKUP SYSTEM ===
 
 func _try_pickup_gun() -> bool:
-	"""Try to pick up a gun if player is colliding with one."""
+	"""Try to pick up a gun if player is within range."""
 	# Check if we already have a gun equipped
 	if gun and gun.has_method("is_equipped") and gun.is_equipped():
 		return false
 	
-	# Find gun pickups that player is currently colliding with
+	# Find gun pickups and check distance
 	var gun_pickups = get_tree().get_nodes_in_group("gun_pickups")
+	var closest_pickup = null
+	var closest_distance = INF
 	
 	for pickup in gun_pickups:
 		if pickup is Area3D and is_instance_valid(pickup):
-			# Check if this pickup can be picked up (it handles collision detection internally)
-			if pickup.has_method("try_pickup") and pickup.try_pickup(self):
-				return true
+			# Calculate distance to pickup
+			var distance = global_position.distance_to(pickup.global_position)
+			
+			# Check if within pickup range
+			if distance <= pickup_range:
+				# Find the closest pickup within range
+				if distance < closest_distance:
+					closest_distance = distance
+					closest_pickup = pickup
+	
+	# Try to pick up the closest gun within range
+	if closest_pickup and closest_pickup.has_method("try_pickup"):
+		return closest_pickup.try_pickup(self)
 	
 	return false
 
@@ -660,6 +728,13 @@ func _try_pickup_bullet():
 			var pickup_success = gun.pickup_bullet()
 			if pickup_success:
 				closest_bullet.queue_free()
+				
+				# Trigger movement slowdown for time scaling effect
+				pickup_slowdown_timer = pickup_slowdown_duration
+				
+				if debug_pickup:
+					print("Bullet picked up! Movement slowdown active for ", pickup_slowdown_duration, "s")
+				
 				return true
 	
 	return false
@@ -702,11 +777,17 @@ func _try_deflect_bullet():
 	# Deflect the bullet (bullet will create its own effect)
 	target_bullet.deflect_bullet(deflect_direction, deflect_speed_boost)
 	
+	# Track deflection for analytics
+	AnalyticsManager.track_deflection()
+	
 	# Start cooldown
 	deflect_cooldown_timer = deflect_cooldown
 	
+	# Trigger movement slowdown for time scaling effect
+	deflect_slowdown_timer = deflect_slowdown_duration
+	
 	if debug_deflection:
-		print("Bullet deflected!")
+		print("Bullet deflected! Movement slowdown active for ", deflect_slowdown_duration, "s")
 	return true
 
 func _find_deflectable_bullet() -> Node:

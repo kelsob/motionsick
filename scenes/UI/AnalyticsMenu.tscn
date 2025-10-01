@@ -1,0 +1,224 @@
+[gd_scene load_steps=2 format=3 uid="uid://b81ilk35xg4td"]
+
+[ext_resource type="Script" uid="uid://d1k16qg72cmfi" path="res://scripts/ui/AnalyticsMenu.gd" id="1_0efb5"]
+
+[node name="AnalyticsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_0efb5")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -156.0
+offset_top = -247.0
+offset_right = 156.0
+offset_bottom = 247.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HeaderContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LevelNameLabel" type="Label" parent="VBoxContainer/HeaderContainer"]
+layout_mode = 2
+text = "Current Level"
+
+[node name="GlobalViewButton" type="Button" parent="VBoxContainer/HeaderContainer"]
+layout_mode = 2
+text = "Global Stats"
+
+[node name="LevelViewButton" type="OptionButton" parent="VBoxContainer/HeaderContainer"]
+layout_mode = 2
+allow_reselect = true
+
+[node name="StatsContainer" type="ScrollContainer" parent="VBoxContainer"]
+custom_minimum_size = Vector2(640, 424)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 6
+
+[node name="VBoxContainer" type="GridContainer" parent="VBoxContainer/StatsContainer"]
+layout_mode = 2
+size_flags_horizontal = 6
+size_flags_vertical = 6
+theme_override_constants/h_separation = 48
+theme_override_constants/v_separation = 48
+columns = 2
+
+[node name="BasicStatsSection" type="VBoxContainer" parent="VBoxContainer/StatsContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection"]
+layout_mode = 2
+text = "Basic Stats"
+
+[node name="BasicStats" type="GridContainer" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection"]
+layout_mode = 2
+
+[node name="SessionsLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection/BasicStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Sessions Played"
+
+[node name="PlaytimeLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection/BasicStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Playtime"
+
+[node name="BestTimeLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection/BasicStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Best Time"
+
+[node name="AverageTimeLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection/BasicStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Average Time"
+
+[node name="SuccessRateLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/BasicStatsSection/BasicStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Success %"
+
+[node name="CombatStatsSection" type="VBoxContainer" parent="VBoxContainer/StatsContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection"]
+layout_mode = 2
+text = "Combat Stats"
+
+[node name="CombatStats" type="GridContainer" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection"]
+layout_mode = 2
+
+[node name="BulletsFiredLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Bullets Fired"
+
+[node name="BulletsHitLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Bullets Hit"
+
+[node name="AccuracyLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Accuracy"
+
+[node name="EnemiesKilledLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Enemies Killed"
+
+[node name="DamageDealtLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Damage Dealt"
+
+[node name="MultiKillsLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Multi Kills"
+
+[node name="MultiHitsLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/CombatStatsSection/CombatStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Multi Hits"
+
+[node name="MovementStatsSection" type="VBoxContainer" parent="VBoxContainer/StatsContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection"]
+layout_mode = 2
+text = "Movement Stats"
+
+[node name="MovementStats" type="GridContainer" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection"]
+layout_mode = 2
+
+[node name="DistanceTraveledLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection/MovementStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Distance "
+
+[node name="DashesUsedLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection/MovementStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Dashes Used"
+
+[node name="JumpsLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection/MovementStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Jumps"
+
+[node name="SlidesLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection/MovementStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Slides"
+
+[node name="DeflectionsLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/MovementStatsSection/MovementStats"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Deflections"
+
+[node name="TimeStatsSection" type="VBoxContainer" parent="VBoxContainer/StatsContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/TimeStatsSection"]
+layout_mode = 2
+text = "Time Stats"
+
+[node name="TimeStats" type="GridContainer" parent="VBoxContainer/StatsContainer/VBoxContainer/TimeStatsSection"]
+layout_mode = 2
+
+[node name="CombatTimeLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/TimeStatsSection/TimeStats"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Combat Time"
+
+[node name="MovingTimeLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/TimeStatsSection/TimeStats"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Moving Time"
+
+[node name="StationaryTimeLabel" type="Label" parent="VBoxContainer/StatsContainer/VBoxContainer/TimeStatsSection/TimeStats"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Stationary Time"
+
+[node name="FooterContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="BackButton" type="Button" parent="VBoxContainer/FooterContainer"]
+layout_mode = 2
+text = "back"
+
+[node name="ClearDataButton" type="Button" parent="VBoxContainer/FooterContainer"]
+layout_mode = 2
+text = "clear"

@@ -57,13 +57,17 @@ func activate_gameplay_ui():
 	if debug_ui_state:
 		print("GameplayUIManager: Activating gameplay UI")
 	
+	# Always reload death screen to ensure fresh connections
+	if death_screen_instance:
+		death_screen_instance.queue_free()
+		death_screen_instance = null
+	
 	# Load gameplay UI if not already loaded
 	if not gameplay_ui_instance:
 		_load_gameplay_ui()
 	
-	# Load death screen if not already loaded
-	if not death_screen_instance:
-		_load_death_screen()
+	# Load death screen (always reload for fresh connections)
+	_load_death_screen()
 	
 	# Show the UI
 	if gameplay_ui_instance:
@@ -147,7 +151,7 @@ func _load_death_screen():
 			print("GameplayUIManager: Failed to load death screen scene: ", death_screen_scene)
 
 func _connect_death_screen():
-	"""Connect death screen buttons to GameManager."""
+	"""Connect death screen to GameManager signals."""
 	if not death_screen_instance:
 		return
 	
@@ -168,6 +172,10 @@ func _connect_death_screen():
 		main_menu_button.pressed.connect(game_manager._on_main_menu_button_pressed)
 		if debug_ui_loading:
 			print("GameplayUIManager: Connected main menu button")
+	
+	# The death screen will connect to GameManager signals in its own _ready() function
+	if debug_ui_loading:
+		print("GameplayUIManager: Death screen connections complete")
 
 func cleanup_ui():
 	"""Clean up UI instances (for scene changes)."""

@@ -10,6 +10,8 @@ extends Control
 @export var level_selection_scene: String = "res://scenes/ui/LevelSelection.tscn"
 ## Path to options menu scene
 @export var options_menu_scene: String = "res://scenes/ui/OptionsMenu.tscn"
+## Path to analytics menu scene
+@export var analytics_menu_scene: String = "res://scenes/ui/AnalyticsMenu.tscn"
 
 @export_group("Audio Settings")
 ## Enable button click sounds
@@ -37,6 +39,7 @@ extends Control
 # Button references
 @onready var new_game_button: Button = $MenuContainer/ButtonContainer/NewGameButton
 @onready var options_button: Button = $MenuContainer/ButtonContainer/OptionsButton
+@onready var stats_button: Button = $MenuContainer/ButtonContainer/StatsButton
 @onready var exit_button: Button = $MenuContainer/ButtonContainer/ExitButton
 # Audio player for menu sounds
 var audio_player: AudioStreamPlayer = null
@@ -76,6 +79,14 @@ func _setup_buttons():
 		if debug_connections:
 			print("MenuManager: Connected Options button")
 	
+	# Connect Analytics button
+	if stats_button:
+		stats_button.pressed.connect(_on_analytics_pressed)
+		if enable_button_sounds:
+			stats_button.mouse_entered.connect(_on_button_hover)
+		if debug_connections:
+			print("MenuManager: Connected Analytics button")
+	
 	# Connect Exit button
 	if exit_button:
 		exit_button.pressed.connect(_on_exit_pressed)
@@ -106,6 +117,14 @@ func _on_options_pressed():
 	_play_click_sound()
 	_transition_to_scene(options_menu_scene)
 
+func _on_analytics_pressed():
+	"""Handle Analytics button press."""
+	if debug_menu_events:
+		print("MenuManager: Analytics pressed")
+	
+	_play_click_sound()
+	_transition_to_scene(analytics_menu_scene)
+
 func _on_exit_pressed():
 	"""Handle Exit button press."""
 	if debug_menu_events:
@@ -132,25 +151,17 @@ func _play_click_sound():
 		audio_player.play()
 
 func _transition_to_scene(scene_path: String):
-	"""Transition to another scene with optional fade effect."""
+	"""Transition to another scene immediately."""
 	menu_transition_started.emit(scene_path)
 	
 	if debug_transitions:
 		print("MenuManager: Transitioning to: ", scene_path)
 	
-	if enable_animations:
-		# Simple fade out effect
-		var tween = create_tween()
-		tween.tween_property(self, "modulate:a", 0.0, fade_duration)
-		await tween.finished
-	
-	# Change scene
+	# Change scene immediately - no fade animations
 	var error = get_tree().change_scene_to_file(scene_path)
 	if error != OK:
 		if debug_transitions:
 			print("MenuManager: Failed to load scene: ", scene_path, " Error: ", error)
-		# Restore visibility if scene load failed
-		modulate.a = 1.0
 	else:
 		menu_transition_completed.emit()
 
