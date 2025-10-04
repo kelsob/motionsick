@@ -7,6 +7,9 @@ inner_radius = 0.8
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0t8uf"]
 albedo_color = Color(0, 1, 0.866667, 1)
+emission_enabled = true
+emission = Color(0, 1, 0.866667, 1)
+emission_energy_multiplier = 0.45
 
 [sub_resource type="TorusMesh" id="TorusMesh_ukbyq"]
 inner_radius = 0.6
@@ -14,6 +17,9 @@ outer_radius = 0.775
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2ir2e"]
 albedo_color = Color(0, 1, 0.866667, 1)
+emission_enabled = true
+emission = Color(0, 1, 0.866667, 1)
+emission_energy_multiplier = 0.55
 
 [sub_resource type="TorusMesh" id="TorusMesh_8ebux"]
 inner_radius = 0.4
@@ -21,6 +27,9 @@ outer_radius = 0.575
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jrpq7"]
 albedo_color = Color(0, 1, 0.866667, 1)
+emission_enabled = true
+emission = Color(0, 1, 0.866667, 1)
+emission_energy_multiplier = 0.65
 
 [node name="WallRipple" type="Node3D"]
 script = ExtResource("1_kg0mk")

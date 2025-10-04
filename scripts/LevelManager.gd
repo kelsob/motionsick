@@ -175,15 +175,15 @@ func _activate_gameplay_systems():
 	# Wait a frame for TimeManager to find player
 	await get_tree().process_frame
 	
+	# Reset ArenaSpawnManager BEFORE level configuration
+	var arena_spawn_manager = get_node_or_null("/root/ArenaSpawnManager")
+	if arena_spawn_manager and arena_spawn_manager.has_method("reset_for_level"):
+		arena_spawn_manager.reset_for_level()
+	
 	# Then activate gameplay UI (so UI can find player that TimeManager found)
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
 	if ui_manager and ui_manager.has_method("activate_gameplay_ui"):
 		ui_manager.activate_gameplay_ui()
-	
-	# Reset ArenaSpawnManager for new level
-	var arena_spawn_manager = get_node_or_null("/root/ArenaSpawnManager")
-	if arena_spawn_manager and arena_spawn_manager.has_method("reset_for_level"):
-		arena_spawn_manager.reset_for_level()
 	
 	# Wait for level spawn config to configure the spawn manager
 	await get_tree().process_frame

@@ -1,7 +1,14 @@
-[gd_scene load_steps=2 format=3 uid="uid://j1iq81o0mh22"]
+[gd_scene load_steps=3 format=3 uid="uid://j1iq81o0mh22"]
 
 [ext_resource type="PackedScene" uid="uid://cpxampdsrq0tc" path="res://scenes/bullets/bullet.tscn" id="1_g64gn"]
+[ext_resource type="Material" uid="uid://drxv2vjdu3myu" path="res://assets/materials/PlayerBullet.tres" id="2_p7wmw"]
 
 [node name="PlayerBullet" instance=ExtResource("1_g64gn")]
+lifetime = 300.0
 tracer_color = Color(0, 1, 0.866667, 1)
 can_bounce = true
+max_bounces = 100000
+bounce_energy_loss = 0.0
+
+[node name="MeshInstance3D" parent="." index="0"]
+surface_material_override/0 = ExtResource("2_p7wmw")

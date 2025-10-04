@@ -63,11 +63,11 @@ enum EnemyType {
 # === ENEMY TYPE CONFIGURATION ===
 # Each enemy type has its own maximum count that increases over time
 var enemy_max_counts: Dictionary = {
-	EnemyType.GRUNT: 0,      # Only spawn grunts for testing
-	EnemyType.SNIPER: 1,     # Disabled for now
-	EnemyType.FLANKER: 0,    # Disabled
-	EnemyType.RUSHER: 0,     # Disabled
-	EnemyType.ARTILLERY: 0   # Disabled
+	EnemyType.GRUNT: 0,      # Disabled by default - configured by level
+	EnemyType.SNIPER: 0,     # Disabled by default - configured by level
+	EnemyType.FLANKER: 0,    # Disabled by default - configured by level
+	EnemyType.RUSHER: 0,     # Disabled by default - configured by level
+	EnemyType.ARTILLERY: 0   # Disabled by default - configured by level
 }
 
 # When each enemy type should start appearing (in seconds)
@@ -163,6 +163,13 @@ func _process(delta: float):
 
 func _setup_spawn_markers():
 	"""Find spawn markers from the SpawnMarkers node."""
+	# DISABLED: LevelSpawnConfig now handles spawn marker setup
+	# This method was conflicting with the level-based marker configuration
+	if debug_spawning:
+		print("ArenaSpawnManager: _setup_spawn_markers called but disabled - LevelSpawnConfig handles this now")
+	return
+	
+	# OLD CODE (disabled):
 	spawn_markers.clear()
 	
 	# Get the SpawnMarkers node from the main scene
@@ -213,6 +220,15 @@ func _execute_scheduled_spawn(spawn_event, spawn_index: int):
 
 func _get_spawn_position_from_marker(marker_index: int) -> Vector3:
 	"""Get spawn position from a specific marker index."""
+	if debug_spawning:
+		print("ArenaSpawnManager: _get_spawn_position_from_marker called with index: ", marker_index)
+		print("ArenaSpawnManager: Available spawn markers: ", spawn_markers.size())
+		for i in range(spawn_markers.size()):
+			if spawn_markers[i]:
+				print("ArenaSpawnManager: Marker ", i, " position: ", spawn_markers[i].global_position)
+			else:
+				print("ArenaSpawnManager: Marker ", i, " is null!")
+	
 	if spawn_markers.size() == 0:
 		if debug_spawning:
 			print("ArenaSpawnManager: WARNING - No spawn markers available!")
@@ -223,7 +239,11 @@ func _get_spawn_position_from_marker(marker_index: int) -> Vector3:
 	if safe_index != marker_index and debug_spawning:
 		print("ArenaSpawnManager: WARNING - Marker index ", marker_index, " out of range, using ", safe_index)
 	
-	return spawn_markers[safe_index].global_position
+	var marker_pos = spawn_markers[safe_index].global_position
+	if debug_spawning:
+		print("ArenaSpawnManager: Using marker ", safe_index, " at position: ", marker_pos)
+	
+	return marker_pos
 
 func _start_scheduled_spawn_telegraph(spawn_event, spawn_pos: Vector3, telegraph_duration: float):
 	"""Start a telegraph for a scheduled spawn with custom parameters."""
@@ -287,6 +307,13 @@ func _on_spawn_timer_timeout():
 	if not is_spawning:
 		if debug_spawning:
 			print("ArenaSpawnManager: Not spawning, ignoring timer")
+		return
+	
+	# Skip timer-based spawning if we're using scheduled spawning mode
+	if use_scheduled_spawning:
+		if debug_spawning:
+			print("ArenaSpawnManager: Using scheduled spawning, ignoring timer")
+		spawn_timer.start()  # Keep timer running but don't spawn
 		return
 	
 	# Only spawn if time isn't heavily slowed/frozen
@@ -715,11 +742,11 @@ func reset_for_level():
 	# Reset scheduled spawns
 	_reset_scheduled_spawns()
 	
-	# Clear spawn markers - will be set by level
-	spawn_markers.clear()
+	# DON'T clear spawn markers - they will be set by LevelSpawnConfig
+	# spawn_markers.clear()  # REMOVED - this was causing the markers to be lost
 	
 	if debug_spawning:
-		print("ArenaSpawnManager: Reset for new level")
+		print("ArenaSpawnManager: Reset for new level (keeping existing spawn markers: ", spawn_markers.size(), ")")
 
 func set_scheduled_spawns(spawn_events: Array, default_telegraph: float = 3.0):
 	"""Configure scheduled spawn events for level-based spawning."""

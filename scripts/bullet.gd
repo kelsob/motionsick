@@ -240,7 +240,7 @@ func _physics_process(delta):
 				distance = global_position.distance_to(bounce_pos)
 			
 			# SAFETY: Keep excluded if overlapping OR too close to bounce point
-			var min_safe_distance = 0.5  # Minimum distance before considering removal
+			var min_safe_distance = 2.0  # Increased minimum distance to prevent premature removal
 			
 			if still_overlapping or distance < min_safe_distance:
 				pass
@@ -254,6 +254,10 @@ func _physics_process(delta):
 					#print("EXCLUSION: Removing ", excluded_body.name, " from exclusion",
 						#" (no overlap, distance: ", distance, " > ", min_safe_distance, ")")
 
+		# Actually remove the bodies that were marked for removal
+		for body_to_remove in bodies_to_remove:
+			bounce_exclusion_array.erase(body_to_remove)
+			bounce_exclusion_positions.erase(body_to_remove)
 		
 		#if debug_bouncing and bodies_to_remove.size() > 0:
 			#print("EXCLUSION ARRAY after cleanup: ", _get_exclusion_array_names())
@@ -887,6 +891,7 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 		
 		if not col.object in bounce_exclusion_array:
 			bounce_exclusion_array.append(col.object)
+			bounce_exclusion_positions[col.object] = global_position
 		
 		# Update bullet orientation
 		var up_vector = Vector3.UP
