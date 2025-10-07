@@ -892,6 +892,9 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 		if not col.object in bounce_exclusion_array:
 			bounce_exclusion_array.append(col.object)
 			bounce_exclusion_positions[col.object] = global_position
+			
+			# Play bounce SFX for each surface we bounce off
+			AudioManager.play_bullet_bounce(global_position)
 		
 		# Update bullet orientation
 		var up_vector = Vector3.UP
@@ -951,6 +954,9 @@ func _handle_single_surface_bounce(surface_normal: Vector3, bounced_from_body: N
 		print("SINGLE BOUNCE: Direction change: ", original_direction, " -> ", travel_direction)
 		print("SINGLE BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
 		print("SINGLE BOUNCE: Bounce count: ", current_bounces, "/", max_bounces)
+	
+	# Play bounce SFX at the bounce location
+	AudioManager.play_bullet_bounce(global_position)
 	
 	# Add to exclusion list
 	if not bounced_from_body in bounce_exclusion_array:

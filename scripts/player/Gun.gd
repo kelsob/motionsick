@@ -23,6 +23,10 @@ enum FireMode {
 }
 
 # === CONFIGURATION ===
+@export_group("Gun Type")
+## Current gun type (affects SFX and properties)
+@export_enum("Pistol", "Rifle", "Shotgun", "Sniper", "RocketLauncher") var current_gun_type: int = 0
+
 @export_group("Testing")
 @export var testing_mode: bool = true  # Enable key-based fire mode testing
 @export var movement_based: bool = false  # Enable movement-based firing (original system)
@@ -941,6 +945,9 @@ func _fire_bullet(damage: int):
 	
 	# Show muzzle flash for all weapon types
 	_show_muzzle_flash()
+	
+	# Play gunshot SFX
+	_play_gunshot_sfx()
 	
 	# Apply recoil kick AFTER firing (next frame) to avoid targeting issues
 	call_deferred("_apply_recoil")
@@ -2190,3 +2197,26 @@ func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 	
 	if debug_firing:
 		print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)
+
+# === GUN TYPE AND SFX SYSTEM ===
+
+func set_gun_type(gun_type: int):
+	"""Set the current gun type (called by GunPickup)."""
+	current_gun_type = gun_type
+	if debug_equipment:
+		print("Gun type set to: ", _get_gun_type_name())
+
+func _get_gun_type_name() -> String:
+	"""Get the string name for the current gun type."""
+	match current_gun_type:
+		0: return "pistol"
+		1: return "rifle"
+		2: return "shotgun"
+		3: return "sniper"
+		4: return "rocket_launcher"
+		_: return "pistol"
+
+func _play_gunshot_sfx():
+	"""Play the appropriate gunshot sound for the current gun type."""
+	var gun_name = _get_gun_type_name()
+	AudioManager.play_gunshot(gun_name)

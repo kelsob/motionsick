@@ -3,6 +3,10 @@ extends Area3D
 # === GUN PICKUP SYSTEM ===
 # This script handles the gun pickup behavior and visual feedback
 
+@export_group("Gun Configuration")
+## Which gun type this pickup provides (affects SFX and properties)
+@export_enum("Pistol", "Rifle", "Shotgun", "Sniper", "RocketLauncher") var gun_type: int = 0
+
 @export_group("Visual Feedback")
 @export var bob_height: float = 0.2     # How high/low the gun bobs
 @export var bob_speed: float = 2.0      # How fast the gun bobs
@@ -127,6 +131,13 @@ func _instant_pickup(player: Node3D):
 	if gun and gun.has_method("equip_gun"):
 		gun.equip_gun()
 	
+	# Set the gun type if the gun supports it
+	if gun and gun.has_method("set_gun_type"):
+		gun.set_gun_type(gun_type)
+	
+	# Play gun pickup SFX
+	AudioManager.play_gun_pickup(_get_gun_type_name())
+	
 	# Free the pickup scene immediately
 	queue_free()
 
@@ -152,6 +163,13 @@ func try_pickup(player: Node3D) -> bool:
 	if gun and gun.has_method("equip_gun"):
 		gun.equip_gun()
 	
+	# Set the gun type if the gun supports it
+	if gun and gun.has_method("set_gun_type"):
+		gun.set_gun_type(gun_type)
+	
+	# Play gun pickup SFX
+	AudioManager.play_gun_pickup(_get_gun_type_name())
+	
 	# Free the pickup scene immediately
 	queue_free()
 	return true
@@ -170,3 +188,13 @@ func reset_pickup():
 	rotation = Vector3.ZERO
 	
 	print("Gun pickup reset and available again")
+
+func _get_gun_type_name() -> String:
+	"""Get the string name for the current gun type."""
+	match gun_type:
+		0: return "pistol"
+		1: return "rifle"
+		2: return "shotgun"
+		3: return "sniper"
+		4: return "rocket_launcher"
+		_: return "pistol"
