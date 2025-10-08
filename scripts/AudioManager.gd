@@ -82,6 +82,7 @@ var music_player_index: int = 0
 
 # Audio library - loaded sound effects by name
 var sfx_library: Dictionary = {}
+var sfx_volumes: Dictionary = {}  # Per-SFX volume levels (0.0 to 1.0)
 var music_library: Dictionary = {}
 var ui_library: Dictionary = {}
 
@@ -178,18 +179,27 @@ func _create_audio_players():
 			  " SFX3D: ", sfx_3d_players.size(), " Music: ", music_players.size(), " UI: ", ui_players.size())
 
 func _load_audio_library():
-	"""Load all audio files into memory."""
-	# Weapon sounds
-	sfx_library["gunshot_pistol"] = preload("res://assets/sounds/sfx/weapons/gunshot_mechanical.wav")
-	sfx_library["bounce_pistol"] = preload("res://assets/sounds/sfx/weapons/impactenergy2.wav")
+	"""Load all audio files into memory with individual volume levels."""
+	# Weapon sounds with individual volume control
+	_register_sfx("gunshot_pistol", preload("res://assets/sounds/sfx/weapons/gunshot_mechanical.wav"), 0.8)
+	_register_sfx("bounce_pistol", preload("res://assets/sounds/sfx/weapons/impactenergy2.wav"), 1.0)
+	_register_sfx("clock_tick", preload("res://assets/sounds/sfx/time/tick_reverb.wav"), 0.1)
 	
 	# TODO: Add more sounds as needed:
-	# sfx_library["gunshot_rifle"] = preload("res://assets/sounds/sfx/weapons/gunshot_rifle.wav")
-	# sfx_library["gunshot_shotgun"] = preload("res://assets/sounds/sfx/weapons/gunshot_shotgun.wav")
-	# sfx_library["gun_pickup_pistol"] = preload("res://assets/sounds/sfx/weapons/pickup_pistol.wav")
+	# _register_sfx("gunshot_rifle", preload("res://assets/sounds/sfx/weapons/gunshot_rifle.wav"), 0.9)
+	# _register_sfx("gunshot_shotgun", preload("res://assets/sounds/sfx/weapons/gunshot_shotgun.wav"), 1.0)
+	# _register_sfx("gun_pickup_pistol", preload("res://assets/sounds/sfx/weapons/pickup_pistol.wav"), 0.7)
 	
 	if debug_audio:
 		print("AudioManager: Audio library loaded - SFX: ", sfx_library.size(), " sounds")
+
+func _register_sfx(name: String, audio_stream: AudioStream, volume_level: float = 1.0):
+	"""Register a sound effect with its individual volume level."""
+	sfx_library[name] = audio_stream
+	sfx_volumes[name] = clamp(volume_level, 0.0, 1.0)
+	
+	if debug_audio:
+		print("AudioManager: Registered SFX: ", name, " (volume: ", "%.1f" % volume_level, ")")
 
 func _load_volume_preferences():
 	"""Load user volume preferences from OptionsMenu or save file."""
@@ -326,7 +336,11 @@ func play_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	
 	# Configure player
 	player.stream = sfx_library[sound_name]
-	player.volume_db = linear_to_db(base_sfx_volume * user_sfx_volume * volume_modifier)
+	
+	# Calculate volume with individual SFX volume level
+	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)  # Default to 1.0 if not set
+	var final_volume = base_sfx_volume * user_sfx_volume * volume_modifier * sfx_volume_level
+	player.volume_db = linear_to_db(final_volume)
 	
 	# Calculate correct pitch for current time scale
 	var pitch_scale = clamp(current_time_scale, sfx_min_pitch, sfx_max_pitch)
@@ -362,7 +376,11 @@ func play_sfx_3d(sound_name: String, position: Vector3, volume_modifier: float =
 	
 	# Configure player
 	player.stream = sfx_library[sound_name]
-	player.volume_db = linear_to_db(base_sfx_volume * user_sfx_volume * volume_modifier)
+	
+	# Calculate volume with individual SFX volume level
+	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)  # Default to 1.0 if not set
+	var final_volume = base_sfx_volume * user_sfx_volume * volume_modifier * sfx_volume_level
+	player.volume_db = linear_to_db(final_volume)
 	player.global_position = position
 	
 	# Set pitch scale for time distortion
@@ -582,6 +600,22 @@ func register_ui(name: String, audio_stream: AudioStream):
 	ui_library[name] = audio_stream
 	if debug_audio:
 		print("AudioManager: Registered UI sound: ", name)
+
+## === SFX VOLUME CONTROL ===
+
+func set_sfx_individual_volume(sound_name: String, volume_level: float):
+	"""Set the individual volume level for a specific SFX (0.0 to 1.0)."""
+	sfx_volumes[sound_name] = clamp(volume_level, 0.0, 1.0)
+	if debug_audio:
+		print("AudioManager: Set ", sound_name, " volume to: ", "%.2f" % volume_level)
+
+func get_sfx_individual_volume(sound_name: String) -> float:
+	"""Get the individual volume level for a specific SFX."""
+	return sfx_volumes.get(sound_name, 1.0)
+
+func get_all_sfx_volumes() -> Dictionary:
+	"""Get all individual SFX volume levels for debugging/configuration."""
+	return sfx_volumes.duplicate()
 
 ## === CONVENIENCE METHODS FOR YOUR SFX LIST ===
 

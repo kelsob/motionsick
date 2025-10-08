@@ -14,8 +14,8 @@ extends Node
 @export var damage_prevention_threshold: float = 0.5
 
 @export_group("Movement Response")
-## Minimum time scale threshold - values below this become 0.0
-@export var minimum_time_scale_threshold: float = 0.01
+## Minimum time scale - time never goes below this value (prevents full stop)
+@export var minimum_time_scale: float = 0.2
 ## Default time scale when no movement intent (normal speed)
 @export var default_time_scale: float = 1.0
 
@@ -96,11 +96,11 @@ func _update_time_scale(delta):
 		movement_intent = 0.0
 	
 	# Calculate time scale based on movement intent
-	custom_time_scale = default_time_scale - movement_intent
+	# Interpolate from default_time_scale (at rest) to minimum_time_scale (at max movement)
+	custom_time_scale = lerp(default_time_scale, minimum_time_scale, movement_intent)
 	
-	# Apply minimum threshold - values below this become 0.0
-	if custom_time_scale < minimum_time_scale_threshold:
-		custom_time_scale = 0.0
+	# Ensure we never go below the minimum
+	custom_time_scale = max(minimum_time_scale, custom_time_scale)
 	
 	time_scale_changed.emit(custom_time_scale)
 

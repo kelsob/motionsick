@@ -191,6 +191,9 @@ func _activate_gameplay_systems():
 	# Start spawning (will use either continuous or scheduled mode based on level config)
 	if arena_spawn_manager:
 		arena_spawn_manager.start_spawning()
+	
+	# Create and start clock ticking for level atmosphere
+	_create_clock_tick_manager()
 
 func deactivate_gameplay_systems():
 	"""Deactivate gameplay systems when returning to menus."""
@@ -211,6 +214,9 @@ func deactivate_gameplay_systems():
 	var arena_spawn_manager = get_node_or_null("/root/ArenaSpawnManager")
 	if arena_spawn_manager and arena_spawn_manager.has_method("stop_spawning"):
 		arena_spawn_manager.stop_spawning()
+	
+	# Clean up clock ticking
+	_cleanup_clock_tick_manager()
 
 func _is_level_unlocked(level_id: String) -> bool:
 	"""Check if a level is unlocked."""
@@ -317,6 +323,31 @@ func get_level_stats(level_id: String) -> Dictionary:
 		"best_score": progression_data.get(level_id + "_best_score", 0),
 		"best_time": progression_data.get(level_id + "_best_time", 0.0)
 	}
+
+func _create_clock_tick_manager():
+	"""Create and configure clock tick manager for the current level."""
+	# Remove any existing clock tick manager
+	_cleanup_clock_tick_manager()
+	
+	# Load the ClockTickManager script and create an instance
+	var clock_tick_script = preload("res://scripts/ClockTickManager.gd")
+	var clock_tick_manager = Node.new()
+	clock_tick_manager.set_script(clock_tick_script)
+	clock_tick_manager.name = "ClockTickManager"
+	
+	# Add to current scene
+	get_tree().current_scene.add_child(clock_tick_manager)
+	
+	if debug_loading:
+		print("LevelManager: Created ClockTickManager for level")
+
+func _cleanup_clock_tick_manager():
+	"""Remove any existing clock tick manager."""
+	var existing_manager = get_tree().current_scene.get_node_or_null("ClockTickManager")
+	if existing_manager:
+		existing_manager.queue_free()
+		if debug_loading:
+			print("LevelManager: Cleaned up existing ClockTickManager")
 
 # === DEBUG ===
 
