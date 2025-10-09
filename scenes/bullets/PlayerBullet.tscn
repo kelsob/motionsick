@@ -7,7 +7,7 @@
 lifetime = 300.0
 tracer_color = Color(0, 1, 0.866667, 1)
 can_bounce = true
-max_bounces = 100000
+max_bounces = 1000
 bounce_energy_loss = 0.0
 
 [node name="MeshInstance3D" parent="." index="0"]

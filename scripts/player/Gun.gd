@@ -910,6 +910,9 @@ func _setup_prepared_bullet():
 func _fire_bullet(damage: int):
 	# Check if we have ammo
 	if current_ammo <= 0:
+		# Play empty chamber SFX
+		AudioManager.play_sfx("pistol_empty_chamber")
+		
 		if debug_ammo:
 			print("Cannot fire - no ammo remaining!")
 		return
@@ -2031,6 +2034,10 @@ func pickup_bullet():
 	var was_empty = (current_ammo == 0)
 	current_ammo += 1
 	ammo_changed.emit(current_ammo, max_ammo)
+	
+	# Play bullet pickup SFX
+	AudioManager.play_bullet_pickup()
+	
 	if debug_ammo:
 		print("Bullet picked up! Ammo: ", current_ammo, "/", max_ammo)
 	

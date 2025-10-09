@@ -118,7 +118,7 @@ omni_attenuation = 0.769
 [node name="PlayerBullets" type="Node3D" parent="."]
 
 [node name="GunPickup" parent="." instance=ExtResource("11_ouso4")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2.11149)
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
 navigation_mesh = SubResource("NavigationMesh_ipj3d")

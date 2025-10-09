@@ -120,12 +120,18 @@ enum TravelType {
 @export var debug_recall: bool = true
 ## Enable debug output for bounce exclusion system
 @export var debug_exclusion: bool = true
+## Enable debug output for audio hum system
+@export var debug_audio: bool = true
 
 ## === RUNTIME STATE ===
 # Timing and lifecycle
 var life_timer: float = 0.0
 var has_been_fired: bool = false
 var has_hit_target: bool = false
+
+# Distance tracking for tracers
+var distance_traveled: float = 0.0
+var last_position: Vector3 = Vector3.ZERO
 
 # References
 var gun_reference: Node3D = null
@@ -178,6 +184,9 @@ var hitscan_timer: float = 0.0
 @onready var up_raycast : RayCast3D = $Raycasts/UpRayCast3D
 @onready var down_raycast : RayCast3D = $Raycasts/DownRayCast3D
 
+# === TRAVEL HUM AUDIO SYSTEM ===
+var hum_player: AudioStreamPlayer3D = null  # Reference to current hum sound
+
 # === SELF-ANIMATING EFFECTS SYSTEM ===
 # Effects now animate themselves using timers instead of relying on bullet's _process
 
@@ -200,6 +209,8 @@ func _ready():
 	
 	# DON'T connect collision signal yet - wait until bullet is fired
 	# This prevents prepared bullets from being destroyed by spawning enemies
+	
+	# Hum system will start when bullet is fired
 	
 	# Bullet ready with bouncy physics and time system
 
@@ -263,6 +274,23 @@ func _physics_process(delta):
 			#print("EXCLUSION ARRAY after cleanup: ", _get_exclusion_array_names())
 
 	
+	# Update hum position to follow bullet
+	if hum_player:
+		if hum_player.playing:
+			hum_player.global_position = global_position
+		else:
+			# Audio finished - play again immediately
+			var old_player = hum_player
+			hum_player = AudioManager.play_sfx_3d("bullet_hum", global_position, 0.5)
+			if debug_audio:
+				print("BULLET HUM: [", name, "] Audio loop - old: ", old_player, " new: ", hum_player, " pos: ", global_position)
+	
+	# Track distance traveled for tracers (ALWAYS, regardless of time scale)
+	if has_been_fired:
+		var current_distance = global_position.distance_to(last_position)
+		distance_traveled += current_distance
+		last_position = global_position
+	
 	# Only count lifetime after being fired
 	if has_been_fired:
 		# Use time-adjusted delta for lifetime and travel behavior
@@ -270,6 +298,9 @@ func _physics_process(delta):
 		
 		life_timer += time_delta
 		if life_timer > lifetime:
+			# Play bullet death SFX when bullet times out
+			AudioManager.play_bullet_detonate()
+			
 			# Create impact effect when bullet times out
 			_create_environment_impact_effect(global_position)
 			_cleanup_bullet()
@@ -294,6 +325,8 @@ func _physics_process(delta):
 			var effective_time_scale = time_affected.get_effective_time_scale() if time_affected else 1.0
 			var spin_delta = deg_to_rad(spin_speed) * effective_time_scale * time_delta
 			rotate_object_local(Vector3.FORWARD, spin_delta)
+		
+		# No more hum updates - just simple one-shot sound
 
 
 
@@ -407,9 +440,16 @@ func fire(direction: Vector3):
 	travel_direction = direction.normalized()
 	initial_position = global_position
 	
+	# Initialize distance tracking for tracers
+	distance_traveled = 0.0
+	last_position = global_position
+	
 	# NOW connect collision signal - bullet is active and should detect collisions
 	if not body_entered.is_connected(_on_body_entered):
 		body_entered.connect(_on_body_entered)
+	
+	# Start the hum - will loop automatically in _physics_process
+	_start_hum()
 	
 	# Bullet fired and configured
 	
@@ -578,6 +618,9 @@ func _fire_hitscan():
 
 func _cleanup_bullet():
 	"""Clean up bullet resources including tracer registration."""
+	# Stop hum
+	_stop_hum()
+	
 	# Unregister from tracer system
 	if TracerManager and tracer_id != -1:
 		TracerManager.unregister_bullet(tracer_id)
@@ -723,6 +766,9 @@ func _on_body_entered(body):
 				if debug_bouncing:
 					print("COLLISION: Bouncing disabled or at max bounces - destroying bullet")
 					print("COLLISION: can_bounce=", can_bounce, " current_bounces=", current_bounces, " max_bounces=", max_bounces)
+				# Play bullet death SFX when bullet stops bouncing
+				AudioManager.play_bullet_detonate()
+				
 				# Create impact effect when bullet stops
 				_create_environment_impact_effect(impact_data.position)
 				# Mark as hit and cleanup
@@ -744,6 +790,9 @@ func _on_body_entered(body):
 					print("VERTEX FALLBACK: Attempting simple bounce without vertex data")
 				return  # Don't destroy bullet
 			else:
+				# Play bullet death SFX when bullet stops (fallback)
+				AudioManager.play_bullet_detonate()
+				
 				# Create impact effect when bullet stops (fallback)
 				_create_environment_impact_effect(global_position)
 				# Mark as hit and cleanup
@@ -755,6 +804,10 @@ func _on_body_entered(body):
 		# Environment hit but no bouncing - stop bullet
 		if debug_collisions:
 			print("IMPACT Environment hit - stopping bullet")
+		
+		# Play bullet death SFX when bullet dies on environment hit
+		AudioManager.play_bullet_detonate()
+		
 		if is_explosive:
 			_create_bullet_explosion(global_position)
 		else:
@@ -768,6 +821,10 @@ func _on_body_entered(body):
 	else:
 		if debug_collisions:
 			print("IMPACT Unknown collision with: ", body.name, " - stopping bullet")
+		
+		# Play bullet death SFX for unknown collision
+		AudioManager.play_bullet_detonate()
+		
 		# Create impact effect for unknown collision
 		_create_environment_impact_effect(global_position)
 		has_hit_target = true
@@ -1126,6 +1183,9 @@ func deflect_bullet(new_direction: Vector3, speed_boost: float = 1.0):
 	bounce_exclusion_array.clear()
 	bounce_exclusion_positions.clear()
 	
+	# Play bullet redirect SFX at deflection location
+	AudioManager.play_bullet_redirect()
+	
 	# Create BulletDeflect effect at current position
 	_create_bullet_deflect_effect(global_position)
 	
@@ -1159,6 +1219,22 @@ func _create_bullet_deflect_effect(position: Vector3):
 func get_tracer_color() -> Color:
 	"""Get the tracer color for this bullet."""
 	return tracer_color
+
+# === TRAVEL HUM AUDIO SYSTEM ===
+
+func _start_hum():
+	"""Start the hum when bullet is fired."""
+	# Play first hum immediately (3D positioned) and store player reference
+	hum_player = AudioManager.play_sfx_3d("bullet_hum", global_position, 0.5)
+	if debug_audio:
+		print("BULLET HUM: [", name, "] STARTED - player: ", hum_player, " pos: ", global_position)
+
+func _stop_hum():
+	"""Stop the hum when bullet dies."""
+	if debug_audio:
+		print("BULLET HUM: [", name, "] STOPPED - player was: ", hum_player)
+	hum_player = null  # Clear reference
+
 
 
 func _is_environment(body: Node3D) -> bool:

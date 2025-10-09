@@ -8,11 +8,11 @@ extends Node
 @export_group("Tracer System")
 ## Enable/disable tracer system
 @export var tracer_enabled: bool = true
-## How long the trail lasts (seconds)
-@export var tracer_length_seconds: float = 0.6
+## How far behind the bullet tracers should persist (distance in units)
+@export var tracer_length_distance: float = 10.0
 ## Number of trail segments for density
-@export var tracer_segment_count: int = 100
-## How often to add new segments (seconds)
+@export var tracer_segment_count: int = 999999
+## How often to add new segments (dilated seconds)
 @export var tracer_update_rate: float = 0.003
 
 @export_group("Tracer Visual Settings")
@@ -62,6 +62,8 @@ extends Node
 @export var debug_container: bool = false
 ## Enable debug output for system reset events
 @export var debug_reset: bool = false
+## Enable debug output for time scaling and segment fadeout
+@export var debug_time_scaling: bool = true
 
 # === STATE ===
 var tracer_container: Node3D = null
@@ -80,7 +82,7 @@ var time_manager: Node = null
 class TracerData:
 	var bullet: Area3D
 	var trail_segments: Array = []
-	var segment_ages: Array = []  # Track age of each segment for manual fadeout
+	var segment_spawn_distances: Array = []  # Distance bullet had traveled when segment was spawned
 	var last_update_time: float = 0.0
 	var segment_positions: Array = []
 	var is_active: bool = true
@@ -139,31 +141,36 @@ func _process(delta: float):
 		_setup_tracer_container()
 		return
 	
-	# Use time-adjusted delta - tracers should respect time scale
+	# Use time-adjusted delta for EVERYTHING - tracers should fade slower in slow-mo
+	# to maintain the same visual length behind the slower-moving bullet
 	var time_adjusted_delta = delta
+	var current_time_scale = 1.0
 	if time_manager:
-		time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0)  # No time resistance for tracers
-
+		time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0)
+		current_time_scale = time_manager.get_time_scale()
+	
+	if debug_time_scaling and Engine.get_frames_drawn() % 60 == 0:  # Print every 60 frames
+		print("TRACER DEBUG: delta=", delta, " time_adjusted_delta=", time_adjusted_delta, " time_scale=", current_time_scale, " ratio=", time_adjusted_delta / delta if delta > 0 else 0)
 	
 	var current_time = Time.get_ticks_msec() / time_conversion_factor
 	
 	# Update tracers
 	if tracer_enabled:
-		# Update each active tracer with time-adjusted delta
+		# Both creation AND fadeout use time-adjusted delta
 		for bullet_id in active_tracers.keys():
 			var tracer_data = active_tracers[bullet_id]
 			_update_tracer(tracer_data, time_adjusted_delta, current_time)
-			_update_segment_fadeout(tracer_data, time_adjusted_delta)
+			_update_segment_fadeout(tracer_data, time_adjusted_delta)  # Time-adjusted fadeout!
 		
 		# Clean up invalid bullets
 		_cleanup_invalid_tracers()
 	
-	# Update explosions
+	# Update explosions (use real delta for consistent visual timing)
 	if explosion_enabled:
 		var explosions_to_remove: Array = []
 		for i in range(active_explosions.size()):
 			var explosion_data = active_explosions[i]
-			if _update_explosion_animation(explosion_data, time_adjusted_delta):
+			if _update_explosion_animation(explosion_data, delta):
 				explosions_to_remove.append(i)
 		
 		# Remove finished explosions (in reverse order)
@@ -171,12 +178,12 @@ func _process(delta: float):
 			var index = explosions_to_remove[i]
 			active_explosions.remove_at(index)
 	
-	# Update impacts
+	# Update impacts (use real delta for consistent visual timing)
 	if impact_enabled:
 		var impacts_to_remove: Array = []
 		for i in range(active_impacts.size()):
 			var impact_data = active_impacts[i]
-			if _update_impact_animation(impact_data, time_adjusted_delta):
+			if _update_impact_animation(impact_data, delta):
 				impacts_to_remove.append(i)
 		
 		# Remove finished impacts (in reverse order)
@@ -245,12 +252,10 @@ func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float, current
 	if not tracer_data.bullet.get("has_been_fired"):
 		return  # Don't show tracer until bullet is fired
 	
-	# Use time-adjusted delta for update intervals instead of real time
+	# Use time-adjusted delta for segment creation rate (respects time dilation)
 	tracer_data.last_update_time += time_adjusted_delta
 	if tracer_data.last_update_time < tracer_update_rate:
 		return
-	
-
 	
 	# Reset interval timer
 	tracer_data.last_update_time = 0.0
@@ -328,7 +333,9 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 			segment.transform.basis = Basis(new_x, new_y, new_z)
 		
 		tracer_data.trail_segments.append(segment)
-		tracer_data.segment_ages.append(0.0)  # Start with age 0
+		# Record the bullet's current distance traveled when this segment was spawned
+		var bullet_distance = tracer_data.bullet.get("distance_traveled") if tracer_data.bullet else 0.0
+		tracer_data.segment_spawn_distances.append(bullet_distance)
 	else:
 		# Create sphere segment (fallback or first segment)
 		var segment = _create_sphere_segment(tracer_data)
@@ -338,7 +345,9 @@ func _add_tracer_segment(tracer_data: TracerData, position: Vector3, rotation):
 		segment.global_position = position
 		
 		tracer_data.trail_segments.append(segment)
-		tracer_data.segment_ages.append(0.0)  # Start with age 0
+		# Record the bullet's current distance traveled when this segment was spawned
+		var bullet_distance = tracer_data.bullet.get("distance_traveled") if tracer_data.bullet else 0.0
+		tracer_data.segment_spawn_distances.append(bullet_distance)
 
 	
 
@@ -391,28 +400,51 @@ func _create_line_segment(start_pos: Vector3, end_pos: Vector3, tracer_data: Tra
 	return segment
 
 func _update_segment_fadeout(tracer_data: TracerData, time_adjusted_delta: float):
-	"""Manually update segment fadeout using time-adjusted aging."""
+	"""Update segments based on bullet's distance traveled (DISTANCE-BASED, NOT TIME-BASED)."""
 	var segments_to_remove: Array = []
 	
+	# Get bullet's current distance traveled
+	var bullet_distance = 0.0
+	if tracer_data.bullet and is_instance_valid(tracer_data.bullet):
+		bullet_distance = tracer_data.bullet.get("distance_traveled") if "distance_traveled" in tracer_data.bullet else 0.0
+	
+	# Debug output
+	if debug_time_scaling and tracer_data.trail_segments.size() > 0 and Engine.get_frames_drawn() % 120 == 0:
+		var oldest_spawn_dist = tracer_data.segment_spawn_distances[0] if tracer_data.segment_spawn_distances.size() > 0 else 0.0
+		var newest_spawn_dist = tracer_data.segment_spawn_distances[tracer_data.segment_spawn_distances.size() - 1] if tracer_data.segment_spawn_distances.size() > 0 else 0.0
+		
+		print("TRACER: === DISTANCE-BASED FADEOUT DEBUG ===")
+		print("TRACER:   Total segments: ", tracer_data.trail_segments.size())
+		print("TRACER:   Bullet distance traveled: ", bullet_distance, " units")
+		print("TRACER:   Tracer length: ", tracer_length_distance, " units")
+		print("TRACER:   Oldest segment:")
+		print("TRACER:     - Spawned at distance: ", oldest_spawn_dist)
+		print("TRACER:     - Distance since spawn: ", bullet_distance - oldest_spawn_dist)
+		print("TRACER:     - Fade progress: ", ((bullet_distance - oldest_spawn_dist) / tracer_length_distance * 100.0), "%")
+		print("TRACER:   Newest segment:")
+		print("TRACER:     - Spawned at distance: ", newest_spawn_dist)
+		print("TRACER: =============================")
+	
+	# Update ALL segments based on distance traveled
 	for i in range(tracer_data.trail_segments.size()):
-		if i >= tracer_data.segment_ages.size():
+		if i >= tracer_data.segment_spawn_distances.size():
 			continue
-			
-		# Age the segment using time-adjusted delta
-		tracer_data.segment_ages[i] += time_adjusted_delta
 		
-		# Calculate fade progress (0.0 = new, 1.0 = fully faded)
-		var fade_progress = tracer_data.segment_ages[i] / tracer_length_seconds
+		var spawn_distance = tracer_data.segment_spawn_distances[i]
+		var distance_since_spawn = bullet_distance - spawn_distance
 		
-		# Apply scaling based on fade progress
+		# Calculate fade progress based on distance (0.0 = new, 1.0 = fully faded)
+		var fade_progress = distance_since_spawn / tracer_length_distance
+		
+		# Apply scaling and removal based on fade progress
 		var segment = tracer_data.trail_segments[i]
 		if is_instance_valid(segment):
 			if fade_progress >= 1.0:
-				# Segment is fully faded, mark for removal
+				# Bullet has traveled far enough, remove this segment
 				segments_to_remove.append(i)
 				segment.queue_free()
 			else:
-				# Scale from 1.0 to min_fadeout_scale over the fadeout duration
+				# Scale from 1.0 to min_fadeout_scale based on distance
 				var scale_factor = max(min_fadeout_scale, 1.0 - fade_progress)
 				segment.scale = Vector3.ONE * scale_factor
 	
@@ -420,18 +452,18 @@ func _update_segment_fadeout(tracer_data: TracerData, time_adjusted_delta: float
 	for i in range(segments_to_remove.size() - 1, -1, -1):
 		var index = segments_to_remove[i]
 		tracer_data.trail_segments.remove_at(index)
-		tracer_data.segment_ages.remove_at(index)
+		tracer_data.segment_spawn_distances.remove_at(index)
 
 func _trim_old_segments(tracer_data: TracerData):
 	"""Remove segments that exceed the maximum count."""
-	# Trim visual segments and their ages
+	# Trim visual segments and their spawn distances
 	while tracer_data.trail_segments.size() > tracer_segment_count:
 		var old_segment = tracer_data.trail_segments.pop_front()
 		if is_instance_valid(old_segment):
 			old_segment.queue_free()
-		# Remove corresponding age
-		if tracer_data.segment_ages.size() > 0:
-			tracer_data.segment_ages.pop_front()
+		# Remove corresponding spawn distance
+		if tracer_data.segment_spawn_distances.size() > 0:
+			tracer_data.segment_spawn_distances.pop_front()
 	
 	# Trim position history (keep a few extra for line segment generation)
 	while tracer_data.segment_positions.size() > tracer_segment_count + extra_position_segments:
@@ -444,7 +476,7 @@ func _cleanup_tracer_visuals(tracer_data: TracerData):
 			segment.queue_free()
 	
 	tracer_data.trail_segments.clear()
-	tracer_data.segment_ages.clear()
+	tracer_data.segment_spawn_distances.clear()
 	tracer_data.segment_positions.clear()
 
 func _cleanup_invalid_tracers():
@@ -480,7 +512,7 @@ func _all_segments_faded(tracer_data: TracerData) -> bool:
 
 # === EXPLOSION AND IMPACT ANIMATION FUNCTIONS ===
 
-func _update_explosion_animation(explosion_data: Dictionary, time_adjusted_delta: float) -> bool:
+func _update_explosion_animation(explosion_data: Dictionary, delta: float) -> bool:
 	"""Update a single explosion animation. Returns true if animation is complete."""
 	var explosion = explosion_data.get("explosion")
 	var age = explosion_data.get("age", 0.0)
@@ -490,8 +522,8 @@ func _update_explosion_animation(explosion_data: Dictionary, time_adjusted_delta
 	if not is_instance_valid(explosion):
 		return true  # Remove invalid explosions
 	
-	# Age the explosion using time-adjusted delta (same as tracers)
-	age += time_adjusted_delta
+	# Age the explosion using real delta for consistent visual timing
+	age += delta
 	explosion_data["age"] = age
 	
 	# Calculate progress
@@ -537,7 +569,7 @@ func _update_explosion_animation(explosion_data: Dictionary, time_adjusted_delta
 	
 	return false
 
-func _update_impact_animation(impact_data: Dictionary, time_adjusted_delta: float) -> bool:
+func _update_impact_animation(impact_data: Dictionary, delta: float) -> bool:
 	"""Update a single impact animation. Returns true if animation is complete."""
 	var impact = impact_data.get("impact")
 	var age = impact_data.get("age", 0.0)
@@ -547,8 +579,8 @@ func _update_impact_animation(impact_data: Dictionary, time_adjusted_delta: floa
 	if not is_instance_valid(impact):
 		return true  # Remove invalid impacts
 	
-	# Age the impact using time-adjusted delta (same as tracers)
-	age += time_adjusted_delta
+	# Age the impact using real delta for consistent visual timing
+	age += delta
 	impact_data["age"] = age
 	
 	# Calculate progress

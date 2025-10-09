@@ -74,6 +74,9 @@ var sfx_3d_players: Array[AudioStreamPlayer3D] = []
 var music_players: Array[AudioStreamPlayer] = []
 var ui_players: Array[AudioStreamPlayer] = []
 
+# Track which players are playing undilated sounds (should not be time-scaled)
+var undilated_players: Array[AudioStreamPlayer] = []
+
 # Player pool management
 var sfx_player_index: int = 0
 var sfx_3d_player_index: int = 0
@@ -182,8 +185,15 @@ func _load_audio_library():
 	"""Load all audio files into memory with individual volume levels."""
 	# Weapon sounds with individual volume control
 	_register_sfx("gunshot_pistol", preload("res://assets/sounds/sfx/weapons/gunshot_mechanical.wav"), 0.8)
-	_register_sfx("bounce_pistol", preload("res://assets/sounds/sfx/weapons/impactenergy2.wav"), 1.0)
+	_register_sfx("bounce_pistol", preload("res://assets/sounds/sfx/weapons/impact_percussive.wav"), 1.0)
 	_register_sfx("clock_tick", preload("res://assets/sounds/sfx/time/tick_reverb.wav"), 0.1)
+	_register_sfx("bullet_pickup", preload("res://assets/sounds/sfx/weapons/impactenergy.wav"), 1.0)
+	_register_sfx("bullet_redirect", preload("res://assets/sounds/sfx/weapons/impact_boom.wav"), 1.0)
+	_register_sfx("pistol_empty_chamber", preload("res://assets/sounds/sfx/weapons/impactenergy2.wav"), 1.0)
+	_register_sfx("pistol_pickup", preload("res://assets/sounds/sfx/weapons/mechanical_sound_4.wav"), 0.5)
+	_register_sfx("bullet_explosion", preload("res://assets/sounds/sfx/weapons/gunshot_energy.wav"), 0.025)
+	_register_sfx("bullet_hum", preload("res://assets/sounds/sfx/weapons/humlow.wav"), 1.0)
+	
 	
 	# TODO: Add more sounds as needed:
 	# _register_sfx("gunshot_rifle", preload("res://assets/sounds/sfx/weapons/gunshot_rifle.wav"), 0.9)
@@ -271,7 +281,7 @@ func _update_pitch_and_speed_scaling():
 	
 	# Apply pitch scaling to all players - SFX gets heavily time-distorted
 	for player in sfx_players:
-		if player.playing:
+		if player.playing and not player in undilated_players:
 			player.pitch_scale = max(0.01, sfx_pitch)  # Allow very slow but not zero
 			player.stream_paused = false  # Never pause, just slow down
 	
@@ -304,6 +314,16 @@ func _ensure_correct_pitch_3d(player: AudioStreamPlayer3D, target_pitch: float):
 			player.pitch_scale = target_pitch
 			if debug_audio:
 				print("AudioManager: Corrected 3D pitch drift to: ", target_pitch)
+
+func _cleanup_undilated_tracking(player: AudioStreamPlayer):
+	"""Remove player from undilated tracking when sound finishes."""
+	# Wait for the sound to actually finish, then clean up
+	if is_instance_valid(player):
+		await player.finished
+	
+	# Remove from undilated tracking
+	if player in undilated_players:
+		undilated_players.erase(player)
 
 func _update_all_volumes():
 	"""Update volume for all audio players based on user preferences."""
@@ -361,18 +381,58 @@ func play_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	
 	return true
 
-func play_sfx_3d(sound_name: String, position: Vector3, volume_modifier: float = 1.0) -> bool:
-	"""Play a 3D positioned sound effect with automatic time scaling."""
+func play_sfx_undilated(sound_name: String, volume_modifier: float = 1.0) -> bool:
+	"""Play a sound effect that ignores time scaling (always normal speed/pitch)."""
+	if not sfx_enabled or not sfx_library.has(sound_name):
+		if debug_audio:
+			print("AudioManager: Undilated SFX not found or disabled: ", sound_name)
+		return false
+	
+	var player = _get_next_sfx_player()
+	if not player:
+		if debug_audio:
+			print("AudioManager: No available SFX players for undilated sound")
+		return false
+	
+	# Configure player
+	player.stream = sfx_library[sound_name]
+	
+	# Calculate volume with individual SFX volume level
+	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)
+	var final_volume = base_sfx_volume * user_sfx_volume * volume_modifier * sfx_volume_level
+	player.volume_db = linear_to_db(final_volume)
+	
+	# ALWAYS use normal pitch and speed - ignore time scale
+	player.pitch_scale = 1.0
+	
+	# Start playing at normal speed
+	player.play()
+	player.stream_paused = false
+	
+	# Track this player as undilated so time scaling won't affect it
+	if not player in undilated_players:
+		undilated_players.append(player)
+	
+	# Clean up tracking when sound finishes
+	call_deferred("_cleanup_undilated_tracking", player)
+	
+	if debug_audio:
+		print("AudioManager: Playing undilated SFX: ", sound_name, " (pitch: 1.0, ignoring time scale)")
+	
+	return true
+
+func play_sfx_3d(sound_name: String, position: Vector3, volume_modifier: float = 1.0) -> AudioStreamPlayer3D:
+	"""Play a 3D positioned sound effect with automatic time scaling. Returns player reference."""
 	if not sfx_enabled or not sfx_library.has(sound_name):
 		if debug_audio:
 			print("AudioManager: 3D SFX not found or disabled: ", sound_name)
-		return false
+		return null
 	
 	var player = _get_next_sfx_3d_player()
 	if not player:
 		if debug_audio:
 			print("AudioManager: No available 3D SFX players")
-		return false
+		return null
 	
 	# Configure player
 	player.stream = sfx_library[sound_name]
@@ -397,7 +457,7 @@ func play_sfx_3d(sound_name: String, position: Vector3, volume_modifier: float =
 	if debug_audio:
 		print("AudioManager: Playing 3D SFX: ", sound_name, " at ", position)
 	
-	return true
+	return player
 
 func stop_all_sfx():
 	"""Stop all currently playing SFX."""
@@ -630,7 +690,7 @@ func play_empty_chamber(weapon_type: String = "pistol"):
 	play_sfx("empty_chamber_" + weapon_type)
 
 func play_gun_pickup(weapon_type: String = "pistol"):
-	play_sfx("gun_pickup_" + weapon_type)
+	play_sfx_undilated(weapon_type + "_pickup")
 
 # Bullet sounds
 func play_bullet_bounce(position: Vector3 = Vector3.ZERO):
@@ -644,7 +704,7 @@ func play_bullet_pierce():
 	play_sfx("bullet_pierce")
 
 func play_bullet_detonate():
-	play_sfx("bullet_detonate")
+	play_sfx("bullet_explosion")
 
 func play_bullet_redirect():
 	play_sfx("bullet_redirect")
