@@ -1,5 +1,9 @@
 extends Node
 
+# === DEBUG FLAGS (EASY TOGGLE) ===
+const DEBUG_AUDIO = false  # General audio events
+const DEBUG_PITCH_SCALING = false  # Pitch scaling updates
+
 # === AUDIO MANAGER ===
 # Autoload singleton that manages all game audio with time scaling integration
 # Handles SFX, Music, and UI audio categories with independent pitch scaling
@@ -33,6 +37,8 @@ extends Node
 @export var base_sfx_volume: float = 1.0
 @export var base_music_volume: float = 0.7
 @export var base_ui_volume: float = 0.8
+## Maximum volume cap (prevents ear destruction) - 0.5 = -6dB, 0.3 = -10dB
+@export var max_volume_cap: float = 0.3
 
 @export_group("Audio Players")
 ## Number of SFX players to create for overlapping sounds
@@ -50,11 +56,6 @@ extends Node
 ## Reference distance for 3D audio (distance at which volume starts to decrease)
 @export var reference_3d_distance: float = 5.0
 
-@export_group("Debug Settings")
-## Enable debug output for audio events
-@export var debug_audio: bool = false
-## Enable debug output for pitch scaling
-@export var debug_pitch_scaling: bool = false
 
 ## === AUDIO CATEGORIES ===
 enum AudioCategory {
@@ -77,6 +78,10 @@ var ui_players: Array[AudioStreamPlayer] = []
 # Track which players are playing undilated sounds (should not be time-scaled)
 var undilated_players: Array[AudioStreamPlayer] = []
 
+# Track which sound each player is currently playing (for pitch sensitivity)
+var sfx_player_current_sound: Dictionary = {}  # player -> sound_name
+var sfx_3d_player_current_sound: Dictionary = {}  # player -> sound_name
+
 # Player pool management
 var sfx_player_index: int = 0
 var sfx_3d_player_index: int = 0
@@ -86,10 +91,13 @@ var music_player_index: int = 0
 # Audio library - loaded sound effects by name
 var sfx_library: Dictionary = {}
 var sfx_volumes: Dictionary = {}  # Per-SFX volume levels (0.0 to 1.0)
+var sfx_pitch_sensitivity: Dictionary = {}  # Per-SFX pitch scaling sensitivity (0.0 = no scaling, 1.0 = full scaling)
 var music_library: Dictionary = {}
+var music_pitch_sensitivity: Dictionary = {}  # Per-music pitch scaling sensitivity
 var ui_library: Dictionary = {}
 
 # Volume settings (user preferences)
+var user_master_volume: float = 1.0  # Master volume affects all categories
 var user_sfx_volume: float = 1.0
 var user_music_volume: float = 1.0
 var user_ui_volume: float = 1.0
@@ -115,22 +123,8 @@ func _ready():
 	# Load user volume preferences
 	_load_volume_preferences()
 	
-	# Connect to options menu if available
-	_connect_to_options_menu()
-	
-	# CRITICAL FIX: Ensure master bus volume is not -inf
-	_fix_master_bus_volume()
-	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Initialized with ", sfx_players.size(), " SFX players")
-
-func _fix_master_bus_volume():
-	"""Fix master bus volume if it's at -infinity (silent)."""
-	var master_bus_volume = AudioServer.get_bus_volume_db(0)
-	if master_bus_volume <= -80.0:  # -inf or extremely quiet
-		AudioServer.set_bus_volume_db(0, 0.0)  # Set to normal volume
-		if debug_audio:
-			print("AudioManager: Fixed master bus volume from ", master_bus_volume, " dB to 0 dB")
 
 func _setup_time_manager():
 	"""Connect to TimeManager for time scale updates."""
@@ -138,10 +132,10 @@ func _setup_time_manager():
 	if time_manager:
 		if time_manager.has_signal("time_scale_changed"):
 			time_manager.time_scale_changed.connect(_on_time_scale_changed)
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: Connected to TimeManager")
 	else:
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: WARNING - TimeManager not found")
 
 func _create_audio_players():
@@ -177,72 +171,89 @@ func _create_audio_players():
 		add_child(player)
 		ui_players.append(player)
 	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Created audio players - SFX: ", sfx_players.size(), 
 			  " SFX3D: ", sfx_3d_players.size(), " Music: ", music_players.size(), " UI: ", ui_players.size())
 
 func _load_audio_library():
 	"""Load all audio files into memory with individual volume levels."""
-	# Weapon sounds with individual volume control
-	_register_sfx("gunshot_pistol", preload("res://assets/sounds/sfx/weapons/gunshot_mechanical.wav"), 0.8)
-	_register_sfx("bounce_pistol", preload("res://assets/sounds/sfx/weapons/impact_percussive.wav"), 1.0)
-	_register_sfx("clock_tick", preload("res://assets/sounds/sfx/time/tick_reverb.wav"), 0.1)
-	_register_sfx("bullet_pickup", preload("res://assets/sounds/sfx/weapons/impactenergy.wav"), 1.0)
-	_register_sfx("bullet_redirect", preload("res://assets/sounds/sfx/weapons/impact_boom.wav"), 1.0)
-	_register_sfx("pistol_empty_chamber", preload("res://assets/sounds/sfx/weapons/impactenergy2.wav"), 1.0)
-	_register_sfx("pistol_pickup", preload("res://assets/sounds/sfx/weapons/mechanical_sound_4.wav"), 0.5)
-	_register_sfx("bullet_explosion", preload("res://assets/sounds/sfx/weapons/gunshot_energy.wav"), 0.025)
-	_register_sfx("bullet_hum", preload("res://assets/sounds/sfx/weapons/humlow.wav"), 1.0)
+
+	# Music Assets
+	_register_music("track_1", preload("res://assets/sounds/music/MUSIC-dulledclub2.wav"), 0.95, 0.5)
+
+	# Player SFX
+	_register_sfx("player_death", preload("res://assets/sounds/sfx/player/people_man_scream.wav"), 0.75, 1.0)
+
+	# Time SFX
+	_register_sfx("clock_tick", preload("res://assets/sounds/sfx/time/tick_reverb.wav"), 0.1, 1.0)
+
+	# UI SFX (no pitch scaling for UI sounds)
+	_register_sfx("ui_tick", preload("res://assets/sounds/sfx/ui/tick.wav"), 0.25, 0.0)
+	_register_sfx("ui_accept", preload("res://assets/sounds/sfx/ui/tick_complex.wav"), 0.25, 0.0)
+	_register_sfx("ambience_oneshot_1", preload("res://assets/sounds/sfx/ui/ambienceoneshot.wav"), 1.0, 1.0)
+
+	# Weapon SFX (full pitch scaling for combat feedback)
+	_register_sfx("gunshot_pistol", preload("res://assets/sounds/sfx/weapons/gunshot_mechanical.wav"), 0.8, 1.0)
+	_register_sfx("bounce_pistol", preload("res://assets/sounds/sfx/weapons/impact_percussive.wav"), 1.0, 1.0)
+	_register_sfx("bullet_pickup", preload("res://assets/sounds/sfx/weapons/impactenergy.wav"), 1.0, 1.0)
+	_register_sfx("bullet_redirect", preload("res://assets/sounds/sfx/weapons/impact_boom.wav"), 1.0, 1.0)
+	_register_sfx("pistol_empty_chamber", preload("res://assets/sounds/sfx/weapons/impactenergy2.wav"), 1.0, 1.0)
+	_register_sfx("pistol_pickup", preload("res://assets/sounds/sfx/weapons/mechanical_sound_4.wav"), 0.5, 1.0)
+	_register_sfx("bullet_explosion", preload("res://assets/sounds/sfx/weapons/gunshot_energy.wav"), 0.025, 1.0)
+	_register_sfx("bullet_hum", preload("res://assets/sounds/sfx/weapons/humlow.wav"), 1.0, 0.6)
 	
-	
-	# TODO: Add more sounds as needed:
-	# _register_sfx("gunshot_rifle", preload("res://assets/sounds/sfx/weapons/gunshot_rifle.wav"), 0.9)
-	# _register_sfx("gunshot_shotgun", preload("res://assets/sounds/sfx/weapons/gunshot_shotgun.wav"), 1.0)
-	# _register_sfx("gun_pickup_pistol", preload("res://assets/sounds/sfx/weapons/pickup_pistol.wav"), 0.7)
-	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Audio library loaded - SFX: ", sfx_library.size(), " sounds")
 
-func _register_sfx(name: String, audio_stream: AudioStream, volume_level: float = 1.0):
-	"""Register a sound effect with its individual volume level."""
+func _register_sfx(name: String, audio_stream: AudioStream, volume_level: float = 1.0, pitch_sensitivity: float = 1.0):
+	"""Register a sound effect with individual volume level and pitch sensitivity."""
 	sfx_library[name] = audio_stream
 	sfx_volumes[name] = clamp(volume_level, 0.0, 1.0)
+	sfx_pitch_sensitivity[name] = clamp(pitch_sensitivity, 0.0, 1.0)
 	
-	if debug_audio:
-		print("AudioManager: Registered SFX: ", name, " (volume: ", "%.1f" % volume_level, ")")
+	if DEBUG_AUDIO:
+		print("AudioManager: Registered SFX: ", name, " (volume: ", "%.1f" % volume_level, ", pitch_sens: ", "%.1f" % pitch_sensitivity, ")")
+
+func _register_music(name: String, audio_stream: AudioStream, volume_level: float = 1.0, pitch_sensitivity: float = 1.0):
+	"""Register a music track with volume level and pitch sensitivity."""
+	music_library[name] = audio_stream
+	music_pitch_sensitivity[name] = clamp(pitch_sensitivity, 0.0, 1.0)
+	
+	if DEBUG_AUDIO:
+		print("AudioManager: Registered music: ", name, " (volume: ", "%.1f" % volume_level, ", pitch_sens: ", "%.1f" % pitch_sensitivity, ")")
 
 func _load_volume_preferences():
-	"""Load user volume preferences from OptionsMenu or save file."""
-	# Try to get from OptionsMenu first
-	var options_menu = get_node_or_null("/root/OptionsMenu")
-	if options_menu:
-		if "sfx_volume" in options_menu:
-			user_sfx_volume = options_menu.sfx_volume
-		if "music_volume" in options_menu:
-			user_music_volume = options_menu.music_volume
-		if "ui_volume" in options_menu:
-			user_ui_volume = options_menu.ui_volume
+	"""Load user volume preferences from save file."""
+	print("AudioManager: _load_volume_preferences() called")
+	
+	# Load from settings save file
+	var settings_file = "user://settings.save"
+	print("AudioManager: Checking for settings file: ", settings_file)
+	print("AudioManager: File exists: ", FileAccess.file_exists(settings_file))
+	
+	if FileAccess.file_exists(settings_file):
+		var save_file = FileAccess.open(settings_file, FileAccess.READ)
+		if save_file:
+			var settings = save_file.get_var()
+			save_file.close()
+			
+			print("AudioManager: Loaded settings from file: ", settings)
+			
+			if settings and typeof(settings) == TYPE_DICTIONARY:
+				# Load master and individual category volumes
+				user_master_volume = settings.get("master_volume", 0.8)
+				user_sfx_volume = settings.get("sfx_volume", 1.0)
+				user_music_volume = settings.get("music_volume", 1.0)
+				user_ui_volume = settings.get("ui_volume", 1.0)
+				print("AudioManager: Loaded volumes - master: ", user_master_volume, " sfx: ", user_sfx_volume, " music: ", user_music_volume, " ui: ", user_ui_volume)
+	else:
+		print("AudioManager: No settings file found, using defaults")
 	
 	# Apply volume settings to all players
 	_update_all_volumes()
 	
-	if debug_audio:
-		print("AudioManager: Volume preferences loaded - SFX: ", user_sfx_volume)
+	print("AudioManager: Volume preferences loaded - SFX: ", user_sfx_volume, " Music: ", user_music_volume, " UI: ", user_ui_volume)
 
-func _connect_to_options_menu():
-	"""Connect to OptionsMenu volume change signals."""
-	var options_menu = get_node_or_null("/root/OptionsMenu")
-	if options_menu:
-		# Connect to volume change signals if they exist
-		if options_menu.has_signal("sfx_volume_changed"):
-			options_menu.sfx_volume_changed.connect(_on_sfx_volume_changed)
-		if options_menu.has_signal("music_volume_changed"):
-			options_menu.music_volume_changed.connect(_on_music_volume_changed)
-		if options_menu.has_signal("ui_volume_changed"):
-			options_menu.ui_volume_changed.connect(_on_ui_volume_changed)
-		
-		if debug_audio:
-			print("AudioManager: Connected to OptionsMenu volume signals")
 
 func _process(_delta):
 	"""Update pitch scaling based on current time scale."""
@@ -268,32 +279,56 @@ func _update_time_scaled_audio(old_scale: float, new_scale: float):
 
 func _update_pitch_and_speed_scaling():
 	"""Update pitch scaling for all audio categories based on current time scale."""
-	# SFX: Follows time scale exactly - never pauses, just gets very slow
-	var sfx_pitch = clamp(current_time_scale, sfx_min_pitch, sfx_max_pitch)
-	
-	# Music: Maintains minimum pitch when time slows
+	# Calculate base pitch scales
+	var sfx_pitch_base = clamp(current_time_scale, sfx_min_pitch, sfx_max_pitch)
 	var music_pitch = clamp(lerp(music_min_pitch, music_max_pitch, current_time_scale), 
 							music_min_pitch, music_max_pitch)
-	
-	# UI: Subtle scaling effect
 	var ui_pitch = clamp(lerp(ui_min_pitch, ui_max_pitch, current_time_scale), 
 						 ui_min_pitch, ui_max_pitch)
 	
-	# Apply pitch scaling to all players - SFX gets heavily time-distorted
+	# Update SFX players with individual pitch sensitivity
 	for player in sfx_players:
 		if player.playing and not player in undilated_players:
-			player.pitch_scale = max(0.01, sfx_pitch)  # Allow very slow but not zero
-			player.stream_paused = false  # Never pause, just slow down
-	
-	# Apply to 3D SFX players too
-	for player in sfx_3d_players:
-		if player.playing:
-			player.pitch_scale = max(0.01, sfx_pitch)  # Same time distortion as 2D SFX
+			var sound_name = sfx_player_current_sound.get(player, "")
+			if sound_name != "":
+				var sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
+				var final_pitch = max(0.01, lerp(1.0, sfx_pitch_base, sensitivity))
+				player.pitch_scale = final_pitch
+			else:
+				# Unknown sound, use default
+				player.pitch_scale = max(0.01, sfx_pitch_base)
 			player.stream_paused = false
 	
-	for player in music_players:
+	# Update 3D SFX players with individual pitch sensitivity
+	for player in sfx_3d_players:
 		if player.playing:
-			player.pitch_scale = max(0.1, music_pitch)
+			var sound_name = sfx_3d_player_current_sound.get(player, "")
+			if sound_name != "":
+				var sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
+				var final_pitch = max(0.01, lerp(1.0, sfx_pitch_base, sensitivity))
+				player.pitch_scale = final_pitch
+			else:
+				# Unknown sound, use default
+				player.pitch_scale = max(0.01, sfx_pitch_base)
+			player.stream_paused = false
+	
+	# Music pitch update - need to know which track is playing to apply sensitivity
+	# For now, just update the current music player if we know what's playing
+	if current_music_player and current_music_player.playing:
+		# Try to find which track is playing (check stream against library)
+		var playing_track_name = ""
+		for track_name in music_library.keys():
+			if current_music_player.stream == music_library[track_name]:
+				playing_track_name = track_name
+				break
+		
+		if playing_track_name != "":
+			var pitch_sensitivity = music_pitch_sensitivity.get(playing_track_name, 1.0)
+			var final_pitch = lerp(1.0, music_pitch, pitch_sensitivity)
+			current_music_player.pitch_scale = max(0.1, final_pitch)
+		else:
+			# Fallback: use default pitch
+			current_music_player.pitch_scale = max(0.1, music_pitch)
 	
 	for player in ui_players:
 		if player.playing:
@@ -304,7 +339,7 @@ func _ensure_correct_pitch(player: AudioStreamPlayer, target_pitch: float):
 	if is_instance_valid(player) and player.playing:
 		if abs(player.pitch_scale - target_pitch) > 0.01:
 			player.pitch_scale = target_pitch
-			if debug_audio:
+			if DEBUG_AUDIO:
 				print("AudioManager: Corrected pitch drift to: ", target_pitch)
 
 func _ensure_correct_pitch_3d(player: AudioStreamPlayer3D, target_pitch: float):
@@ -312,7 +347,7 @@ func _ensure_correct_pitch_3d(player: AudioStreamPlayer3D, target_pitch: float):
 	if is_instance_valid(player) and player.playing:
 		if abs(player.pitch_scale - target_pitch) > 0.01:
 			player.pitch_scale = target_pitch
-			if debug_audio:
+			if DEBUG_AUDIO:
 				print("AudioManager: Corrected 3D pitch drift to: ", target_pitch)
 
 func _cleanup_undilated_tracking(player: AudioStreamPlayer):
@@ -324,47 +359,59 @@ func _cleanup_undilated_tracking(player: AudioStreamPlayer):
 	# Remove from undilated tracking
 	if player in undilated_players:
 		undilated_players.erase(player)
+	
+	# Remove from sound tracking
+	if player in sfx_player_current_sound:
+		sfx_player_current_sound.erase(player)
 
 func _update_all_volumes():
 	"""Update volume for all audio players based on user preferences."""
-	# Update SFX players
+	# Update SFX players (master * sfx * cap)
 	for player in sfx_players:
-		player.volume_db = linear_to_db(base_sfx_volume * user_sfx_volume)
+		var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * max_volume_cap
+		player.volume_db = linear_to_db(final_volume)
 	
-	# Update Music players
+	# Update Music players (master * music * cap)
 	for player in music_players:
-		player.volume_db = linear_to_db(base_music_volume * user_music_volume)
+		var final_volume = base_music_volume * user_master_volume * user_music_volume * max_volume_cap
+		player.volume_db = linear_to_db(final_volume)
 	
-	# Update UI players
+	# Update UI players (master * ui * cap)
 	for player in ui_players:
-		player.volume_db = linear_to_db(base_ui_volume * user_ui_volume)
+		var final_volume = base_ui_volume * user_master_volume * user_ui_volume * max_volume_cap
+		player.volume_db = linear_to_db(final_volume)
 
 ## === PUBLIC API - SFX ===
 
 func play_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	"""Play a sound effect with automatic time scaling."""
 	if not sfx_enabled or not sfx_library.has(sound_name):
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: SFX not found or disabled: ", sound_name)
 		return false
 	
 	var player = _get_next_sfx_player()
 	if not player:
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: No available SFX players")
 		return false
 	
 	# Configure player
 	player.stream = sfx_library[sound_name]
 	
-	# Calculate volume with individual SFX volume level
+	# Calculate volume with individual SFX volume level and cap (master * sfx * individual * cap)
 	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)  # Default to 1.0 if not set
-	var final_volume = base_sfx_volume * user_sfx_volume * volume_modifier * sfx_volume_level
+	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level * max_volume_cap
 	player.volume_db = linear_to_db(final_volume)
 	
-	# Calculate correct pitch for current time scale
+	# Calculate correct pitch for current time scale with sensitivity
+	var pitch_sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)  # Default to full sensitivity
 	var pitch_scale = clamp(current_time_scale, sfx_min_pitch, sfx_max_pitch)
-	var final_pitch = max(0.01, pitch_scale)
+	# Lerp between 1.0 (no change) and pitch_scale (full change) based on sensitivity
+	var final_pitch = max(0.01, lerp(1.0, pitch_scale, pitch_sensitivity))
+	
+	# Track which sound this player is playing
+	sfx_player_current_sound[player] = sound_name
 	
 	# Set pitch BEFORE playing to avoid the initial squeak
 	player.pitch_scale = final_pitch
@@ -376,7 +423,7 @@ func play_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	# Ensure pitch stays correct (defensive programming)
 	call_deferred("_ensure_correct_pitch", player, final_pitch)
 	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Playing SFX: ", sound_name, " (paused: ", player.stream_paused, ")")
 	
 	return true
@@ -384,22 +431,22 @@ func play_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
 func play_sfx_undilated(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	"""Play a sound effect that ignores time scaling (always normal speed/pitch)."""
 	if not sfx_enabled or not sfx_library.has(sound_name):
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: Undilated SFX not found or disabled: ", sound_name)
 		return false
 	
 	var player = _get_next_sfx_player()
 	if not player:
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: No available SFX players for undilated sound")
 		return false
 	
 	# Configure player
 	player.stream = sfx_library[sound_name]
 	
-	# Calculate volume with individual SFX volume level
+	# Calculate volume with individual SFX volume level (master * sfx * individual)
 	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)
-	var final_volume = base_sfx_volume * user_sfx_volume * volume_modifier * sfx_volume_level
+	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level
 	player.volume_db = linear_to_db(final_volume)
 	
 	# ALWAYS use normal pitch and speed - ignore time scale
@@ -416,7 +463,7 @@ func play_sfx_undilated(sound_name: String, volume_modifier: float = 1.0) -> boo
 	# Clean up tracking when sound finishes
 	call_deferred("_cleanup_undilated_tracking", player)
 	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Playing undilated SFX: ", sound_name, " (pitch: 1.0, ignoring time scale)")
 	
 	return true
@@ -424,37 +471,42 @@ func play_sfx_undilated(sound_name: String, volume_modifier: float = 1.0) -> boo
 func play_sfx_3d(sound_name: String, position: Vector3, volume_modifier: float = 1.0) -> AudioStreamPlayer3D:
 	"""Play a 3D positioned sound effect with automatic time scaling. Returns player reference."""
 	if not sfx_enabled or not sfx_library.has(sound_name):
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: 3D SFX not found or disabled: ", sound_name)
 		return null
 	
 	var player = _get_next_sfx_3d_player()
 	if not player:
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: No available 3D SFX players")
 		return null
 	
 	# Configure player
 	player.stream = sfx_library[sound_name]
 	
-	# Calculate volume with individual SFX volume level
+	# Calculate volume with individual SFX volume level and cap (master * sfx * individual * cap)
 	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)  # Default to 1.0 if not set
-	var final_volume = base_sfx_volume * user_sfx_volume * volume_modifier * sfx_volume_level
+	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level * max_volume_cap
 	player.volume_db = linear_to_db(final_volume)
 	player.global_position = position
 	
-	# Set pitch scale for time distortion
+	# Set pitch scale for time distortion with sensitivity
+	var pitch_sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
 	var pitch_scale = clamp(current_time_scale, sfx_min_pitch, sfx_max_pitch)
-	player.pitch_scale = max(0.01, pitch_scale)
+	var final_pitch = max(0.01, lerp(1.0, pitch_scale, pitch_sensitivity))
+	player.pitch_scale = final_pitch
+	
+	# Track which sound this player is playing
+	sfx_3d_player_current_sound[player] = sound_name
 	
 	# Start playing at the correct time-scaled pitch
 	player.play()
 	player.stream_paused = false
 	
 	# Ensure pitch stays correct
-	call_deferred("_ensure_correct_pitch_3d", player, max(0.01, pitch_scale))
+	call_deferred("_ensure_correct_pitch_3d", player, final_pitch)
 	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Playing 3D SFX: ", sound_name, " at ", position)
 	
 	return player
@@ -474,7 +526,7 @@ func stop_all_sfx():
 func play_music(track_name: String, fade_in_duration: float = 0.0) -> bool:
 	"""Play a music track with automatic pitch scaling."""
 	if not music_enabled or not music_library.has(track_name):
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: Music track not found or disabled: ", track_name)
 		return false
 	
@@ -487,16 +539,24 @@ func play_music(track_name: String, fade_in_duration: float = 0.0) -> bool:
 	
 	# Configure player
 	current_music_player.stream = music_library[track_name]
-	current_music_player.volume_db = linear_to_db(base_music_volume * user_music_volume)
-	current_music_player.pitch_scale = clamp(lerp(music_min_pitch, music_max_pitch, current_time_scale), 
+	var final_volume = base_music_volume * user_master_volume * user_music_volume * max_volume_cap
+	current_music_player.volume_db = linear_to_db(final_volume)
+	
+	# Apply pitch scaling with sensitivity
+	var pitch_sensitivity = music_pitch_sensitivity.get(track_name, 1.0)
+	var pitch_scale = clamp(lerp(music_min_pitch, music_max_pitch, current_time_scale), 
 											  music_min_pitch, music_max_pitch)
+	# Lerp between 1.0 (no change) and pitch_scale based on sensitivity
+	var final_pitch = lerp(1.0, pitch_scale, pitch_sensitivity)
+	current_music_player.pitch_scale = final_pitch
+	
 	current_music_player.play()
 	
 	# TODO: Implement fade-in if duration > 0
 	
 	music_track_started.emit(track_name)
 	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Playing music: ", track_name, " at pitch: ", current_music_player.pitch_scale)
 	
 	return true
@@ -508,7 +568,7 @@ func stop_music(fade_out_duration: float = 0.0):
 		current_music_player.stop()
 		music_track_stopped.emit()
 		
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: Stopped music")
 
 func is_music_playing() -> bool:
@@ -520,13 +580,13 @@ func is_music_playing() -> bool:
 func play_ui(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	"""Play a UI sound with subtle pitch scaling."""
 	if not ui_enabled or not ui_library.has(sound_name):
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: UI sound not found or disabled: ", sound_name)
 		return false
 	
 	var player = _get_next_ui_player()
 	if not player:
-		if debug_audio:
+		if DEBUG_AUDIO:
 			print("AudioManager: No available UI players")
 		return false
 	
@@ -537,7 +597,7 @@ func play_ui(sound_name: String, volume_modifier: float = 1.0) -> bool:
 							   ui_min_pitch, ui_max_pitch)
 	player.play()
 	
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Playing UI: ", sound_name, " at pitch: ", player.pitch_scale)
 	
 	return true
@@ -594,10 +654,21 @@ func _get_next_sfx_3d_player() -> AudioStreamPlayer3D:
 
 ## === VOLUME CONTROL ===
 
+func set_master_volume(volume: float):
+	"""Set master volume (0.0 to 1.0) - affects all audio categories."""
+	print("AudioManager: set_master_volume CALLED with: ", volume)
+	user_master_volume = clamp(volume, 0.0, 1.0)
+	# Update all categories when master changes
+	_update_all_volumes()
+	print("AudioManager: Master volume set to: ", user_master_volume)
+
 func set_sfx_volume(volume: float):
 	"""Set SFX volume (0.0 to 1.0)."""
+	print("AudioManager: set_sfx_volume CALLED with: ", volume)
 	user_sfx_volume = clamp(volume, 0.0, 1.0)
+	print("AudioManager: user_sfx_volume set to: ", user_sfx_volume)
 	_update_sfx_volumes()
+	print("AudioManager: _update_sfx_volumes() completed")
 	audio_category_volume_changed.emit(AudioCategory.SFX, user_sfx_volume)
 
 func set_music_volume(volume: float):
@@ -614,51 +685,41 @@ func set_ui_volume(volume: float):
 
 func _update_sfx_volumes():
 	"""Update volume for all SFX players."""
+	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * max_volume_cap
+	var final_db = linear_to_db(final_volume)
+	
+	print("AudioManager: _update_sfx_volumes() - base=", base_sfx_volume, " master=", user_master_volume, " sfx=", user_sfx_volume, " cap=", max_volume_cap)
+	print("AudioManager: final_volume=", final_volume, " final_db=", final_db, " dB")
+	
 	for player in sfx_players:
-		player.volume_db = linear_to_db(base_sfx_volume * user_sfx_volume)
+		player.volume_db = final_db
+	
+	# Also update 3D players
+	for player in sfx_3d_players:
+		player.volume_db = final_db
+	
+	print("AudioManager: Updated ", sfx_players.size(), " 2D and ", sfx_3d_players.size(), " 3D SFX players")
 
 func _update_music_volumes():
 	"""Update volume for all music players."""
 	for player in music_players:
-		player.volume_db = linear_to_db(base_music_volume * user_music_volume)
+		var final_volume = base_music_volume * user_master_volume * user_music_volume * max_volume_cap
+		player.volume_db = linear_to_db(final_volume)
 
 func _update_ui_volumes():
 	"""Update volume for all UI players."""
 	for player in ui_players:
-		player.volume_db = linear_to_db(base_ui_volume * user_ui_volume)
+		var final_volume = base_ui_volume * user_master_volume * user_ui_volume * max_volume_cap
+		player.volume_db = linear_to_db(final_volume)
 
 ## === OPTIONS MENU INTEGRATION ===
 
-func _on_sfx_volume_changed(volume: float):
-	"""Handle SFX volume change from OptionsMenu."""
-	set_sfx_volume(volume)
 
-func _on_music_volume_changed(volume: float):
-	"""Handle music volume change from OptionsMenu."""
-	set_music_volume(volume)
-
-func _on_ui_volume_changed(volume: float):
-	"""Handle UI volume change from OptionsMenu."""
-	set_ui_volume(volume)
-
-## === AUDIO LIBRARY MANAGEMENT ===
-
-func register_sfx(name: String, audio_stream: AudioStream):
-	"""Register a sound effect in the library."""
-	sfx_library[name] = audio_stream
-	if debug_audio:
-		print("AudioManager: Registered SFX: ", name)
-
-func register_music(name: String, audio_stream: AudioStream):
-	"""Register a music track in the library."""
-	music_library[name] = audio_stream
-	if debug_audio:
-		print("AudioManager: Registered music: ", name)
 
 func register_ui(name: String, audio_stream: AudioStream):
 	"""Register a UI sound in the library."""
 	ui_library[name] = audio_stream
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Registered UI sound: ", name)
 
 ## === SFX VOLUME CONTROL ===
@@ -666,7 +727,7 @@ func register_ui(name: String, audio_stream: AudioStream):
 func set_sfx_individual_volume(sound_name: String, volume_level: float):
 	"""Set the individual volume level for a specific SFX (0.0 to 1.0)."""
 	sfx_volumes[sound_name] = clamp(volume_level, 0.0, 1.0)
-	if debug_audio:
+	if DEBUG_AUDIO:
 		print("AudioManager: Set ", sound_name, " volume to: ", "%.2f" % volume_level)
 
 func get_sfx_individual_volume(sound_name: String) -> float:

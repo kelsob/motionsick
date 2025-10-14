@@ -43,17 +43,11 @@ extends CharacterBody3D
 ## Additional clearance needed above player to stand up
 @export var stand_clearance: float = 0.1
 
-@export_group("Bullet Pickup System")
-## Range within which bullets can be picked up
-@export var pickup_range: float = 5.0
+@export_group("Bullet Interaction System")
+## Maximum distance for bullet interaction (pickup/deflection)
+@export var bullet_interaction_range: float = 5.0
 ## Maximum time scale threshold for bullet pickup (below this allows pickup)
 @export var pickup_time_threshold: float = 0.5
-
-@export_group("Bullet Deflection System")
-## Range within which bullets can be deflected
-@export var deflect_range: float = 8.0
-## Maximum angle from camera forward for deflectable bullets (degrees)
-@export var deflect_angle: float = 90.0
 ## Speed multiplier applied to deflected bullets
 @export var deflect_speed_boost: float = 1.5
 ## Cooldown between deflection attempts (seconds)
@@ -62,8 +56,6 @@ extends CharacterBody3D
 @export var deflect_movement_slowdown: float = 0.8
 ## Duration of movement slowdown after deflection (seconds)
 @export var deflect_slowdown_duration: float = 0.3
-
-@export_group("Bullet Pickup System")
 ## Movement slowdown when picking up bullets (added to movement intent for time scaling)
 @export var pickup_movement_slowdown: float = 0.6
 ## Duration of movement slowdown after pickup (seconds)  
@@ -129,7 +121,9 @@ var move_input := Vector2.ZERO
 var was_on_floor := true
 
 # Movement intent for time system (tracks input intensity, not velocity)
-var movement_intent: float = 0.0
+var movement_intent: float = 0.0  # Horizontal movement intent
+var vertical_intent: float = 0.0  # Vertical movement intent (jump/fall)
+var combined_movement_intent: float = 0.0  # Final combined intent
 
 # Time system integration
 var time_manager: Node = null
@@ -141,6 +135,9 @@ var deflect_slowdown_timer: float = 0.0
 
 # Pickup system state  
 var pickup_slowdown_timer: float = 0.0
+
+# Bullet interaction tracking
+var current_interactable_bullet: Node = null
 
 # Action-based movement modifiers
 var action_movement_modifier: float = 0.0
@@ -225,6 +222,10 @@ func _input(event):
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_try_recall_bullet()
+
+func _process(delta):
+	# Update bullet interaction highlighting each frame
+	_update_bullet_interaction_highlight()
 
 func _physics_process(delta):
 	# Track movement distance for analytics
@@ -324,7 +325,7 @@ func get_movement_speed_percentage() -> float:
 	return speed_percentage
 
 func update_movement_intent(delta: float):
-	"""Update movement intent based on input keys, not actual velocity."""
+	"""Update movement intent based on input keys AND vertical velocity, not just horizontal."""
 	# Check if any movement keys are being pressed AND movement is allowed
 	var has_movement_input = (
 		Input.is_action_pressed("action_move_forward") or
@@ -350,6 +351,20 @@ func update_movement_intent(delta: float):
 			velocity.x = 0.0
 			velocity.z = 0.0
 	
+	# ADD VERTICAL VELOCITY COMPONENT
+	# Calculate vertical movement intensity (jump/fall motion)
+	var vertical_speed = abs(velocity.y)
+	vertical_intent = min(1.0, vertical_speed / jump_velocity)  # Normalize to 0-1 based on jump speed
+	
+	if debug_movement and vertical_intent > 0.1:
+		print("MOVEMENT INTENT DEBUG: vertical_speed=", vertical_speed, " jump_velocity=", jump_velocity, " vertical_intent=", vertical_intent)
+	
+	# Combine horizontal intent with vertical intent (use max, not add)
+	var combined_intent = max(movement_intent, vertical_intent)
+	
+	if debug_movement and abs(combined_intent - movement_intent) > 0.01:
+		print("MOVEMENT INTENT DEBUG: horizontal=", movement_intent, " vertical=", vertical_intent, " combined=", combined_intent)
+	
 	# ADD ACTION-BASED MOVEMENT MODIFIERS
 	action_movement_modifier = 0.0
 	
@@ -362,15 +377,18 @@ func update_movement_intent(delta: float):
 		action_movement_modifier += pickup_movement_slowdown
 	
 	# Clamp final movement intent to valid range
-	var final_movement_intent = clamp(movement_intent + action_movement_modifier, 0.0, 1.0)
+	var final_movement_intent = clamp(combined_intent + action_movement_modifier, 0.0, 1.0)
+	
+	# Store combined intent for get_movement_intent()
+	combined_movement_intent = final_movement_intent
 	
 	# Send combined movement intent to energy manager
 	if time_energy_manager:
 		time_energy_manager.set_player_movement_intent(final_movement_intent)
 
 func get_movement_intent() -> float:
-	"""Get current movement intent (0.0 to 1.0) including action-based modifiers."""
-	return clamp(movement_intent + action_movement_modifier, 0.0, 1.0)
+	"""Get current movement intent (0.0 to 1.0) including vertical velocity and action modifiers."""
+	return combined_movement_intent
 
 func handle_crouch_slide_input():
 	# Sprinting - only allow when on ground
@@ -606,6 +624,45 @@ func _on_energy_restored():
 		print("Player received energy restored signal")
 	# Could add visual/audio feedback here
 
+# === INPUT ENABLE/DISABLE SYSTEM ===
+func set_input_enabled(enabled: bool):
+	"""Enable or disable player input and movement."""
+	if enabled:
+		# Enable player
+		set_process_input(true)
+		set_process(true)
+		set_physics_process(true)
+		
+		# Enable gun
+		if gun:
+			gun.set_process(true)
+			gun.set_physics_process(true)
+			gun.set_process_input(true)
+			if gun.has_method("set_enabled"):
+				gun.set_enabled(true)
+		
+		# Enable camera
+		if camera:
+			camera.set_process_input(true)
+	else:
+		# Disable player
+		velocity = Vector3.ZERO
+		set_process_input(false)
+		set_process(false)
+		set_physics_process(false)
+		
+		# Disable gun
+		if gun:
+			gun.set_process(false)
+			gun.set_physics_process(false)
+			gun.set_process_input(false)
+			if gun.has_method("set_enabled"):
+				gun.set_enabled(false)
+		
+		# Disable camera
+		if camera:
+			camera.set_process_input(false)
+
 # === DAMAGE SYSTEM ===
 signal player_died
 
@@ -621,6 +678,10 @@ func take_damage(damage: int) -> bool:
 	if debug_damage:
 		print("Player took damage: ", damage, " - Player dies!")
 	
+	# Play death SFX
+	if AudioManager:
+		AudioManager.play_sfx("player_death", 1.0)
+	
 	# Emit death signal
 	print("Player: Emitting player_died signal")
 	print("Player: Signal connections: ", player_died.get_connections().size())
@@ -629,27 +690,8 @@ func take_damage(damage: int) -> bool:
 	player_died.emit()
 	print("Player: player_died signal emitted")
 	
-	# Stop all movement
-	velocity = Vector3.ZERO
-	
-	# Disable gun completely
-	if gun:
-		gun.set_process(false)
-		gun.set_physics_process(false)
-		# Also disable gun input handling
-		if gun.has_method("set_enabled"):
-			gun.set_enabled(false)
-		# Disable gun's input processing
-		gun.set_process_input(false)
-	
-	# Disable player input processing
-	set_process_input(false)
-	set_process(false)
-	set_physics_process(false)
-	
-	# Disable camera input as well
-	if camera:
-		camera.set_process_input(false)
+	# Use the unified disable method
+	set_input_enabled(false)
 	
 	# Optional: Add death visual/audio effects here
 	# For now, just print death message
@@ -661,81 +703,62 @@ func take_damage(damage: int) -> bool:
 # === GUN PICKUP SYSTEM ===
 
 func _try_pickup_gun() -> bool:
-	"""Try to pick up a gun if player is within range."""
+	"""Try to pick up a gun if player is overlapping with it."""
 	# Check if we already have a gun equipped
 	if gun and gun.has_method("is_equipped") and gun.is_equipped():
 		return false
 	
-	# Find gun pickups and check distance
+	# Find gun pickups and try to pick up (they check overlap internally)
 	var gun_pickups = get_tree().get_nodes_in_group("gun_pickups")
-	var closest_pickup = null
-	var closest_distance = INF
 	
 	for pickup in gun_pickups:
 		if pickup is Area3D and is_instance_valid(pickup):
-			# Calculate distance to pickup
-			var distance = global_position.distance_to(pickup.global_position)
-			
-			# Check if within pickup range
-			if distance <= pickup_range:
-				# Find the closest pickup within range
-				if distance < closest_distance:
-					closest_distance = distance
-					closest_pickup = pickup
-	
-	# Try to pick up the closest gun within range
-	if closest_pickup and closest_pickup.has_method("try_pickup"):
-		return closest_pickup.try_pickup(self)
+			# Try to pick up - the pickup itself checks if player is in range
+			if pickup.has_method("try_pickup") and pickup.try_pickup(self):
+				return true
 	
 	return false
 
 # === BULLET PICKUP SYSTEM ===
 
 func _try_pickup_bullet():
-	"""Try to pick up nearby bullets."""
+	"""Try to pick up the currently interactable bullet."""
 	# Check time conditions
 	if not time_manager:
 		return false
 	
 	var current_time_scale = time_manager.get_time_scale()
 	if current_time_scale > pickup_time_threshold:
+		if debug_pickup:
+			print("Bullet pickup failed: time scale too high (", current_time_scale, " > ", pickup_time_threshold, ")")
 		return false
 	
 	# Check ammo capacity
 	if gun and gun.get_current_ammo() >= gun.get_max_ammo():
+		if debug_pickup:
+			print("Bullet pickup failed: ammo full")
 		return false
 	
-	# Find bullets in range
-	var bullets = get_tree().get_nodes_in_group("bullets")
-	var closest_bullet: Area3D = null
-	var closest_distance = INF
+	# Use the currently highlighted bullet (if any)
+	if not current_interactable_bullet or not is_instance_valid(current_interactable_bullet):
+		if debug_pickup:
+			print("Bullet pickup failed: no interactable bullet")
+		return false
 	
-	for bullet in bullets:
-		if bullet is Area3D and is_instance_valid(bullet):
-			# Only consider bullets that have been fired
-			var is_fired = bullet.has_been_fired if "has_been_fired" in bullet else true
-			if not is_fired:
-				continue
-				
-			var distance = global_position.distance_to(bullet.global_position)
-			if distance <= pickup_range and distance < closest_distance:
-				closest_distance = distance
-				closest_bullet = bullet
-	
-	if closest_bullet:
-		# Tell gun to add ammo
-		if gun and gun.has_method("pickup_bullet"):
-			var pickup_success = gun.pickup_bullet()
-			if pickup_success:
-				closest_bullet.queue_free()
-				
-				# Trigger movement slowdown for time scaling effect
-				pickup_slowdown_timer = pickup_slowdown_duration
-				
-				if debug_pickup:
-					print("Bullet picked up! Movement slowdown active for ", pickup_slowdown_duration, "s")
-				
-				return true
+	# Tell gun to add ammo
+	if gun and gun.has_method("pickup_bullet"):
+		var pickup_success = gun.pickup_bullet()
+		if pickup_success:
+			current_interactable_bullet.queue_free()
+			current_interactable_bullet = null
+			
+			# Trigger movement slowdown for time scaling effect
+			pickup_slowdown_timer = pickup_slowdown_duration
+			
+			if debug_pickup:
+				print("Bullet picked up! Movement slowdown active for ", pickup_slowdown_duration, "s")
+			
+			return true
 	
 	return false
 
@@ -757,25 +780,29 @@ func _try_recall_bullet():
 # === BULLET DEFLECTION SYSTEM ===
 
 func _try_deflect_bullet():
-	"""Try to deflect a bullet in melee range."""
+	"""Try to deflect the currently interactable bullet."""
 	# Check cooldown
 	if deflect_cooldown_timer > 0.0:
 		if debug_deflection:
 			print("Deflection on cooldown")
 		return false
 	
-	# Find the closest bullet in deflection range and view
-	var target_bullet = _find_deflectable_bullet()
-	if not target_bullet:
+	# Use the currently highlighted bullet (if any)
+	if not current_interactable_bullet or not is_instance_valid(current_interactable_bullet):
 		if debug_deflection:
-			print("No deflectable bullet found")
+			print("No interactable bullet to deflect")
 		return false
 	
 	# Get deflection direction (where player is looking)
 	var deflect_direction = -camera.global_transform.basis.z.normalized()
 	
 	# Deflect the bullet (bullet will create its own effect)
-	target_bullet.deflect_bullet(deflect_direction, deflect_speed_boost)
+	if current_interactable_bullet.has_method("deflect_bullet"):
+		current_interactable_bullet.deflect_bullet(deflect_direction, deflect_speed_boost)
+	else:
+		if debug_deflection:
+			print("ERROR: Bullet does not have deflect_bullet method")
+		return false
 	
 	# Track deflection for analytics
 	AnalyticsManager.track_deflection()
@@ -790,46 +817,6 @@ func _try_deflect_bullet():
 		print("Bullet deflected! Movement slowdown active for ", deflect_slowdown_duration, "s")
 	return true
 
-func _find_deflectable_bullet() -> Node:
-	"""Find the closest bullet within deflection range and view angle."""
-	var all_bullets = get_tree().get_nodes_in_group("bullets")
-	var camera_forward = -camera.global_transform.basis.z.normalized()
-	var player_position = camera.global_position
-	
-	var closest_bullet = null
-	var closest_distance = INF
-	
-	for bullet in all_bullets:
-		if not bullet or not is_instance_valid(bullet):
-			continue
-		
-		# Check if bullet has been fired (don't deflect prepared bullets)
-		if not bullet.has_been_fired:
-			continue
-		
-		# Check distance
-		var distance = player_position.distance_to(bullet.global_position)
-		if distance > deflect_range:
-			continue
-		
-		# Check if bullet is in player's view angle
-		var to_bullet = (bullet.global_position - player_position).normalized()
-		var angle = rad_to_deg(camera_forward.angle_to(to_bullet))
-		
-		if angle > deflect_angle:
-			continue
-		
-		# Debug: Show what bullets are deflectable
-		if debug_deflection:
-			var bullet_type = "Player" if bullet.is_player_bullet else "Enemy"
-			print("DEFLECT: Found deflectable ", bullet_type, " bullet at distance ", distance, " angle ", angle)
-		
-		# This bullet is valid and closer
-		if distance < closest_distance:
-			closest_distance = distance
-			closest_bullet = bullet
-	
-	return closest_bullet
 
 func _create_deflection_effect(position: Vector3):
 	"""Create visual effect at deflection point."""
@@ -845,6 +832,75 @@ func _create_deflection_effect(position: Vector3):
 	
 	if debug_deflection:
 		print("Deflection effect created at: ", position)
+
+# === UNIFIED BULLET INTERACTION SYSTEM ===
+
+func _update_bullet_interaction_highlight():
+	"""Update which bullet (if any) should be highlighted as interactable."""
+	# Find the closest interactable bullet
+	var interactable_bullet = _find_interactable_bullet()
+	
+	# If the interactable bullet changed, update highlighting
+	if interactable_bullet != current_interactable_bullet:
+		# Unhighlight previous bullet
+		if current_interactable_bullet and is_instance_valid(current_interactable_bullet):
+			if current_interactable_bullet.has_method("set_highlight"):
+				current_interactable_bullet.set_highlight(false)
+		
+		# Highlight new bullet
+		if interactable_bullet and interactable_bullet.has_method("set_highlight"):
+			interactable_bullet.set_highlight(true)
+		
+		# Update tracked bullet
+		current_interactable_bullet = interactable_bullet
+
+func _find_interactable_bullet() -> Node:
+	"""Find the closest bullet that is on-screen and in range."""
+	if not camera:
+		return null
+	
+	var all_bullets = get_tree().get_nodes_in_group("bullets")
+	var camera_pos = camera.global_position
+	var viewport = get_viewport()
+	
+	var closest_bullet = null
+	var closest_distance = INF
+	
+	for bullet in all_bullets:
+		if not bullet or not is_instance_valid(bullet):
+			continue
+		
+		# Skip unfired bullets
+		if not bullet.has_been_fired:
+			continue
+		
+		# Check distance
+		var distance = camera_pos.distance_to(bullet.global_position)
+		if distance > bullet_interaction_range:
+			continue
+		
+		# Check if on-screen (simple frustum check)
+		if not _is_position_on_screen(bullet.global_position):
+			continue
+		
+		# This bullet is valid and closer
+		if distance < closest_distance:
+			closest_distance = distance
+			closest_bullet = bullet
+	
+	return closest_bullet
+
+func _is_position_on_screen(world_position: Vector3) -> bool:
+	"""Check if a 3D world position is visible on the player's screen."""
+	if not camera:
+		return false
+	
+	# Project world position to screen coordinates
+	var screen_pos = camera.unproject_position(world_position)
+	var viewport_rect = get_viewport().get_visible_rect()
+	
+	# Check if within viewport bounds
+	return viewport_rect.has_point(screen_pos)
 
 # === TARGET POSITION FOR ENEMIES ===
 func get_camera_position() -> Vector3:

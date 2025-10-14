@@ -180,6 +180,11 @@ func _activate_gameplay_systems():
 	if arena_spawn_manager and arena_spawn_manager.has_method("reset_for_level"):
 		arena_spawn_manager.reset_for_level()
 	
+	# Activate time visual effects
+	var time_visual_manager = get_node_or_null("/root/TimeVisualManager")
+	if time_visual_manager and time_visual_manager.has_method("activate_for_gameplay"):
+		time_visual_manager.activate_for_gameplay()
+	
 	# Then activate gameplay UI (so UI can find player that TimeManager found)
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
 	if ui_manager and ui_manager.has_method("activate_gameplay_ui"):
@@ -204,6 +209,11 @@ func deactivate_gameplay_systems():
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
 	if ui_manager and ui_manager.has_method("deactivate_gameplay_ui"):
 		ui_manager.deactivate_gameplay_ui()
+	
+	# Deactivate time visual effects
+	var time_visual_manager = get_node_or_null("/root/TimeVisualManager")
+	if time_visual_manager and time_visual_manager.has_method("deactivate"):
+		time_visual_manager.deactivate()
 	
 	# Deactivate TimeManager
 	var time_manager = get_node_or_null("/root/TimeManager")
@@ -343,7 +353,13 @@ func _create_clock_tick_manager():
 
 func _cleanup_clock_tick_manager():
 	"""Remove any existing clock tick manager."""
-	var existing_manager = get_tree().current_scene.get_node_or_null("ClockTickManager")
+	var current_scene = get_tree().current_scene
+	if not current_scene:
+		if debug_loading:
+			print("LevelManager: No current scene for ClockTickManager cleanup (scene changing)")
+		return
+	
+	var existing_manager = current_scene.get_node_or_null("ClockTickManager")
 	if existing_manager:
 		existing_manager.queue_free()
 		if debug_loading:

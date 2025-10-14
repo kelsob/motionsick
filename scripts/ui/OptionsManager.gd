@@ -160,36 +160,57 @@ func _load_settings():
 
 func _apply_settings():
 	"""Apply current settings to the game and UI."""
-	# Update UI elements
+	# Update UI elements WITHOUT triggering signals (set_value_no_signal doesn't exist in Godot)
+	# So we manually disconnect/reconnect to avoid triggering callbacks
+	
 	if master_volume_slider:
+		if master_volume_slider.value_changed.is_connected(_on_master_volume_changed):
+			master_volume_slider.value_changed.disconnect(_on_master_volume_changed)
 		master_volume_slider.value = current_settings.master_volume
+		master_volume_slider.value_changed.connect(_on_master_volume_changed)
+	
 	if sfx_volume_slider:
+		if sfx_volume_slider.value_changed.is_connected(_on_sfx_volume_changed):
+			sfx_volume_slider.value_changed.disconnect(_on_sfx_volume_changed)
 		sfx_volume_slider.value = current_settings.sfx_volume
+		sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
+	
 	if fullscreen_checkbox:
 		fullscreen_checkbox.button_pressed = current_settings.fullscreen
 	if vsync_checkbox:
 		vsync_checkbox.button_pressed = current_settings.vsync
-	if mouse_sensitivity_slider:
-		mouse_sensitivity_slider.value = current_settings.mouse_sensitivity
 	
-	# Apply settings to game
-	_apply_audio_settings()
+	if mouse_sensitivity_slider:
+		if mouse_sensitivity_slider.value_changed.is_connected(_on_mouse_sensitivity_changed):
+			mouse_sensitivity_slider.value_changed.disconnect(_on_mouse_sensitivity_changed)
+		mouse_sensitivity_slider.value = current_settings.mouse_sensitivity
+		mouse_sensitivity_slider.value_changed.connect(_on_mouse_sensitivity_changed)
+	
+	# DON'T call _apply_audio_settings() here - AudioManager already loaded from file!
+	# Only apply graphics and input
 	_apply_graphics_settings()
 	_apply_input_settings()
 
 func _apply_audio_settings():
 	"""Apply audio settings to the game."""
-	# Set master volume
-	var master_bus_idx = AudioServer.get_bus_index(master_bus_name)
-	if master_bus_idx >= 0:
-		var volume_db = linear_to_db(current_settings.master_volume)
-		AudioServer.set_bus_volume_db(master_bus_idx, volume_db)
-	
-	# Set SFX volume
-	var sfx_bus_idx = AudioServer.get_bus_index(sfx_bus_name)
-	if sfx_bus_idx >= 0:
-		var volume_db = linear_to_db(current_settings.sfx_volume)
-		AudioServer.set_bus_volume_db(sfx_bus_idx, volume_db)
+	# Use AudioManager to set volumes (it handles bus conversion properly)
+	if AudioManager:
+		AudioManager.set_sfx_volume(current_settings.sfx_volume)
+		
+		if debug_settings:
+			print("OptionsManager: Applied audio settings via AudioManager")
+			print("  SFX volume: ", current_settings.sfx_volume)
+	else:
+		# Fallback: Set bus volume directly if AudioManager not available
+		var master_bus_idx = AudioServer.get_bus_index(master_bus_name)
+		if master_bus_idx >= 0:
+			var volume_db = linear_to_db(current_settings.master_volume)
+			AudioServer.set_bus_volume_db(master_bus_idx, volume_db)
+		
+		var sfx_bus_idx = AudioServer.get_bus_index(sfx_bus_name)
+		if sfx_bus_idx >= 0:
+			var volume_db = linear_to_db(current_settings.sfx_volume)
+			AudioServer.set_bus_volume_db(sfx_bus_idx, volume_db)
 
 func _apply_graphics_settings():
 	"""Apply graphics settings to the game."""
@@ -224,8 +245,18 @@ func _apply_input_settings():
 
 func _on_master_volume_changed(value: float):
 	"""Handle master volume slider change."""
+	print("OptionsManager: _on_master_volume_changed CALLED with value: ", value)
+	
 	current_settings.master_volume = value
-	_apply_audio_settings()
+	
+	# Apply master volume to AudioManager (affects all categories)
+	print("OptionsManager: Calling AudioManager.set_master_volume(", value, ")")
+	if AudioManager:
+		AudioManager.set_master_volume(value)
+		print("OptionsManager: Master volume applied")
+	else:
+		print("OptionsManager: ERROR - AudioManager is null!")
+	
 	_save_settings()
 	
 	if debug_settings:
@@ -233,9 +264,17 @@ func _on_master_volume_changed(value: float):
 
 func _on_sfx_volume_changed(value: float):
 	"""Handle SFX volume slider change."""
+	print("OptionsManager: _on_sfx_volume_changed CALLED with value: ", value)
+	
 	current_settings.sfx_volume = value
 	
-	_apply_audio_settings()
+	print("OptionsManager: Calling AudioManager.set_sfx_volume(", value, ")")
+	if AudioManager:
+		AudioManager.set_sfx_volume(value)
+		print("OptionsManager: AudioManager.set_sfx_volume() completed")
+	else:
+		print("OptionsManager: ERROR - AudioManager is null!")
+	
 	_save_settings()
 	
 	if debug_settings:
@@ -357,6 +396,16 @@ func print_settings_status():
 func _setup_ui():
 	"""Connect UI elements."""
 	# Configure slider ranges
+	if master_volume_slider:
+		master_volume_slider.min_value = 0.0
+		master_volume_slider.max_value = 1.0
+		master_volume_slider.step = 0.05
+	
+	if sfx_volume_slider:
+		sfx_volume_slider.min_value = 0.0
+		sfx_volume_slider.max_value = 1.0
+		sfx_volume_slider.step = 0.05
+	
 	if mouse_sensitivity_slider:
 		mouse_sensitivity_slider.min_value = 0.01
 		mouse_sensitivity_slider.max_value = 1.0

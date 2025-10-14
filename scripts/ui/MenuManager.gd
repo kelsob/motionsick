@@ -44,11 +44,19 @@ extends Control
 # Audio player for menu sounds
 var audio_player: AudioStreamPlayer = null
 
+# Track if ambience has been played this session (static persists across scene loads)
+static var ambience_played: bool = false
+
 # === SIGNALS ===
 signal menu_transition_started(target_scene: String)
 signal menu_transition_completed()
 
 func _ready():
+	# Play ambience oneshot ONLY on first main menu load
+	if AudioManager and not ambience_played:
+		AudioManager.play_sfx("ambience_oneshot_1", 1.0)
+		ambience_played = true
+	
 	# Setup button connections
 	_setup_buttons()
 	

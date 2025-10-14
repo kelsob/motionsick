@@ -1,5 +1,11 @@
 extends Node
 
+# === DEBUG FLAGS (EASY TOGGLE) ===
+const DEBUG_DAMAGE_PREVENTION = false  # Damage prevention logs
+const DEBUG_PLAYER_CONNECTION = false  # Player connection logs
+const DEBUG_GAMEMANAGER_CONNECTION = false  # GameManager connection logs
+const DEBUG_TIME_UPDATES = false  # Time scale update logs
+
 # === TIME SCALING SYSTEM ===
 # Controls global time dilation without affecting Engine.time_scale
 # Allows asymmetric time where player is unaffected but world slows/freezes
@@ -23,13 +29,6 @@ extends Node
 ## How often to retry finding the player (in frames) when player reference is lost
 @export var player_search_retry_interval: int = 30
 
-@export_group("Debug Settings")
-## Enable debug print statements for damage prevention
-@export var debug_damage_prevention: bool = true
-## Enable debug print statements for player connection
-@export var debug_player_connection: bool = true
-## Enable debug print statements for GameManager connection
-@export var debug_gamemanager_connection: bool = true
 
 ## === RUNTIME STATE ===
 # Current time scale (0.0 = frozen, 1.0 = normal speed)
@@ -53,10 +52,10 @@ func _ready():
 	var game_manager = get_node_or_null("/root/GameManager")
 	if game_manager:
 		game_manager.game_restart_requested.connect(_on_game_restart_requested)
-		if debug_gamemanager_connection:
+		if DEBUG_GAMEMANAGER_CONNECTION:
 			print("TimeManager connected to GameManager")
 	else:
-		if debug_gamemanager_connection:
+		if DEBUG_GAMEMANAGER_CONNECTION:
 			print("WARNING: TimeManager can't find GameManager")
 	
 	# Don't find player immediately - wait for level to load
@@ -64,14 +63,18 @@ func _ready():
 func _find_player():
 	player = get_tree().get_first_node_in_group("player")
 	if player and is_instance_valid(player):
-		if debug_player_connection:
+		if DEBUG_PLAYER_CONNECTION:
 			print("TimeManager connected to player")
 	else:
-		if debug_player_connection:
+		if DEBUG_PLAYER_CONNECTION:
 			print("TimeManager: Player not found!")
 		player = null
 
 func _process(delta: float):
+	# Debug: Print every 60 frames to show we're processing
+	if DEBUG_TIME_UPDATES and Engine.get_process_frames() % 60 == 0:
+		print("TimeManager: _process called - is_active=", is_active, " is_paused=", is_paused)
+	
 	# Only process when active (during gameplay)
 	if not is_active:
 		return
@@ -83,24 +86,37 @@ func _process(delta: float):
 func _update_time_scale(delta):
 	# If paused, don't update time scale
 	if is_paused:
+		if DEBUG_TIME_UPDATES:
+			print("TimeManager: Update skipped - paused")
 		return
+	
+	if DEBUG_TIME_UPDATES and Engine.get_process_frames() % 60 == 0:
+		print("TimeManager: is_active=", is_active, " player_valid=", player != null and is_instance_valid(player))
 	
 	# Use movement intent instead of velocity percentage to avoid turning issues
 	var movement_intent = 0.0
 	if player and is_instance_valid(player):
 		movement_intent = player.get_movement_intent()
+		if DEBUG_TIME_UPDATES and Engine.get_process_frames() % 60 == 0:
+			print("TimeManager: Got movement_intent from player: ", movement_intent)
 	else:
 		# If player is null or invalid, try to find it again (but not every frame)
 		if not player and Engine.get_process_frames() % player_search_retry_interval == 0:
 			_find_player()
+			if DEBUG_TIME_UPDATES:
+				print("TimeManager: Player search attempt - found: ", player != null)
 		movement_intent = 0.0
 	
 	# Calculate time scale based on movement intent
 	# Interpolate from default_time_scale (at rest) to minimum_time_scale (at max movement)
+	var old_scale = custom_time_scale
 	custom_time_scale = lerp(default_time_scale, minimum_time_scale, movement_intent)
 	
 	# Ensure we never go below the minimum
 	custom_time_scale = max(minimum_time_scale, custom_time_scale)
+	
+	if DEBUG_TIME_UPDATES and abs(old_scale - custom_time_scale) > 0.01:
+		print("TimeManager: Time scale changed: ", old_scale, " -> ", custom_time_scale, " (intent: ", movement_intent, ")")
 	
 	time_scale_changed.emit(custom_time_scale)
 
@@ -127,7 +143,7 @@ func is_time_normal() -> bool:
 func is_damage_prevented() -> bool:
 	"""Check if damage should be prevented due to time dilation."""
 	var prevented = custom_time_scale < damage_prevention_threshold
-	if prevented and debug_damage_prevention:
+	if prevented and DEBUG_DAMAGE_PREVENTION:
 		print("TimeManager: Damage prevented - Time scale: ", "%.2f" % custom_time_scale, " < ", "%.2f" % damage_prevention_threshold)
 	return prevented
 
@@ -143,14 +159,27 @@ func set_damage_prevention_threshold(threshold: float):
 
 func activate_for_gameplay():
 	"""Activate TimeManager for gameplay - find player and start processing."""
-	if debug_gamemanager_connection:
+	if DEBUG_GAMEMANAGER_CONNECTION:
 		print("TimeManager: Activating for gameplay")
+	
+	# Reset pause state
+	is_paused = false
+	
+	# Activate processing
 	is_active = true
+	
+	if DEBUG_GAMEMANAGER_CONNECTION:
+		print("TimeManager: is_active set to: ", is_active, " is_paused set to: ", is_paused)
+	
+	# Find player
 	_find_player()
+	
+	if DEBUG_GAMEMANAGER_CONNECTION:
+		print("TimeManager: Activation complete - player found: ", player != null)
 
 func deactivate_for_menus():
 	"""Deactivate TimeManager when returning to menus."""
-	if debug_gamemanager_connection:
+	if DEBUG_GAMEMANAGER_CONNECTION:
 		print("TimeManager: Deactivating for menus")
 	is_active = false
 	player = null
@@ -159,7 +188,7 @@ func deactivate_for_menus():
 
 func _on_game_restart_requested():
 	"""Called when game is restarting - reset player reference."""
-	if debug_gamemanager_connection:
+	if DEBUG_GAMEMANAGER_CONNECTION:
 		print("TimeManager: Game restarting, resetting player reference")
 	player = null
 	# Reset time scale to default
@@ -179,16 +208,15 @@ func pause_time():
 	is_paused = true
 	custom_time_scale = 0.0
 	time_scale_changed.emit(custom_time_scale)
-	if debug_gamemanager_connection:
+	if DEBUG_GAMEMANAGER_CONNECTION:
 		print("TimeManager: Time paused")
 
 func resume_time():
 	"""Resume the time system."""
 	is_paused = false
-	custom_time_scale = default_time_scale
-	time_scale_changed.emit(custom_time_scale)
-	if debug_gamemanager_connection:
-		print("TimeManager: Time resumed")
+	# DON'T set custom_time_scale here - let _update_time_scale() handle it based on player movement
+	if DEBUG_GAMEMANAGER_CONNECTION:
+		print("TimeManager: Time resumed - will update based on player movement")
 
 func print_time_state():
 	"""Debug function to print current time state."""

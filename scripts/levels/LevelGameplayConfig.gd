@@ -66,6 +66,8 @@ class_name LevelGameplayConfig
 
 # === AUDIO/VISUAL EFFECTS ===
 @export_group("Audio Visual")
+## Music track to play for this level (empty = no music)
+@export var music_track_name: String = ""
 ## Master volume multiplier (1.0 = normal)
 @export var master_volume_multiplier: float = 1.0
 ## Music volume multiplier (1.0 = normal)

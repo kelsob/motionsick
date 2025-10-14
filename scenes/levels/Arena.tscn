@@ -1,7 +1,10 @@
-[gd_scene load_steps=20 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=26 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="Script" uid="uid://di6plg2y6ce4w" path="res://scripts/main/Main.gd" id="1_blune"]
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
+[ext_resource type="Script" uid="uid://b53vs2t4fgu5l" path="res://scripts/levels/LevelGameplayConfig.gd" id="5_dign7"]
+[ext_resource type="Script" uid="uid://dppl12qdryqst" path="res://scripts/levels/SpawnEventResource.gd" id="5_kiajw"]
+[ext_resource type="PackedScene" uid="uid://bhw1a4yn0lj1d" path="res://scenes/effects/GeometricHorror.tscn" id="7_rknk3"]
 [ext_resource type="PackedScene" uid="uid://spf1uba54en5" path="res://scenes/GunPickup.tscn" id="11_ouso4"]
 [ext_resource type="Script" uid="uid://xypdm50ppsha" path="res://scripts/levels/LevelSpawnConfig.gd" id="13_hfyti"]
 
@@ -83,6 +86,67 @@ clearcoat_enabled = true
 
 [sub_resource type="BoxMesh" id="BoxMesh_rknk3"]
 size = Vector3(0.5, 50, 0.1)
+
+[sub_resource type="Resource" id="Resource_rknk3"]
+script = ExtResource("5_kiajw")
+enemy_type = 0
+spawn_time = 0.0
+spawn_marker_index = 0
+telegraph_duration = -1.0
+health_multiplier = 1.0
+speed_multiplier = 1.0
+metadata/_custom_type_script = "uid://dppl12qdryqst"
+
+[sub_resource type="Resource" id="Resource_sqne7"]
+script = ExtResource("5_kiajw")
+enemy_type = 0
+spawn_time = 5.0
+spawn_marker_index = 1
+telegraph_duration = -1.0
+health_multiplier = 1.0
+speed_multiplier = 1.0
+metadata/_custom_type_script = "uid://dppl12qdryqst"
+
+[sub_resource type="Resource" id="Resource_kiajw"]
+script = ExtResource("5_dign7")
+starting_bullet_count = -1
+starting_gun_type = -1
+player_movement_speed_multiplier = 1.0
+player_jump_height_multiplier = 1.0
+player_time_energy_multiplier = 1.0
+player_time_energy_regen_multiplier = 1.0
+bullet_speed_multiplier = 1.0
+bullet_damage_multiplier = 1.0
+bullet_bounce_multiplier = 1.0
+bullet_lifetime_multiplier = 1.0
+bullet_gravity_multiplier = 1.0
+time_dilation_strength_multiplier = 1.0
+time_dilation_duration_multiplier = 1.0
+time_energy_cost_multiplier = 1.0
+enemy_health_multiplier = 1.0
+enemy_speed_multiplier = 1.0
+enemy_damage_multiplier = 1.0
+enemy_accuracy_multiplier = 1.0
+gravity_multiplier = 1.0
+air_resistance_multiplier = 1.0
+wind_force = Vector3(0, 0, 0)
+fog_density = 0.0
+music_track_name = "track_1"
+master_volume_multiplier = 1.0
+music_volume_multiplier = 1.0
+sfx_volume_multiplier = 1.0
+vfx_intensity_multiplier = 1.0
+infinite_ammo = false
+god_mode = false
+disable_time_dilation = false
+override_lighting = false
+required_score = -1
+time_limit = -1.0
+required_survival_time = -1.0
+max_deaths = -1
+debug_mode = false
+show_debug_overlay = false
+metadata/_custom_type_script = "uid://b53vs2t4fgu5l"
 
 [node name="Arena" type="Node3D"]
 script = ExtResource("1_blune")
@@ -239,19 +303,23 @@ surface_material_override/0 = SubResource("StandardMaterial3D_rknk3")
 
 [node name="LevelSpawnConfig" type="Node" parent="."]
 script = ExtResource("13_hfyti")
-enable_spawning = false
+spawn_events = Array[ExtResource("5_kiajw")]([SubResource("Resource_rknk3"), SubResource("Resource_sqne7")])
+gameplay_config = SubResource("Resource_kiajw")
 max_grunt_enemies = 1
 
 [node name="SpawnMarkers" type="Node3D" parent="LevelSpawnConfig"]
 
 [node name="SpawnPoint1" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 5)
 
 [node name="SpawnPoint2" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 5)
 
 [node name="SpawnPoint3" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -5)
 
 [node name="SpawnPoint4" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -5)
+
+[node name="GeometricHorror" parent="." instance=ExtResource("7_rknk3")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.24862, -5.43111)

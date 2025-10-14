@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://ioso3gx35o0m"]
+[gd_scene load_steps=3 format=3 uid="uid://ioso3gx35o0m"]
 
 [ext_resource type="Script" uid="uid://1toaw10fotc1" path="res://scripts/ui/OptionsManager.gd" id="1_jivf8"]
+[ext_resource type="PackedScene" uid="uid://dgdivt86emuj0" path="res://scenes/UI/CustomButton.tscn" id="2_knvhu"]
 
 [node name="OptionsMenu" type="Control"]
 layout_mode = 3
@@ -62,6 +63,9 @@ layout_mode = 2
 [node name="MouseSensitivitySlider" type="HSlider" parent="OptionsContainer/SettingsContainer/ControlsSection"]
 layout_mode = 2
 
-[node name="BackButton" type="Button" parent="OptionsContainer"]
+[node name="BackButton" parent="OptionsContainer" instance=ExtResource("2_knvhu")]
 layout_mode = 2
 text = "back"
+button_text = "back"
+
+[node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]

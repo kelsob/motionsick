@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://bocrtujbrxx4h"]
+[gd_scene load_steps=3 format=3 uid="uid://bocrtujbrxx4h"]
 
 [ext_resource type="Script" uid="uid://cwvb1rmrjgwuw" path="res://scripts/ui/DeathScreen.gd" id="1_wpgvk"]
+[ext_resource type="PackedScene" uid="uid://dgdivt86emuj0" path="res://scenes/UI/CustomButton.tscn" id="2_fiwl2"]
 
 [node name="DeathScreen" type="Control"]
 layout_mode = 3
@@ -34,35 +35,35 @@ offset_bottom = 31.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="DeathText" type="Label" parent="VBoxContainer"]
+[node name="DeathLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "dead."
 horizontal_alignment = 1
 
-[node name="HighScoreText" type="Label" parent="VBoxContainer"]
+[node name="HighScoreLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Best: 0"
 horizontal_alignment = 1
 
-[node name="ScoreText" type="Label" parent="VBoxContainer"]
+[node name="ScoreLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Score: 0"
 horizontal_alignment = 1
 
-[node name="RestartButton" type="Button" parent="VBoxContainer"]
+[node name="RestartButton" parent="VBoxContainer" instance=ExtResource("2_fiwl2")]
 layout_mode = 2
-size_flags_horizontal = 4
 text = "rewind"
+button_text = "rewind"
 
-[node name="StatsButton" type="Button" parent="VBoxContainer"]
+[node name="StatsButton" parent="VBoxContainer" instance=ExtResource("2_fiwl2")]
 layout_mode = 2
-size_flags_horizontal = 4
 text = "stats"
+button_text = "stats"
 
-[node name="MainMenuButton" type="Button" parent="VBoxContainer"]
+[node name="MainMenuButton" parent="VBoxContainer" instance=ExtResource("2_fiwl2")]
 layout_mode = 2
-size_flags_horizontal = 4
 text = "main"
+button_text = "main"

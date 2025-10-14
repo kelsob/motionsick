@@ -4,8 +4,7 @@
 
 [sub_resource type="BoxMesh" id="BoxMesh_6y48w"]
 
-[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_25g5n"]
-data = PackedVector3Array(-0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5)
+[sub_resource type="SphereShape3D" id="SphereShape3D_cdc4j"]
 
 [node name="GunPickup" type="Area3D" groups=["gun_pickups"]]
 script = ExtResource("1_cdc4j")
@@ -15,4 +14,4 @@ mesh = SubResource("BoxMesh_6y48w")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)
-shape = SubResource("ConcavePolygonShape3D_25g5n")
+shape = SubResource("SphereShape3D_cdc4j")

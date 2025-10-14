@@ -8,8 +8,17 @@ class_name RealTimerLabel
 var elapsed_real_time: float = 0.0
 
 func _ready():
+	# Connect to GameManager for restart events
+	var game_manager = get_node_or_null("/root/GameManager")
+	if game_manager:
+		game_manager.game_restart_requested.connect(_on_game_restart)
+	
 	# Initialize display
 	text = "00:00"
+
+func _on_game_restart():
+	"""Reset timer when game restarts."""
+	reset_timer()
 
 func _process(delta: float):
 	# Update elapsed time using pure delta (ignores time scale)

@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://8v50i02qhiof"]
+[gd_scene load_steps=3 format=3 uid="uid://8v50i02qhiof"]
 
 [ext_resource type="Script" uid="uid://v0ed2j27l0hq" path="res://scripts/ui/LevelSelectionManager.gd" id="1_jtsmr"]
+[ext_resource type="PackedScene" uid="uid://dgdivt86emuj0" path="res://scenes/UI/CustomButton.tscn" id="2_6agxe"]
 
 [node name="LevelSelection" type="Control"]
 layout_mode = 3
@@ -43,8 +44,9 @@ horizontal_alignment = 1
 layout_mode = 2
 columns = 5
 
-[node name="BackButton" type="Button" parent="VBoxContainer"]
+[node name="BackButton" parent="VBoxContainer" instance=ExtResource("2_6agxe")]
 layout_mode = 2
 text = "back"
+button_text = "back"
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]

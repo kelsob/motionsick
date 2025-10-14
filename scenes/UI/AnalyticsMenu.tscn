@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://b81ilk35xg4td"]
+[gd_scene load_steps=3 format=3 uid="uid://b81ilk35xg4td"]
 
 [ext_resource type="Script" uid="uid://d1k16qg72cmfi" path="res://scripts/ui/AnalyticsMenu.gd" id="1_0efb5"]
+[ext_resource type="PackedScene" uid="uid://dgdivt86emuj0" path="res://scenes/UI/CustomButton.tscn" id="2_2v5d5"]
 
 [node name="AnalyticsMenu" type="Control"]
 layout_mode = 3
@@ -215,10 +216,12 @@ text = "Stationary Time"
 layout_mode = 2
 size_flags_horizontal = 4
 
-[node name="BackButton" type="Button" parent="VBoxContainer/FooterContainer"]
+[node name="BackButton" parent="VBoxContainer/FooterContainer" instance=ExtResource("2_2v5d5")]
 layout_mode = 2
-text = "back"
+text = "Button"
+button_text = "back"
 
-[node name="ClearDataButton" type="Button" parent="VBoxContainer/FooterContainer"]
+[node name="ClearDataButton" parent="VBoxContainer/FooterContainer" instance=ExtResource("2_2v5d5")]
 layout_mode = 2
-text = "clear"
+text = "Button"
+button_text = "clear"

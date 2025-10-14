@@ -354,6 +354,16 @@ func _apply_environmental_config():
 
 func _apply_audiovisual_config():
 	"""Apply audio and visual configuration."""
+	# Music track for this level
+	if gameplay_config.music_track_name != "":
+		if AudioManager:
+			AudioManager.play_music(gameplay_config.music_track_name)
+			if debug_spawn_config:
+				print("LevelSpawnConfig: Started music track: ", gameplay_config.music_track_name)
+		else:
+			if debug_spawn_config:
+				print("LevelSpawnConfig: AudioManager not found, cannot play music")
+	
 	# Audio configuration
 	if gameplay_config.master_volume_multiplier != 1.0:
 		var master_bus = AudioServer.get_bus_index("Master")

@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://blu3n01wkgsbv"]
+[gd_scene load_steps=10 format=3 uid="uid://blu3n01wkgsbv"]
 
 [ext_resource type="Script" uid="uid://d05li7nwcpurf" path="res://scripts/ui/UI.gd" id="1_i67xx"]
 [ext_resource type="Script" uid="uid://dji1serdkdkhk" path="res://scripts/ui/Crosshair.gd" id="2_aglok"]
@@ -8,8 +8,10 @@
 [ext_resource type="Script" uid="uid://bk2eq3xdvj8rm" path="res://scripts/ui/EnergyBar.gd" id="6_chitb"]
 [ext_resource type="Script" uid="uid://bqm8n2x7vwh3g" path="res://scripts/ui/TimerLabel.gd" id="7_gpcf8"]
 [ext_resource type="Script" uid="uid://c5riax4mp6ov2" path="res://scripts/ui/RealTimerLabel.gd" id="8_4mhe6"]
+[ext_resource type="Script" uid="uid://mvgj1qwah8cb" path="res://scripts/ui/TimeScaleIndicator.gd" id="9_aglok"]
 
 [node name="UI" type="CanvasLayer"]
+layer = 128
 script = ExtResource("1_i67xx")
 
 [node name="Control" type="Control" parent="."]
@@ -196,3 +198,8 @@ layout_mode = 2
 size_flags_horizontal = 6
 text = "0"
 script = ExtResource("8_4mhe6")
+
+[node name="TimeScaleDebugLabel" type="Label" parent="Control/VBoxContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+script = ExtResource("9_aglok")

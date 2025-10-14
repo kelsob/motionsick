@@ -146,6 +146,10 @@ func try_pickup(player: Node3D) -> bool:
 	if not is_available:
 		return false
 	
+	# Only allow pickup if player is in range (overlapping with Area3D)
+	if not player_in_range:
+		return false
+	
 	# Check if player already has a gun
 	var gun = player.get_node_or_null("Camera3D/Gun")
 	if gun and gun.has_method("is_equipped") and gun.is_equipped():

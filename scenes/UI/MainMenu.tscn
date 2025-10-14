@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://c8qvsjar3vte4"]
+[gd_scene load_steps=3 format=3 uid="uid://c8qvsjar3vte4"]
 
 [ext_resource type="Script" uid="uid://d8xfvx2yhusc" path="res://scripts/ui/MenuManager.gd" id="1_11hie"]
+[ext_resource type="PackedScene" uid="uid://dgdivt86emuj0" path="res://scenes/UI/CustomButton.tscn" id="2_58fj5"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -42,21 +43,25 @@ horizontal_alignment = 1
 [node name="ButtonContainer" type="VBoxContainer" parent="MenuContainer"]
 layout_mode = 2
 
-[node name="NewGameButton" type="Button" parent="MenuContainer/ButtonContainer"]
+[node name="NewGameButton" parent="MenuContainer/ButtonContainer" instance=ExtResource("2_58fj5")]
 layout_mode = 2
 text = "new game"
+button_text = "new game"
 
-[node name="OptionsButton" type="Button" parent="MenuContainer/ButtonContainer"]
+[node name="OptionsButton" parent="MenuContainer/ButtonContainer" instance=ExtResource("2_58fj5")]
 layout_mode = 2
 text = "options"
+button_text = "options"
 
-[node name="StatsButton" type="Button" parent="MenuContainer/ButtonContainer"]
+[node name="StatsButton" parent="MenuContainer/ButtonContainer" instance=ExtResource("2_58fj5")]
 layout_mode = 2
 text = "stats"
+button_text = "stats"
 
-[node name="ExitButton" type="Button" parent="MenuContainer/ButtonContainer"]
+[node name="ExitButton" parent="MenuContainer/ButtonContainer" instance=ExtResource("2_58fj5")]
 layout_mode = 2
 text = "quit"
+button_text = "quit"
 
 [node name="VersionLabel" type="Label" parent="MenuContainer"]
 layout_mode = 2

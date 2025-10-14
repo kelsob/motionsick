@@ -1,5 +1,12 @@
 extends Node
 
+# === DEBUG FLAGS (EASY TOGGLE) ===
+const DEBUG_SPAWNING = false  # General spawn events
+const DEBUG_DEATH_TRACKING = false  # Enemy death tracking
+const DEBUG_TELEGRAPH = false  # Telegraph system
+const DEBUG_TIME_SYSTEM = false  # Time system integration
+const DEBUG_DIFFICULTY = false  # Difficulty scaling
+
 # === CONTINUOUS SPAWNING SYSTEM ===
 # Spawns enemies persistently to maintain maximum counts per type
 # Difficulty increases over time with more enemies and new types
@@ -49,16 +56,6 @@ enum EnemyType {
 @export_group("Debug Settings")
 ## Turn off all enemy spawning for testing
 @export var disable_spawning: bool = false
-## Enable debug output for spawning events
-@export var debug_spawning: bool = true
-## Enable debug output for difficulty scaling
-@export var debug_difficulty: bool = false
-## Enable debug output for telegraph system
-@export var debug_telegraph: bool = false
-## Enable debug output for enemy death tracking
-@export var debug_death_tracking: bool = true
-## Enable debug output for time system integration
-@export var debug_time_system: bool = false
 
 # === ENEMY TYPE CONFIGURATION ===
 # Each enemy type has its own maximum count that increases over time
@@ -165,7 +162,7 @@ func _setup_spawn_markers():
 	"""Find spawn markers from the SpawnMarkers node."""
 	# DISABLED: LevelSpawnConfig now handles spawn marker setup
 	# This method was conflicting with the level-based marker configuration
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: _setup_spawn_markers called but disabled - LevelSpawnConfig handles this now")
 	return
 	
@@ -201,7 +198,7 @@ func _process_scheduled_spawns():
 
 func _execute_scheduled_spawn(spawn_event, spawn_index: int):
 	"""Execute a scheduled spawn event."""
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Executing scheduled spawn - Type: ", EnemyType.keys()[spawn_event.enemy_type], " at time: ", "%.1f" % game_time)
 	
 	# Mark as completed first to prevent double-spawning
@@ -220,7 +217,7 @@ func _execute_scheduled_spawn(spawn_event, spawn_index: int):
 
 func _get_spawn_position_from_marker(marker_index: int) -> Vector3:
 	"""Get spawn position from a specific marker index."""
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: _get_spawn_position_from_marker called with index: ", marker_index)
 		print("ArenaSpawnManager: Available spawn markers: ", spawn_markers.size())
 		for i in range(spawn_markers.size()):
@@ -230,23 +227,28 @@ func _get_spawn_position_from_marker(marker_index: int) -> Vector3:
 				print("ArenaSpawnManager: Marker ", i, " is null!")
 	
 	if spawn_markers.size() == 0:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: WARNING - No spawn markers available!")
 		return Vector3.ZERO
 	
 	# Clamp marker index to available markers
 	var safe_index = clamp(marker_index, 0, spawn_markers.size() - 1)
-	if safe_index != marker_index and debug_spawning:
+	if safe_index != marker_index and DEBUG_SPAWNING:
 		print("ArenaSpawnManager: WARNING - Marker index ", marker_index, " out of range, using ", safe_index)
 	
 	var marker_pos = spawn_markers[safe_index].global_position
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Using marker ", safe_index, " at position: ", marker_pos)
 	
 	return marker_pos
 
 func _start_scheduled_spawn_telegraph(spawn_event, spawn_pos: Vector3, telegraph_duration: float):
 	"""Start a telegraph for a scheduled spawn with custom parameters."""
+	# TRACK PENDING SPAWN for scheduled spawns too
+	pending_spawns_by_type[spawn_event.enemy_type] += 1
+	if DEBUG_TELEGRAPH:
+		print("ArenaSpawnManager: Started scheduled telegraph for ", EnemyType.keys()[spawn_event.enemy_type], " - pending count now: ", pending_spawns_by_type[spawn_event.enemy_type])
+	
 	# Create telegraph effect
 	var telegraph = telegraph_scene.instantiate()
 	get_tree().current_scene.add_child(telegraph)
@@ -275,20 +277,22 @@ func _start_scheduled_spawn_telegraph(spawn_event, spawn_pos: Vector3, telegraph
 	# Start the effect
 	telegraph.start_telegraph()
 	
-	if debug_telegraph:
+	if DEBUG_TELEGRAPH:
 		print("ArenaSpawnManager: Started scheduled telegraph for ", EnemyType.keys()[spawn_event.enemy_type], " at marker ", spawn_event.spawn_marker_index)
 
 func _on_scheduled_telegraph_completed(spawn_event, spawn_pos: Vector3):
 	"""Called when a scheduled spawn telegraph finishes."""
-	if debug_telegraph:
-		print("ArenaSpawnManager: Scheduled telegraph completed for ", EnemyType.keys()[spawn_event.enemy_type])
+	# REMOVE FROM PENDING SPAWNS for scheduled spawns too
+	pending_spawns_by_type[spawn_event.enemy_type] -= 1
+	if DEBUG_TELEGRAPH:
+		print("ArenaSpawnManager: Scheduled telegraph completed for ", EnemyType.keys()[spawn_event.enemy_type], " - pending count now: ", pending_spawns_by_type[spawn_event.enemy_type])
 	
 	var enemy = _spawn_enemy_at_position_with_modifiers(spawn_event.enemy_type, spawn_pos, spawn_event.health_multiplier, spawn_event.speed_multiplier)
 	if enemy:
 		enemies_alive += 1
 		enemies_by_type[spawn_event.enemy_type] += 1
 		
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: === SCHEDULED ENEMY SPAWNED ===")
 			print("ArenaSpawnManager: Type: ", EnemyType.keys()[spawn_event.enemy_type])
 			print("ArenaSpawnManager: Health mult: x", spawn_event.health_multiplier, " Speed mult: x", spawn_event.speed_multiplier)
@@ -301,30 +305,30 @@ func _on_scheduled_telegraph_completed(spawn_event, spawn_pos: Vector3):
 
 func _on_spawn_timer_timeout():
 	"""Called when it's time to attempt spawning."""
-	if debug_time_system:
+	if DEBUG_TIME_SYSTEM:
 		print("ArenaSpawnManager: Spawn timer timeout triggered")
 	
 	if not is_spawning:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Not spawning, ignoring timer")
 		return
 	
 	# Skip timer-based spawning if we're using scheduled spawning mode
 	if use_scheduled_spawning:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Using scheduled spawning, ignoring timer")
 		spawn_timer.start()  # Keep timer running but don't spawn
 		return
 	
 	# Only spawn if time isn't heavily slowed/frozen
 	if time_manager and time_manager.get_time_scale() < minimum_spawn_time_scale:
-		if debug_time_system:
+		if DEBUG_TIME_SYSTEM:
 			print("ArenaSpawnManager: Time scale too low (", time_manager.get_time_scale(), "), skipping spawn")
 		# Skip spawning during heavy time dilation
 		spawn_timer.start()
 		return
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Attempting to spawn enemy")
 	# Try to spawn an enemy
 	_attempt_spawn()
@@ -334,7 +338,7 @@ func _on_spawn_timer_timeout():
 
 func _attempt_spawn():
 	"""Attempt to spawn an enemy if we're under the maximum."""
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: === SPAWN ATTEMPT DEBUG ===")
 		print("ArenaSpawnManager: Current enemy counts: ", enemies_by_type)
 		print("ArenaSpawnManager: Pending spawns: ", pending_spawns_by_type)
@@ -343,34 +347,34 @@ func _attempt_spawn():
 	
 	# Check debug toggle first
 	if disable_spawning:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: DEBUG: Spawning disabled")
 		return
 	
 	# Don't spawn if we're at the absolute maximum
 	if enemies_alive >= max_total_enemies:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: DEBUG: At total enemy maximum")
 		return
 	
 	# Find which enemy type to spawn
 	var spawn_type = _select_spawn_type()
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Selected spawn type: ", spawn_type, " (", EnemyType.keys()[spawn_type] if spawn_type >= 0 else "NONE", ")")
 	
 	if spawn_type == -1:  # Use -1 instead of null for no valid type
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: DEBUG: No valid spawn type")
 		return  # No valid spawn type
 	
 	# Check if we're under the maximum for this type (including pending spawns)
 	var total_count = enemies_by_type[spawn_type] + pending_spawns_by_type[spawn_type]
 	if total_count >= enemy_max_counts[spawn_type]:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: DEBUG: At maximum for type ", EnemyType.keys()[spawn_type], " (spawned: ", enemies_by_type[spawn_type], " + pending: ", pending_spawns_by_type[spawn_type], " = ", total_count, "/", enemy_max_counts[spawn_type], ")")
 		return  # At maximum for this type
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: DEBUG: SPAWNING ", EnemyType.keys()[spawn_type])
 	# Start spawn telegraph instead of immediate spawn
 	_start_spawn_telegraph(spawn_type)
@@ -419,7 +423,7 @@ func _spawn_enemy(type: int) -> BaseEnemy:
 	
 	var enemy = enemy_scene.instantiate() as BaseEnemy
 	if not enemy:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: ERROR: Failed to instantiate enemy of type: ", EnemyType.keys()[type])
 		return null
 	
@@ -429,7 +433,7 @@ func _spawn_enemy(type: int) -> BaseEnemy:
 		var health_mult = base_health_multiplier + (minutes_elapsed * health_scaling_per_minute)
 		var speed_mult = base_speed_multiplier + (minutes_elapsed * speed_scaling_per_minute)
 		
-		if debug_difficulty:
+		if DEBUG_DIFFICULTY:
 			print("ArenaSpawnManager: Difficulty scaling - Minutes: ", "%.1f" % minutes_elapsed, " Health: x", "%.2f" % health_mult, " Speed: x", "%.2f" % speed_mult)
 		
 		enemy.max_health = int(enemy.max_health * health_mult)
@@ -477,7 +481,7 @@ func _spawn_enemy_at_position_with_modifiers(type: int, spawn_pos: Vector3, heal
 		var difficulty_health_mult = base_health_multiplier + (minutes_elapsed * health_scaling_per_minute)
 		var difficulty_speed_mult = base_speed_multiplier + (minutes_elapsed * speed_scaling_per_minute)
 		
-		if debug_difficulty:
+		if DEBUG_DIFFICULTY:
 			print("ArenaSpawnManager: Difficulty scaling (positioned spawn) - Minutes: ", "%.1f" % minutes_elapsed, " Health: x", "%.2f" % difficulty_health_mult, " Speed: x", "%.2f" % difficulty_speed_mult)
 		
 		health_mult *= difficulty_health_mult
@@ -503,7 +507,7 @@ func _start_spawn_telegraph(enemy_type: int):
 	
 	# TRACK PENDING SPAWN
 	pending_spawns_by_type[enemy_type] += 1
-	if debug_telegraph:
+	if DEBUG_TELEGRAPH:
 		print("ArenaSpawnManager: Started telegraph for ", EnemyType.keys()[enemy_type], " - pending count now: ", pending_spawns_by_type[enemy_type])
 	
 	# Create telegraph effect from your scene
@@ -539,7 +543,7 @@ func _on_telegraph_completed(enemy_type: int, spawn_pos: Vector3):
 	"""Called when a telegraph finishes - actually spawn the enemy now."""
 	# REMOVE FROM PENDING SPAWNS
 	pending_spawns_by_type[enemy_type] -= 1
-	if debug_telegraph:
+	if DEBUG_TELEGRAPH:
 		print("ArenaSpawnManager: Telegraph completed for ", EnemyType.keys()[enemy_type], " - pending count now: ", pending_spawns_by_type[enemy_type])
 	
 	var enemy = _spawn_enemy_at_position(enemy_type, spawn_pos)
@@ -547,7 +551,7 @@ func _on_telegraph_completed(enemy_type: int, spawn_pos: Vector3):
 		enemies_alive += 1
 		enemies_by_type[enemy_type] += 1
 		
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: === ENEMY SPAWNED ===")
 			print("ArenaSpawnManager: Type: ", EnemyType.keys()[enemy_type])
 			print("ArenaSpawnManager: New counts - Total: ", enemies_alive, ", Type: ", enemies_by_type[enemy_type])
@@ -571,7 +575,7 @@ func _on_enemy_died(enemy: BaseEnemy):
 	"""Called when an enemy dies."""
 	enemies_alive -= 1
 	
-	if debug_death_tracking:
+	if DEBUG_DEATH_TRACKING:
 		print("ArenaSpawnManager: === ENEMY DIED ===")
 		print("ArenaSpawnManager: Enemy scene: ", enemy.scene_file_path.get_file().get_basename())
 	
@@ -579,15 +583,81 @@ func _on_enemy_died(enemy: BaseEnemy):
 	for enemy_type in EnemyType.values():
 		if enemy.scene_file_path.get_file().get_basename().to_upper() == EnemyType.keys()[enemy_type]:
 			enemies_by_type[enemy_type] -= 1
-			if debug_death_tracking:
+			if DEBUG_DEATH_TRACKING:
 				print("ArenaSpawnManager: Decremented ", EnemyType.keys()[enemy_type], " count to: ", enemies_by_type[enemy_type])
 				print("ArenaSpawnManager: Total enemies now: ", enemies_alive)
 			enemy_died.emit(enemy, enemy_type)
 			break
+	
+	# Check for level win condition
+	_check_level_win_condition()
+
+func _check_level_win_condition():
+	"""Check if level win condition is met (no enemies alive, no pending spawns, and no enemies left to spawn)."""
+	# Don't check win condition if spawning isn't active
+	if not is_spawning:
+		return
+	
+	# Check if there are any enemies still alive
+	if enemies_alive > 0:
+		if DEBUG_SPAWNING:
+			print("ArenaSpawnManager: Win check - still ", enemies_alive, " enemies alive")
+		return
+	
+	# Check if there are any enemies currently spawning (telegraphing)
+	var total_pending_spawns = 0
+	for enemy_type in EnemyType.values():
+		total_pending_spawns += pending_spawns_by_type[enemy_type]
+	
+	if total_pending_spawns > 0:
+		if DEBUG_SPAWNING:
+			print("ArenaSpawnManager: Win check - still ", total_pending_spawns, " enemies spawning (telegraphing)")
+		return
+	
+	# Check if there are any enemies left to spawn
+	var enemies_left_to_spawn = false
+	
+	if use_scheduled_spawning:
+		# Check scheduled spawn mode - are there any uncompleted spawns?
+		for i in range(completed_spawns.size()):
+			if not completed_spawns[i]:
+				enemies_left_to_spawn = true
+				break
+		
+		if DEBUG_SPAWNING:
+			var stats = get_scheduled_spawn_stats()
+			print("ArenaSpawnManager: Win check (scheduled mode) - Completed: ", stats.completed, "/", stats.total_scheduled)
+	else:
+		# Check continuous spawn mode - are we still able to spawn more enemies?
+		# In continuous mode, enemies can always spawn unless disabled
+		# So we only win if spawning is explicitly disabled (e.g., max counts all at 0)
+		var can_spawn_more = false
+		for enemy_type in EnemyType.values():
+			if enemy_max_counts[enemy_type] > 0:
+				can_spawn_more = true
+				break
+		
+		enemies_left_to_spawn = can_spawn_more
+		
+		if DEBUG_SPAWNING:
+			print("ArenaSpawnManager: Win check (continuous mode) - Can spawn more: ", can_spawn_more)
+	
+	# If no enemies alive, no pending spawns, and no enemies left to spawn, level is won!
+	if not enemies_left_to_spawn:
+		if DEBUG_SPAWNING:
+			print("ArenaSpawnManager: *** LEVEL WIN CONDITION MET ***")
+			print("ArenaSpawnManager: No enemies alive, no pending spawns, and no enemies left to spawn")
+		
+		# Trigger level win
+		var game_manager = get_node_or_null("/root/GameManager")
+		if game_manager and game_manager.has_method("trigger_level_won"):
+			game_manager.trigger_level_won()
+		else:
+			print("ArenaSpawnManager: WARNING - GameManager not found or doesn't have trigger_level_won method")
 
 func _on_game_restart_requested():
 	"""Called when game is restarting - reset spawning system."""
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Game restarting, resetting spawning system")
 	stop_spawning()
 	game_time = 0.0
@@ -603,16 +673,16 @@ func _on_game_restart_requested():
 	
 	# DON'T RESET ENEMY MAXIMUMS - RESPECT USER'S TOP-LEVEL CONFIGURATION
 	# The user controls spawning via the variables at the top of this file
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Keeping user-defined enemy max counts - Grunt max: ", enemy_max_counts[EnemyType.GRUNT])
 	
 	# IMPORTANT: Restart spawning after reset
 	if auto_start:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Restarting spawning after reset")
 		start_spawning()
 	else:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Auto-start disabled, not restarting spawning")
 	
 	# Wait for scene to reload, then restart spawning
@@ -624,7 +694,7 @@ func _on_game_restart_requested():
 	
 	# Restart spawning if auto-start is enabled
 	if auto_start:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Restarting spawning after game restart")
 		start_spawning()
 
@@ -633,7 +703,7 @@ func _reset_scheduled_spawns():
 	for i in range(completed_spawns.size()):
 		completed_spawns[i] = false
 	
-	if debug_spawning and use_scheduled_spawning:
+	if DEBUG_SPAWNING and use_scheduled_spawning:
 		print("ArenaSpawnManager: Reset ", completed_spawns.size(), " scheduled spawns")
 
 # === PUBLIC API ===
@@ -641,14 +711,14 @@ func _reset_scheduled_spawns():
 func start_spawning():
 	"""Start the continuous spawning system."""
 	if is_spawning:
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Already spawning, ignoring start request")
 		return
 	
 	is_spawning = true
 	game_time = 0.0
 	spawn_timer.start()
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Started continuous spawning - timer wait time: ", spawn_timer.wait_time)
 		print("ArenaSpawnManager: Spawn markers found: ", spawn_markers.size())
 
@@ -657,7 +727,7 @@ func stop_spawning():
 	is_spawning = false
 	if spawn_timer:
 		spawn_timer.stop()
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Stopped spawning")
 
 func get_current_stats() -> Dictionary:
@@ -693,14 +763,14 @@ func set_spawn_markers(markers: Array[Marker3D]):
 	"""Set spawn markers from level configuration."""
 	spawn_markers.clear()
 	spawn_markers = markers
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Configured with ", markers.size(), " spawn markers from level")
 
 func set_difficulty_scaling(health_per_minute: float, speed_per_minute: float):
 	"""Configure difficulty scaling rates."""
 	health_scaling_per_minute = health_per_minute
 	speed_scaling_per_minute = speed_per_minute
-	if debug_difficulty:
+	if DEBUG_DIFFICULTY:
 		print("ArenaSpawnManager: Difficulty scaling configured - Health: ", health_per_minute, "/min, Speed: ", speed_per_minute, "/min")
 
 func configure_for_level(config: Dictionary):
@@ -725,7 +795,7 @@ func configure_for_level(config: Dictionary):
 	if config.has("enemy_unlock_times"):
 		enemy_unlock_times = config.enemy_unlock_times
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Configured for level with settings: ", config.keys())
 
 func reset_for_level():
@@ -745,7 +815,7 @@ func reset_for_level():
 	# DON'T clear spawn markers - they will be set by LevelSpawnConfig
 	# spawn_markers.clear()  # REMOVED - this was causing the markers to be lost
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Reset for new level (keeping existing spawn markers: ", spawn_markers.size(), ")")
 
 func set_scheduled_spawns(spawn_events: Array, default_telegraph: float = 3.0):
@@ -759,7 +829,7 @@ func set_scheduled_spawns(spawn_events: Array, default_telegraph: float = 3.0):
 	for i in range(spawn_events.size()):
 		completed_spawns.append(false)
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Configured ", spawn_events.size(), " scheduled spawn events")
 		print("ArenaSpawnManager: Switched to scheduled spawning mode")
 
@@ -768,7 +838,7 @@ func add_scheduled_spawn(spawn_event):
 	scheduled_spawns.append(spawn_event)
 	completed_spawns.append(false)
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Added scheduled spawn event - Type: ", EnemyType.keys()[spawn_event.enemy_type], " Time: ", spawn_event.spawn_time)
 
 func clear_scheduled_spawns():
@@ -777,7 +847,7 @@ func clear_scheduled_spawns():
 	completed_spawns.clear()
 	use_scheduled_spawning = false
 	
-	if debug_spawning:
+	if DEBUG_SPAWNING:
 		print("ArenaSpawnManager: Cleared all scheduled spawns, switched to continuous mode")
 
 func get_scheduled_spawn_stats() -> Dictionary:
@@ -803,7 +873,7 @@ func force_spawn_enemy(enemy_type: int):
 		enemies_by_type[enemy_type] += 1
 		enemy.enemy_died.connect(_on_enemy_died)
 		enemy_spawned.emit(enemy, enemy_type)
-		if debug_spawning:
+		if DEBUG_SPAWNING:
 			print("ArenaSpawnManager: Force spawned ", EnemyType.keys()[enemy_type])
 
 # === DEBUG ===

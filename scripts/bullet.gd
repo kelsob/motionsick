@@ -30,6 +30,10 @@ enum TravelType {
 @export var tracer_color: Color = Color.YELLOW
 ## Spinning speed in degrees per second around z-axis
 @export var spin_speed: float = 720.0
+## Highlight color when bullet is interactable
+@export var highlight_color: Color = Color.CYAN
+## Highlight intensity (emission energy)
+@export var highlight_intensity: float = 3.0
 
 @export_group("Travel Behavior Settings")
 ## Maximum speed the bullet can reach
@@ -122,6 +126,8 @@ enum TravelType {
 @export var debug_exclusion: bool = true
 ## Enable debug output for audio hum system
 @export var debug_audio: bool = true
+## Enable debug output for bullet speed
+@export var debug_speed: bool = false
 
 ## === RUNTIME STATE ===
 # Timing and lifecycle
@@ -187,6 +193,11 @@ var hitscan_timer: float = 0.0
 # === TRAVEL HUM AUDIO SYSTEM ===
 var hum_player: AudioStreamPlayer3D = null  # Reference to current hum sound
 
+# === HIGHLIGHT SYSTEM ===
+var bullet_mesh: MeshInstance3D = null
+var original_material: Material = null
+var is_highlighted: bool = false
+
 # === SELF-ANIMATING EFFECTS SYSTEM ===
 # Effects now animate themselves using timers instead of relying on bullet's _process
 
@@ -206,6 +217,9 @@ func _ready():
 	# Register with tracer system
 	if TracerManager:
 		tracer_id = TracerManager.register_bullet(self)
+	
+	# Find bullet mesh for highlighting
+	_setup_highlight_system()
 	
 	# DON'T connect collision signal yet - wait until bullet is fired
 	# This prevents prepared bullets from being destroyed by spawning enemies
@@ -290,6 +304,10 @@ func _physics_process(delta):
 		var current_distance = global_position.distance_to(last_position)
 		distance_traveled += current_distance
 		last_position = global_position
+	
+	# Debug speed output
+	if debug_speed and has_been_fired:
+		print("bullet speed = ", current_speed, " units/s [", name, "]")
 	
 	# Only count lifetime after being fired
 	if has_been_fired:
@@ -912,12 +930,16 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 	var dir = travel_direction.normalized()
 	var speed = current_speed
 	
+	var bullet_id = "[" + name + "]"
+	
 	while iteration < max_iterations:
 		iteration += 1
 		
 		shapecast.force_shapecast_update()
 		collision_count = shapecast.get_collision_count()
-		print("collision count 4:", collision_count)
+		
+		if debug_bouncing:
+			print("BOUNCE ", bullet_id, ": Iteration ", iteration, " - collision count: ", collision_count)
 		
 		collisions = []
 		for i in range(collision_count):
@@ -934,6 +956,8 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 			collisions.append({"normal": col_normal, "point": col_point, "object": col_obj})
 
 		if collisions.size() == 0:
+			if debug_bouncing:
+				print("BOUNCE ", bullet_id, ": No more collisions, stopping iterations")
 			break
 		
 		collisions.sort_custom(func(a, b):
@@ -941,10 +965,20 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 		)
 		
 		var col = collisions[0]
+		var old_dir = dir
 		
 		var n = col.normal
-		dir = dir - 2 * dir.dot(n) * n
+		var incident = dir
+		var dot = incident.dot(n)
+		dir = dir - 2 * dot * n
 		dir = dir.normalized()
+		
+		if debug_bouncing:
+			print("BOUNCE ", bullet_id, ": --- Surface ", iteration, " (", col.object.name, ") ---")
+			print("BOUNCE ", bullet_id, ":   A) Incident vector:    ", incident)
+			print("BOUNCE ", bullet_id, ":   B) Collision normal:   ", n)
+			print("BOUNCE ", bullet_id, ":   C) Reflection vector:  ", dir)
+			print("BOUNCE ", bullet_id, ":   D) Final trajectory:   ", dir)
 		
 		if not col.object in bounce_exclusion_array:
 			bounce_exclusion_array.append(col.object)
@@ -973,21 +1007,25 @@ func _handle_vertex_bounce(impact_position: Vector3, surface_normal: Vector3, bo
 
 func _handle_single_surface_bounce(surface_normal: Vector3, bounced_from_body: Node3D):
 	"""Handle simple single-surface bounce."""
+	var bullet_id = "[" + name + "]"
+	
 	if debug_bouncing:
-		print("\n=== SINGLE BOUNCE START ===")
-		print("EXCLUSION ARRAY before bounce: ", _get_exclusion_array_names())
+		print("\nBOUNCE ", bullet_id, ": === SINGLE BOUNCE START ===")
+		print("BOUNCE ", bullet_id, ": Exclusion array: ", _get_exclusion_array_names())
 	
 	var original_direction = travel_direction.normalized()
-	
-	if debug_bouncing:
-		print("SINGLE BOUNCE: Starting bounce calculation")
-		print("SINGLE BOUNCE: Original trajectory: ", original_direction)
-		print("SINGLE BOUNCE: Surface normal: ", surface_normal)
 	
 	# Calculate reflection
 	var incident_direction = travel_direction.normalized()
 	var dot_product = incident_direction.dot(surface_normal)
 	var reflected_direction = incident_direction - 2.0 * dot_product * surface_normal
+	
+	if debug_bouncing:
+		print("BOUNCE ", bullet_id, ": === BOUNCE VECTORS ===")
+		print("BOUNCE ", bullet_id, ":   A) Incident vector:    ", incident_direction)
+		print("BOUNCE ", bullet_id, ":   B) Collision normal:   ", surface_normal)
+		print("BOUNCE ", bullet_id, ":   C) Reflection vector:  ", reflected_direction)
+		print("BOUNCE ", bullet_id, ":   D) Dot product:        ", dot_product)
 	
 	# Update bullet properties
 	var old_position = global_position
@@ -1008,9 +1046,11 @@ func _handle_single_surface_bounce(surface_normal: Vector3, bounced_from_body: N
 		look_at(global_position + travel_direction, up_vector)
 	
 	if debug_bouncing:
-		print("SINGLE BOUNCE: Direction change: ", original_direction, " -> ", travel_direction)
-		print("SINGLE BOUNCE: Speed change: ", old_speed, " -> ", current_speed)
-		print("SINGLE BOUNCE: Bounce count: ", current_bounces, "/", max_bounces)
+		print("BOUNCE ", bullet_id, ": === BOUNCE RESULT ===")
+		print("BOUNCE ", bullet_id, ":   Final trajectory:     ", travel_direction)
+		print("BOUNCE ", bullet_id, ":   Speed change:         ", old_speed, " -> ", current_speed)
+		print("BOUNCE ", bullet_id, ":   Bounce count:         ", current_bounces, "/", max_bounces)
+		print("BOUNCE ", bullet_id, ": === SINGLE BOUNCE END ===")
 	
 	# Play bounce SFX at the bounce location
 	AudioManager.play_bullet_bounce(global_position)
@@ -1375,3 +1415,49 @@ func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 	
 	if debug_collisions:
 		print("Wall ripple created at: ", impact_position, " with normal: ", surface_normal)
+
+# === HIGHLIGHT SYSTEM ===
+
+func _setup_highlight_system():
+	"""Find the bullet mesh and store original material for highlighting."""
+	# Look for MeshInstance3D child
+	for child in get_children():
+		if child is MeshInstance3D:
+			bullet_mesh = child
+			break
+	
+	if bullet_mesh and bullet_mesh.get_surface_override_material_count() > 0:
+		original_material = bullet_mesh.get_surface_override_material(0)
+
+func set_highlight(enabled: bool):
+	"""Enable or disable highlight effect on this bullet."""
+	if not bullet_mesh:
+		return
+	
+	if enabled and not is_highlighted:
+		# Enable highlight
+		is_highlighted = true
+		
+		# Create highlight material if needed
+		var highlight_mat = StandardMaterial3D.new()
+		
+		# Copy original material properties if available
+		if original_material and original_material is StandardMaterial3D:
+			var orig_mat = original_material as StandardMaterial3D
+			highlight_mat.albedo_color = orig_mat.albedo_color
+			highlight_mat.metallic = orig_mat.metallic
+			highlight_mat.roughness = orig_mat.roughness
+		else:
+			highlight_mat.albedo_color = Color.WHITE
+		
+		# Add emission for highlight
+		highlight_mat.emission_enabled = true
+		highlight_mat.emission = highlight_color
+		highlight_mat.emission_energy = highlight_intensity
+		
+		bullet_mesh.set_surface_override_material(0, highlight_mat)
+		
+	elif not enabled and is_highlighted:
+		# Disable highlight
+		is_highlighted = false
+		bullet_mesh.set_surface_override_material(0, original_material)

@@ -1,5 +1,13 @@
 extends Node
 
+# === DEBUG FLAGS (EASY TOGGLE) ===
+const DEBUG_REGISTRATION = false  # Tracer registration and management
+const DEBUG_RECALL = false  # Bullet recall system
+const DEBUG_CONTAINER = false  # Tracer container setup
+const DEBUG_RESET = false  # System reset events
+const DEBUG_TIME_SCALING = false  # Time scaling and segment fadeout
+const DEBUG_SEGMENT_CREATION = false  # Segment creation and positioning
+
 # === BULLET TRACER MANAGER ===
 # Autoload singleton that manages visual tracers for bullets
 # Automatically creates tracer container and handles all tracer logic
@@ -43,27 +51,11 @@ extends Node
 ## Minimum scale factor during fadeout
 @export var min_fadeout_scale: float = 0.0
 
-@export_group("Time Conversion")
-## Milliseconds to seconds conversion factor
-@export var time_conversion_factor: float = 1000.0
-
 @export_group("Explosion and Impact Effects")
 ## Enable/disable explosion effects
 @export var explosion_enabled: bool = true
 ## Enable/disable impact effects
 @export var impact_enabled: bool = true
-
-@export_group("Debug Settings")
-## Enable debug output for tracer registration and management
-@export var debug_registration: bool = false
-## Enable debug output for bullet recall system
-@export var debug_recall: bool = false
-## Enable debug output for tracer container setup
-@export var debug_container: bool = false
-## Enable debug output for system reset events
-@export var debug_reset: bool = false
-## Enable debug output for time scaling and segment fadeout
-@export var debug_time_scaling: bool = true
 
 # === STATE ===
 var tracer_container: Node3D = null
@@ -87,6 +79,7 @@ class TracerData:
 	var segment_positions: Array = []
 	var is_active: bool = true
 	var bullet_destroyed: bool = false  # Track if bullet is gone but tracers should persist
+	var last_bullet_distance: float = 0.0  # Frozen distance when bullet dies for fadeout continuation
 	var tracer_color: Color = Color.YELLOW  # Per-bullet tracer color
 	var last_known_bounces: int = 0  # Track bounces to detect when bullet bounces
 	
@@ -125,11 +118,11 @@ func _setup_tracer_container():
 		tracer_container = Node3D.new()
 		tracer_container.name = "TracerContainer"
 		main_scene.add_child(tracer_container)
-		if debug_container:
+		if DEBUG_CONTAINER:
 			print("TracerManager: TracerContainer created in main scene")
 			print("TracerManager: TracerContainer path: ", tracer_container.get_path())
 	else:
-		if debug_container:
+		if DEBUG_CONTAINER:
 			print("WARNING: Could not find main scene for TracerContainer!")
 
 func _process(delta: float):
@@ -141,26 +134,17 @@ func _process(delta: float):
 		_setup_tracer_container()
 		return
 	
-	# Use time-adjusted delta for EVERYTHING - tracers should fade slower in slow-mo
-	# to maintain the same visual length behind the slower-moving bullet
+	# Get time-adjusted delta for segment creation rate
 	var time_adjusted_delta = delta
-	var current_time_scale = 1.0
 	if time_manager:
 		time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0)
-		current_time_scale = time_manager.get_time_scale()
 	
-	if debug_time_scaling and Engine.get_frames_drawn() % 60 == 0:  # Print every 60 frames
-		print("TRACER DEBUG: delta=", delta, " time_adjusted_delta=", time_adjusted_delta, " time_scale=", current_time_scale, " ratio=", time_adjusted_delta / delta if delta > 0 else 0)
-	
-	var current_time = Time.get_ticks_msec() / time_conversion_factor
-	
-	# Update tracers
+	# Update tracers (distance-based fadeout)
 	if tracer_enabled:
-		# Both creation AND fadeout use time-adjusted delta
 		for bullet_id in active_tracers.keys():
 			var tracer_data = active_tracers[bullet_id]
-			_update_tracer(tracer_data, time_adjusted_delta, current_time)
-			_update_segment_fadeout(tracer_data, time_adjusted_delta)  # Time-adjusted fadeout!
+			_update_tracer(tracer_data, time_adjusted_delta)
+			_update_segment_fadeout(tracer_data, time_adjusted_delta)
 		
 		# Clean up invalid bullets
 		_cleanup_invalid_tracers()
@@ -237,7 +221,7 @@ func unregister_bullet(bullet_id: int):
 	
 	# Bullet tracer marked for natural fadeout
 
-func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float, current_time: float):
+func _update_tracer(tracer_data: TracerData, time_adjusted_delta: float):
 	"""Update a single bullet's tracer."""
 	# Check if bullet still exists
 	if not is_instance_valid(tracer_data.bullet):
@@ -407,9 +391,16 @@ func _update_segment_fadeout(tracer_data: TracerData, time_adjusted_delta: float
 	var bullet_distance = 0.0
 	if tracer_data.bullet and is_instance_valid(tracer_data.bullet):
 		bullet_distance = tracer_data.bullet.get("distance_traveled") if "distance_traveled" in tracer_data.bullet else 0.0
+		# Store last known distance for when bullet dies
+		tracer_data.last_bullet_distance = bullet_distance
+	else:
+		# Bullet is destroyed - simulate continued movement using time-adjusted delta
+		# Add distance equivalent to bullet moving at half speed (respects time dilation!)
+		tracer_data.last_bullet_distance += time_adjusted_delta * 12.5  # Half of normal 25 units/s
+		bullet_distance = tracer_data.last_bullet_distance
 	
 	# Debug output
-	if debug_time_scaling and tracer_data.trail_segments.size() > 0 and Engine.get_frames_drawn() % 120 == 0:
+	if DEBUG_TIME_SCALING and tracer_data.trail_segments.size() > 0 and Engine.get_frames_drawn() % 120 == 0:
 		var oldest_spawn_dist = tracer_data.segment_spawn_distances[0] if tracer_data.segment_spawn_distances.size() > 0 else 0.0
 		var newest_spawn_dist = tracer_data.segment_spawn_distances[tracer_data.segment_spawn_distances.size() - 1] if tracer_data.segment_spawn_distances.size() > 0 else 0.0
 		
@@ -713,7 +704,7 @@ func _on_game_restart_requested():
 
 func reset_tracer_system():
 	"""Reset the tracer system for a new game session"""
-	if debug_reset:
+	if DEBUG_RESET:
 		print("TracerManager: Resetting tracer system...")
 		print("TracerManager: Active tracers before reset: ", active_tracers.size())
 		print("TracerManager: Active explosions before reset: ", active_explosions.size())
@@ -726,7 +717,7 @@ func reset_tracer_system():
 	
 	# Clear all active tracers immediately
 	for bullet_id in active_tracers.keys():
-		if debug_reset:
+		if DEBUG_RESET:
 			print("TracerManager: Unregistering bullet ID: ", bullet_id)
 		var tracer_data = active_tracers[bullet_id]
 		# Force cleanup of all visual elements immediately
@@ -751,17 +742,17 @@ func reset_tracer_system():
 	
 	# Reset bullet ID counter
 	next_bullet_id = 0
-	if debug_reset:
+	if DEBUG_RESET:
 		print("TracerManager: Reset bullet ID counter to 0")
 	
 	# Clear tracer container
 	if tracer_container:
-		if debug_reset:
+		if DEBUG_RESET:
 			print("TracerManager: Destroying old tracer container")
 		tracer_container.queue_free()
 		tracer_container = null
 	else:
-		if debug_reset:
+		if DEBUG_RESET:
 			print("TracerManager: No tracer container to destroy")
 	
 	# Re-enable systems
@@ -770,14 +761,14 @@ func reset_tracer_system():
 	impact_enabled = true
 	
 	# Wait a frame to ensure scene is reloaded, then recreate tracer container
-	if debug_reset:
+	if DEBUG_RESET:
 		print("TracerManager: Waiting for scene reload, then recreating container")
 	await get_tree().process_frame
 	await get_tree().process_frame  # Wait a bit more to ensure scene is fully loaded
 	
 	# Try to recreate tracer container immediately
 	_setup_tracer_container()
-	if debug_reset:
+	if DEBUG_RESET:
 		print("TracerManager: Tracer system reset complete")
 
 # === BULLET RECALL SYSTEM ===
@@ -786,7 +777,7 @@ func notify_bullet_fired(bullet_id: int):
 	"""Notify that a bullet was fired (add to recall queue)."""
 	if bullet_id >= 0 and active_tracers.has(bullet_id):
 		fired_bullets_queue.append(bullet_id)
-		if debug_recall:
+		if DEBUG_RECALL:
 			print("TracerManager: Bullet ", bullet_id, " added to recall queue (queue size: ", fired_bullets_queue.size(), ")")
 
 func recall_most_recent_bullet() -> bool:
@@ -802,23 +793,23 @@ func recall_most_recent_bullet() -> bool:
 				if bullet.recall_to_player():
 					# Successfully recalled - remove from queue
 					fired_bullets_queue.pop_back()
-					if debug_recall:
+					if DEBUG_RECALL:
 						print("TracerManager: Successfully recalled bullet ", bullet_id)
 					return true
 				else:
-					if debug_recall:
+					if DEBUG_RECALL:
 						print("TracerManager: Bullet ", bullet_id, " could not be recalled")
 					fired_bullets_queue.pop_back()
 			else:
-				if debug_recall:
+				if DEBUG_RECALL:
 					print("TracerManager: Bullet ", bullet_id, " is invalid or doesn't support recall")
 				fired_bullets_queue.pop_back()
 		else:
-			if debug_recall:
+			if DEBUG_RECALL:
 				print("TracerManager: Bullet ", bullet_id, " no longer exists, removing from queue")
 			fired_bullets_queue.pop_back()
 	
-	if debug_recall:
+	if DEBUG_RECALL:
 		print("TracerManager: No bullets available for recall")
 	return false
 
@@ -827,7 +818,7 @@ func _remove_from_recall_queue(bullet_id: int):
 	var index = fired_bullets_queue.find(bullet_id)
 	if index >= 0:
 		fired_bullets_queue.remove_at(index)
-		if debug_recall:
+		if DEBUG_RECALL:
 			print("TracerManager: Removed bullet ", bullet_id, " from recall queue")
 
 func update_bullet_color(bullet_id: int):

@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://behhvscdbwvm8"]
+[gd_scene load_steps=3 format=3 uid="uid://behhvscdbwvm8"]
 
 [ext_resource type="Script" uid="uid://crnmwtt0p4tyl" path="res://scripts/ui/LevelButton.gd" id="1_clf8o"]
+[ext_resource type="PackedScene" uid="uid://dgdivt86emuj0" path="res://scenes/UI/CustomButton.tscn" id="2_mic1q"]
 
 [node name="LevelButton" type="PanelContainer"]
 custom_minimum_size = Vector2(64, 64)
@@ -17,9 +18,10 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_clf8o")
 
-[node name="SelectButton" type="Button" parent="."]
+[node name="SelectButton" parent="." instance=ExtResource("2_mic1q")]
 layout_mode = 2
-flat = true
+text = "Button"
+button_text = ""
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 2

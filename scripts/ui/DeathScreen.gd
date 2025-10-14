@@ -7,9 +7,9 @@ class_name DeathScreen
 
 # UI elements
 @onready var background: ColorRect = $Background
-@onready var death_text: Label = $VBoxContainer/DeathText
-@onready var score_text: Label = $VBoxContainer/ScoreText
-@onready var high_score_text: Label = $VBoxContainer/HighScoreText
+@onready var death_text: Label = $VBoxContainer/DeathLabel
+@onready var score_text: Label = $VBoxContainer/ScoreLabel
+@onready var high_score_text: Label = $VBoxContainer/HighScoreLabel
 @onready var restart_button: Button = $VBoxContainer/RestartButton
 @onready var stats_button: Button = $VBoxContainer/StatsButton
 @onready var main_menu_button: Button = $VBoxContainer/MainMenuButton
@@ -138,6 +138,8 @@ func reset_animation_state():
 func _on_analytics_pressed():
 	"""Handle analytics button press."""
 	print("DeathScreen: Analytics button pressed")
+	# Stop all gameplay SFX before leaving
+	AudioManager.stop_all_sfx()
 	# Call cleanup functions but don't resume time (keep mouse visible for stats)
 	_call_game_cleanup_for_stats()
 	get_tree().change_scene_to_file("res://scenes/ui/AnalyticsMenu.tscn")
@@ -227,6 +229,8 @@ func _cleanup_for_stats_fallback():
 func _on_main_menu_pressed():
 	"""Handle main menu button press."""
 	print("DeathScreen: Main menu button pressed")
+	# Stop all gameplay SFX before leaving
+	AudioManager.stop_all_sfx()
 	# Call the same cleanup functions as analytics but go to main menu
 	_call_game_cleanup()
 	get_tree().change_scene_to_file("res://scenes/ui/MainMenu.tscn") 

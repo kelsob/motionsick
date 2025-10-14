@@ -1,9 +1,16 @@
 extends Node
 
+# === DEBUG FLAGS (EASY TOGGLE) ===
+const DEBUG_CONNECTIONS = false  # Connection setup logs
+const DEBUG_STATE_CHANGES = false  # State change logs
+const DEBUG_RESTART = false  # Restart system logs
+const DEBUG_DEATH = false  # Player death event logs
+
 # Game states
 enum GameState {
 	PLAYING,
 	PLAYER_DEAD,
+	LEVEL_WON,
 	PAUSED
 }
 
@@ -28,15 +35,6 @@ enum GameState {
 ## Key code for returning to main menu when dead
 @export var main_menu_key: int = KEY_M
 
-@export_group("Debug Settings")
-## Enable debug output for connection setup
-@export var debug_connections: bool = false
-## Enable debug output for state changes
-@export var debug_state_changes: bool = false
-## Enable debug output for restart system
-@export var debug_restart: bool = true
-## Enable debug output for player death events
-@export var debug_death: bool = false
 
 ## === RUNTIME STATE ===
 # Current game state
@@ -45,6 +43,7 @@ var current_state: GameState = GameState.PLAYING
 # Signals
 signal game_state_changed(new_state: GameState)
 signal player_died
+signal level_won
 signal game_restart_requested
 
 # References
@@ -101,7 +100,7 @@ func _on_node_added(node: Node):
 	"""Called when a new node is added to the scene tree"""
 	# Check if this is the player being added (death screen is now global)
 	if str(node.get_path()) == player_path:
-		if debug_connections:
+		if DEBUG_CONNECTIONS:
 			print("GameManager: Player node added, reconnecting signals")
 		_setup_connections()
 
@@ -131,6 +130,9 @@ func change_game_state(new_state: GameState):
 		GameState.PLAYER_DEAD:
 			print("GameManager: Handling PLAYER_DEAD state")
 			_handle_player_dead_state()
+		GameState.LEVEL_WON:
+			print("GameManager: Handling LEVEL_WON state")
+			_handle_level_won_state()
 		GameState.PAUSED:
 			print("GameManager: Handling PAUSED state")
 			_handle_paused_state()
@@ -142,8 +144,11 @@ func _handle_playing_state():
 	
 	# Hide death screen via GameplayUIManager
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
-	if ui_manager and ui_manager.has_method("hide_death_screen"):
-		ui_manager.hide_death_screen()
+	if ui_manager:
+		if ui_manager.has_method("hide_death_screen"):
+			ui_manager.hide_death_screen()
+		if ui_manager.has_method("hide_victory_screen"):
+			ui_manager.hide_victory_screen()
 
 func _handle_player_dead_state():
 	print("GameManager: _handle_player_dead_state() called")
@@ -172,6 +177,33 @@ func _handle_player_dead_state():
 		print("GameManager: Connected to: ", connection.callable)
 	player_died.emit()
 	print("GameManager: Emitted player_died signal")
+
+func _handle_level_won_state():
+	print("GameManager: _handle_level_won_state() called")
+	# Don't pause the game, just disable player input
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	print("GameManager: Set mouse mode to visible")
+	
+	# Disable player input
+	if player and player.has_method("set_input_enabled"):
+		player.set_input_enabled(false)
+		print("GameManager: Disabled player input on victory")
+	
+	# Show victory screen via GameplayUIManager
+	var ui_manager = get_node_or_null("/root/GameplayUIManager")
+	if ui_manager and ui_manager.has_method("show_victory_screen"):
+		ui_manager.show_victory_screen()
+		print("GameManager: Called show_victory_screen")
+	else:
+		print("GameManager: GameplayUIManager not found or no show_victory_screen method")
+	
+	# Emit victory signal
+	print("GameManager: About to emit level_won signal")
+	print("GameManager: Signal connections: ", level_won.get_connections().size())
+	for connection in level_won.get_connections():
+		print("GameManager: Connected to: ", connection.callable)
+	level_won.emit()
+	print("GameManager: Emitted level_won signal")
 
 func _handle_paused_state():
 	# Pause game but keep mouse captured
@@ -212,7 +244,7 @@ func _on_main_menu_button_pressed():
 
 func restart_game():
 	"""Restart the current level properly through LevelManager"""
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Restarting game...")
 	
 	# Use GameStateManager for complete restart
@@ -220,12 +252,12 @@ func restart_game():
 	if game_state_manager:
 		var success = await game_state_manager.complete_restart_level()
 		if not success:
-			if debug_restart:
+			if DEBUG_RESTART:
 				print("GameManager: Complete restart failed, falling back")
 			await _restart_game_fallback()
 	else:
 		# Fallback to old scene reload method if GameStateManager not available
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: GameStateManager not found, using fallback")
 		await _restart_game_fallback()
 
@@ -233,67 +265,67 @@ func restart_game():
 
 func _restart_game_fallback():
 	"""Fallback restart method - PROPERLY restart through LevelManager."""
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: FALLBACK RESTART - doing it properly...")
 	
 	# Get current level BEFORE cleanup
 	var level_manager = get_node_or_null("/root/LevelManager")
 	if not level_manager or not level_manager.current_level:
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: No level found, using scene reload")
 		get_tree().reload_current_scene()
 		return
 	
 	var current_level = level_manager.current_level
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Restarting level: ", current_level.display_name)
 	
 	# === STEP 1: STOP EVERYTHING ===
 	var arena_spawn_manager = get_node_or_null("/root/ArenaSpawnManager")
 	if arena_spawn_manager:
 		arena_spawn_manager.stop_spawning()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Stopped enemy spawning")
 	
 	var time_manager = get_node_or_null("/root/TimeManager")
 	if time_manager:
 		time_manager.deactivate_for_menus()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Deactivated TimeManager")
 	
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
 	if ui_manager:
 		ui_manager.deactivate_gameplay_ui()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Deactivated UI")
 	
 	# === STEP 2: RESET EVERYTHING ===
 	var score_manager = get_node_or_null("/root/ScoreManager")
 	if score_manager:
 		score_manager.reset_score()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Reset score")
 	
 	var tracer_manager = get_node_or_null("/root/TracerManager")
 	if tracer_manager:
 		tracer_manager.reset_tracer_system()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Reset TracerManager")
 	
 	if arena_spawn_manager and arena_spawn_manager.has_method("reset_for_level"):
 		arena_spawn_manager.reset_for_level()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Reset ArenaSpawnManager")
 	
 	# Analytics
 	AnalyticsManager.end_session(false)
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Ended analytics session")
 	
 	# === STEP 3: SIGNAL CLEANUP ===
 	game_restart_requested.emit()
 	change_game_state(GameState.PLAYING)
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Emitted signals")
 	
 	# Wait for cleanup
@@ -301,19 +333,19 @@ func _restart_game_fallback():
 	await get_tree().process_frame
 	
 	# === STEP 4: PROPER RELOAD ===
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Reloading through LevelManager...")
 	
 	# Use LevelManager to properly reload everything
 	level_manager.current_level = current_level
 	await level_manager.load_selected_level()
 	
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: *** FALLBACK RESTART COMPLETE ***")
 
 func return_to_main_menu():
 	"""Return to the main menu."""
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Returning to main menu...")
 	
 	# Use centralized cleanup and scene change
@@ -348,7 +380,7 @@ func _return_to_main_menu_fallback():
 	# Clean up TracerManager before scene change
 	var tracer_manager = get_node_or_null("/root/TracerManager")
 	if tracer_manager:
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Cleaning up TracerManager before menu return")
 		tracer_manager.reset_tracer_system()
 		# Wait a frame for cleanup to complete
@@ -357,7 +389,7 @@ func _return_to_main_menu_fallback():
 	# Change to main menu scene
 	var error = get_tree().change_scene_to_file(main_menu_scene)
 	if error != OK:
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Failed to load main menu: ", error)
 
 func _cleanup_game_ui():
@@ -366,12 +398,12 @@ func _cleanup_game_ui():
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
 	if ui_manager:
 		ui_manager.deactivate_gameplay_ui()
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Cleaned up gameplay UI")
 
 func return_to_level_select():
 	"""Return to the level selection menu."""
-	if debug_restart:
+	if DEBUG_RESTART:
 		print("GameManager: Returning to level selection...")
 	
 	# Deactivate gameplay systems
@@ -394,11 +426,38 @@ func return_to_level_select():
 	# Change to level selection scene
 	var error = get_tree().change_scene_to_file(level_selection_scene)
 	if error != OK:
-		if debug_restart:
+		if DEBUG_RESTART:
 			print("GameManager: Failed to load level selection: ", error)
+
+func trigger_level_won():
+	"""Called when level win condition is met - EXACTLY mirrors _on_player_died()"""
+	print("GameManager: Level won!")
+	
+	# Disable combat UI immediately (same as death)
+	var ui_manager = get_node_or_null("/root/GameplayUIManager")
+	if ui_manager:
+		ui_manager.deactivate_gameplay_ui()
+		print("GameManager: Disabled combat UI on level win")
+	
+	# Pause the time system (same as death)
+	var time_manager = get_node_or_null("/root/TimeManager")
+	if time_manager:
+		time_manager.pause_time()
+		print("GameManager: Paused time system")
+	
+	# Track session end for analytics (session succeeded - different from death which is false)
+	AnalyticsManager.end_session(true)
+	print("GameManager: Tracked session end (victory)")
+	
+	print("GameManager: About to change game state to LEVEL_WON")
+	change_game_state(GameState.LEVEL_WON)
+	print("GameManager: Changed game state to LEVEL_WON")
 
 func is_player_dead() -> bool:
 	return current_state == GameState.PLAYER_DEAD
+
+func is_level_won() -> bool:
+	return current_state == GameState.LEVEL_WON
 
 func is_game_paused() -> bool:
 	return current_state == GameState.PAUSED 
