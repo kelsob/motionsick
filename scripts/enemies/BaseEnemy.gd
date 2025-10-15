@@ -148,7 +148,7 @@ func _ready():
 	
 	# Set up collision
 	collision_layer = enemy_collision_layer
-	collision_mask = collision_detection_mask
+	collision_mask = collision_detection_mask | enemy_collision_layer  # Include enemy layer in mask
 	
 	# Add to enemy groups
 	add_to_group("enemies")
@@ -240,9 +240,33 @@ func _apply_movement(delta):
 	var new_velocity = (next_location - current_location).normalized() * speed
 	velocity = new_velocity
 	
-	# Debug removed for cleaner console output
-	global_position += new_velocity * time_delta
+	# Simple distance check to prevent overlap
+	var future_position = global_position + new_velocity * time_delta
+	var can_move = true
 	
+	# Check if moving would put us too close to another enemy
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if enemy != self and is_instance_valid(enemy):
+			var distance = future_position.distance_to(enemy.global_position)
+			if distance < 1.5:  # Minimum distance between enemies
+				can_move = false
+				if debug_movement:
+					print(name, " collision risk with ", enemy.name, " - distance: ", "%.2f" % distance)
+				break
+	
+	# Use different movement methods based on collision risk
+	if can_move:
+		# Normal movement - no collision risk
+		global_position += new_velocity * time_delta
+	else:
+		# Collision risk detected - use move_and_collide() for collision handling
+		if debug_movement:
+			print(name, " using move_and_collide() due to collision risk")
+		var collision = move_and_collide(new_velocity * time_delta)
+		if collision:
+			# If we hit something, try to slide along the collision normal
+			var slide_vector = new_velocity.slide(collision.get_normal())
+			global_position += slide_vector * time_delta
 	# Use actual velocity direction for rotation
 	var velocity_direction = Vector3(velocity.x, 0, velocity.z)
 	
@@ -508,6 +532,7 @@ func set_attack_behavior(type: AttackBehavior.Type):
 	_setup_behaviors()
 
 # === DEBUG ===
+
 
 func print_status():
 	"""Debug function to print enemy status."""

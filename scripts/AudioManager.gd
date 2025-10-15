@@ -93,6 +93,7 @@ var sfx_library: Dictionary = {}
 var sfx_volumes: Dictionary = {}  # Per-SFX volume levels (0.0 to 1.0)
 var sfx_pitch_sensitivity: Dictionary = {}  # Per-SFX pitch scaling sensitivity (0.0 = no scaling, 1.0 = full scaling)
 var music_library: Dictionary = {}
+var music_volumes: Dictionary = {}  # Per-music volume levels (0.0 to 1.0)
 var music_pitch_sensitivity: Dictionary = {}  # Per-music pitch scaling sensitivity
 var ui_library: Dictionary = {}
 
@@ -179,7 +180,10 @@ func _load_audio_library():
 	"""Load all audio files into memory with individual volume levels."""
 
 	# Music Assets
-	_register_music("track_1", preload("res://assets/sounds/music/MUSIC-dulledclub2.wav"), 0.95, 0.5)
+	_register_music("track_1", preload("res://assets/sounds/music/MUSIC-dulledclub2.wav"), 0.0, 0.5)
+
+	# Enemy SFX
+	_register_sfx("enemy_spawn_telegraph", preload("res://assets/sounds/sfx/enemies/spawn_telegraph.wav"), 1.0, 1.0)
 
 	# Player SFX
 	_register_sfx("player_death", preload("res://assets/sounds/sfx/player/people_man_scream.wav"), 0.75, 1.0)
@@ -217,6 +221,7 @@ func _register_sfx(name: String, audio_stream: AudioStream, volume_level: float 
 func _register_music(name: String, audio_stream: AudioStream, volume_level: float = 1.0, pitch_sensitivity: float = 1.0):
 	"""Register a music track with volume level and pitch sensitivity."""
 	music_library[name] = audio_stream
+	music_volumes[name] = clamp(volume_level, 0.0, 1.0)
 	music_pitch_sensitivity[name] = clamp(pitch_sensitivity, 0.0, 1.0)
 	
 	if DEBUG_AUDIO:
@@ -539,7 +544,8 @@ func play_music(track_name: String, fade_in_duration: float = 0.0) -> bool:
 	
 	# Configure player
 	current_music_player.stream = music_library[track_name]
-	var final_volume = base_music_volume * user_master_volume * user_music_volume * max_volume_cap
+	var track_volume = music_volumes.get(track_name, 1.0)
+	var final_volume = base_music_volume * user_master_volume * user_music_volume * track_volume * max_volume_cap
 	current_music_player.volume_db = linear_to_db(final_volume)
 	
 	# Apply pitch scaling with sensitivity

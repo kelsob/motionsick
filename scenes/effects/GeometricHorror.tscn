@@ -1,22 +1,22 @@
 [gd_scene load_steps=5 format=3 uid="uid://bhw1a4yn0lj1d"]
 
-[ext_resource type="Shader" uid="uid://ropcrfey5l0w" path="res://assets/shaders/GeometricMorph.gdshader" id="1_18wnc"]
+[ext_resource type="Shader" uid="uid://bgmcde13bjc6v" path="res://assets/shaders/GroupedMorph.gdshader" id="1_18wnc"]
 [ext_resource type="Script" uid="uid://c8h3k2nap5q7r" path="res://scripts/effects/GeometricMorphController.gd" id="2_64ee5"]
 
-[sub_resource type="BoxMesh" id="BoxMesh_18wnc"]
+[sub_resource type="TorusMesh" id="TorusMesh_18wnc"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_4bvw4"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_18wnc"]
 render_priority = 0
 shader = ExtResource("1_18wnc")
-shader_parameter/morph_intensity = 0.5
-shader_parameter/face_expansion = 0.0
-shader_parameter/twist_amount = 0.0
-shader_parameter/pulse_scale = 1.0
+shader_parameter/morph_intensity = 1.0
 shader_parameter/rotation_axis = Vector3(0, 1, 0)
-shader_parameter/rotation_angle = 0.0
-shader_parameter/noise_scale = 2.0
-shader_parameter/noise_strength = 0.3
-shader_parameter/noise_offset = Vector3(0, 0, 0)
+shader_parameter/rotation_speed = 0.0
+shader_parameter/scale_pulse_strength = 1.0
+shader_parameter/scale_pulse_speed = 1.0
+shader_parameter/vertex_phase_offset = 1.0
+shader_parameter/translation_strength = 0.0
+shader_parameter/translation_speed = 0.0
+shader_parameter/time_scale = 1.0
 shader_parameter/base_color = Color(0.1, 0.1, 0.15, 1)
 shader_parameter/edge_color = Color(0.3, 0.6, 1, 1)
 shader_parameter/metallic = 0.9
@@ -25,6 +25,6 @@ shader_parameter/edge_glow_intensity = 2.0
 shader_parameter/fresnel_power = 3.0
 
 [node name="GeometricHorror" type="MeshInstance3D"]
-mesh = SubResource("BoxMesh_18wnc")
-surface_material_override/0 = SubResource("ShaderMaterial_4bvw4")
+mesh = SubResource("TorusMesh_18wnc")
+surface_material_override/0 = SubResource("ShaderMaterial_18wnc")
 script = ExtResource("2_64ee5")

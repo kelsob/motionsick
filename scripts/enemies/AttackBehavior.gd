@@ -151,7 +151,19 @@ func create_gunfire_telegraph(fire_position: Vector3, callback: Callable, total_
 	var elapsed_time = 0.0
 	
 	while elapsed_time < total_time_to_fire:
+		# Check if enemy is still valid before waiting
+		if not is_instance_valid(enemy) or not enemy.is_inside_tree():
+			print("Enemy destroyed during telegraph - aborting")
+			telegraph.queue_free()
+			return telegraph
+		
 		await enemy.get_tree().process_frame
+		
+		# Double-check enemy is still valid after await
+		if not is_instance_valid(enemy) or not enemy.is_inside_tree():
+			print("Enemy destroyed during telegraph - aborting")
+			telegraph.queue_free()
+			return telegraph
 		
 		# Use TimeManager-adjusted delta
 		var frame_delta = enemy.get_process_delta_time()

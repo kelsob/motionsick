@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3 uid="uid://v66tdrya6j2m"]
+
+[ext_resource type="Shader" uid="uid://r1lh523gd04n" path="res://assets/shaders/TopologicalMorph.gdshader" id="1_5bo54"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_5bo54"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_cir7j"]
+render_priority = 0
+shader = ExtResource("1_5bo54")
+shader_parameter/morph_intensity = 1.0
+shader_parameter/vertex_selection_mode = 3
+shader_parameter/selection_density = 1.0
+shader_parameter/face_growth_strength = 0.25
+shader_parameter/face_growth_period = 0.5
+shader_parameter/vertex_collapse_strength = 0.25
+shader_parameter/vertex_collapse_period = 1.0
+shader_parameter/time_scale = 1.0
+shader_parameter/base_color = Color(0.944773, 4.04298e-06, 0.573156, 1)
+shader_parameter/edge_color = Color(1.34766e-06, 0.9783, 0.834742, 1)
+shader_parameter/metallic = 0.9
+shader_parameter/roughness = 0.2
+shader_parameter/edge_glow_intensity = 10.0
+shader_parameter/fresnel_power = 9.849
+
+[node name="Node3D" type="Node3D"]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_5bo54")
+surface_material_override/0 = SubResource("ShaderMaterial_cir7j")

@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8l2y3igpbeec"]
+
+[ext_resource type="Shader" uid="uid://bgmcde13bjc6v" path="res://assets/shaders/GroupedMorph.gdshader" id="1_x3r4a"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_2st7y"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ysw1n"]
+render_priority = 0
+shader = ExtResource("1_x3r4a")
+shader_parameter/morph_intensity = 1.0
+shader_parameter/rotation_axis = Vector3(0, 1, 0)
+shader_parameter/rotation_speed = 0.0
+shader_parameter/scale_pulse_strength = 1.0
+shader_parameter/scale_pulse_speed = 3.0
+shader_parameter/vertex_phase_offset = 1.2
+shader_parameter/translation_strength = 0.0
+shader_parameter/translation_speed = 0.0
+shader_parameter/time_scale = 1.0
+shader_parameter/base_color = Color(0.1, 0.1, 0.15, 1)
+shader_parameter/edge_color = Color(0.3, 0.6, 1, 1)
+shader_parameter/metallic = 0.9
+shader_parameter/roughness = 0.2
+shader_parameter/edge_glow_intensity = 2.0
+shader_parameter/fresnel_power = 3.0
+
+[node name="Node3D" type="MeshInstance3D"]
+mesh = SubResource("BoxMesh_2st7y")
+surface_material_override/0 = SubResource("ShaderMaterial_ysw1n")

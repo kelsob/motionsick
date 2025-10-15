@@ -5,3 +5,17 @@
 
 [node name="Grunt" instance=ExtResource("1_ng66m")]
 script = ExtResource("2_ut6kx")
+grunt_health = 80
+grunt_movement_speed = 6.0
+grunt_detection_range = 15.0
+grunt_attack_range = 3.0
+grunt_turn_speed = 15.0
+grunt_piercability = 1.0
+grunt_color = Color(1, 0.270588, 0, 1)
+grunt_size_scale = 1.0
+grunt_movement_behavior = 0
+grunt_attack_behavior = 0
+debug_movement = true
+
+[node name="NavigationAgent3D" parent="." index="4"]
+radius = 1.5

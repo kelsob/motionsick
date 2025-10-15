@@ -277,7 +277,11 @@ func _start_scheduled_spawn_telegraph(spawn_event, spawn_pos: Vector3, telegraph
 	# Start the effect
 	telegraph.start_telegraph()
 	
+	# Play spawn telegraph SFX (time scale will be handled automatically by AudioManager)
+	AudioManager.play_sfx("enemy_spawn_telegraph")
+	
 	if DEBUG_TELEGRAPH:
+		print("ArenaSpawnManager: Telegraph duration: ", telegraph_duration, " seconds")
 		print("ArenaSpawnManager: Started scheduled telegraph for ", EnemyType.keys()[spawn_event.enemy_type], " at marker ", spawn_event.spawn_marker_index)
 
 func _on_scheduled_telegraph_completed(spawn_event, spawn_pos: Vector3):
@@ -538,6 +542,12 @@ func _start_spawn_telegraph(enemy_type: int):
 	
 	# Start the effect
 	telegraph.start_telegraph()
+	
+	# Play spawn telegraph SFX (time scale will be handled automatically by AudioManager)
+	AudioManager.play_sfx("enemy_spawn_telegraph")
+	
+	if DEBUG_TELEGRAPH:
+		print("ArenaSpawnManager: Telegraph duration: ", telegraph_duration, " seconds")
 
 func _on_telegraph_completed(enemy_type: int, spawn_pos: Vector3):
 	"""Called when a telegraph finishes - actually spawn the enemy now."""

@@ -78,6 +78,12 @@ func _on_player_died():
 	print("DeathScreen: Current visibility: ", visible)
 	print("DeathScreen: Current modulate alpha: ", modulate.a)
 	
+	# Check if player has already won - if so, don't show death screen
+	var game_manager = get_node_or_null("/root/GameManager")
+	if game_manager and game_manager.is_level_won():
+		print("DeathScreen: Player already won - not showing death screen")
+		return
+	
 	# Update score display
 	_update_score_display()
 	
