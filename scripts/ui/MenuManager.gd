@@ -1,4 +1,4 @@
-extends Control
+extends Node3D
 
 # === MAIN MENU MANAGER ===
 # Handles main menu functionality and navigation
@@ -37,10 +37,10 @@ extends Control
 
 ## === RUNTIME STATE ===
 # Button references
-@onready var new_game_button: Button = $MenuContainer/ButtonContainer/NewGameButton
-@onready var options_button: Button = $MenuContainer/ButtonContainer/OptionsButton
-@onready var stats_button: Button = $MenuContainer/ButtonContainer/StatsButton
-@onready var exit_button: Button = $MenuContainer/ButtonContainer/ExitButton
+@onready var new_game_button: Button = $UILayer/Control/MenuContainer/ButtonContainer/NewGameButton
+@onready var options_button: Button = $UILayer/Control/MenuContainer/ButtonContainer/OptionsButton
+@onready var stats_button: Button = $UILayer/Control/MenuContainer/ButtonContainer/StatsButton
+@onready var exit_button: Button = $UILayer/Control/MenuContainer/ButtonContainer/ExitButton
 # Audio player for menu sounds
 var audio_player: AudioStreamPlayer = null
 
@@ -65,6 +65,13 @@ func _ready():
 	
 	# Setup mouse mode
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	
+	# Activate menu time manager for background effects
+	if MenuTimeManager:
+		print("menutimemanager: MenuManager calling MenuTimeManager.activate_for_menu()")
+		MenuTimeManager.activate_for_menu()
+	else:
+		print("menutimemanager: WARNING - MenuTimeManager not found!")
 	
 	if debug_menu_events:
 		print("MenuManager: Main menu ready")

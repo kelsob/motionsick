@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="GunData" load_steps=2 format=3 uid="uid://dk1j7sng5qooi"]
+
+[ext_resource type="Script" uid="uid://vo0f7kffg44j" path="res://scripts/player/GunData.gd" id="1_vfhoq"]
+
+[resource]
+script = ExtResource("1_vfhoq")
+gun_name = "Assault Rifle"
+gun_type = 1
+fire_rate = 0.15
+damage = 30
+ammo_capacity = 30
+spread_angle = 1.5
+bullet_speed = 120.0
+is_shotgun = false
+pellet_count = 1
+shotgun_spread = 15.0
+is_explosive = false
+explosion_radius = 0.0
+explosion_damage = 0
+fire_mode = 1
+travel_type = 2
+knockback_force = 8.0
+piercing = false
+sfx_name = "rifle"
+muzzle_flash_size = 1.2
+recoil_intensity = 1.3
+bullet_trail_color = Color(1, 1, 0.8, 1)
+metadata/_custom_type_script = "uid://vo0f7kffg44j"

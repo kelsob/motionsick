@@ -97,7 +97,7 @@ func _rebuild_bullet_indicators():
 		bullet_container.add_child(bullet_indicator)
 		bullet_indicators.append(bullet_indicator)
 		
-		print("AmmoIndicator: Created bullet indicator ", i + 1, "/", max_ammo_count)
+		# Debug output removed to prevent console spam
 
 func _clear_bullet_indicators():
 	"""Remove all existing bullet indicators."""

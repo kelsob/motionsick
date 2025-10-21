@@ -173,7 +173,14 @@ func _load_death_screen():
 	var death_scene = load(death_screen_scene)
 	if death_scene:
 		death_screen_instance = death_scene.instantiate()
-		get_tree().root.add_child(death_screen_instance)
+		
+		# Create CanvasLayer with high layer value to sit above visual effects
+		var canvas_layer = CanvasLayer.new()
+		canvas_layer.layer = 200  # Higher than visual effects (64) and gameplay UI (128)
+		canvas_layer.name = "DeathScreenCanvasLayer"
+		get_tree().root.add_child(canvas_layer)
+		canvas_layer.add_child(death_screen_instance)
+		
 		# Start hidden
 		death_screen_instance.visible = false
 		
@@ -218,7 +225,14 @@ func _load_victory_screen():
 	var victory_scene = load(victory_screen_scene)
 	if victory_scene:
 		victory_screen_instance = victory_scene.instantiate()
-		get_tree().root.add_child(victory_screen_instance)
+		
+		# Create CanvasLayer with high layer value to sit above visual effects
+		var canvas_layer = CanvasLayer.new()
+		canvas_layer.layer = 200  # Higher than visual effects (64) and gameplay UI (128)
+		canvas_layer.name = "VictoryScreenCanvasLayer"
+		get_tree().root.add_child(canvas_layer)
+		canvas_layer.add_child(victory_screen_instance)
+		
 		# Start hidden
 		victory_screen_instance.visible = false
 		
@@ -251,10 +265,18 @@ func cleanup_ui():
 		gameplay_ui_instance = null
 	
 	if death_screen_instance:
+		# Clean up the CanvasLayer parent as well
+		var death_canvas_layer = death_screen_instance.get_parent()
+		if death_canvas_layer and death_canvas_layer.name == "DeathScreenCanvasLayer":
+			death_canvas_layer.queue_free()
 		death_screen_instance.queue_free()
 		death_screen_instance = null
 	
 	if victory_screen_instance:
+		# Clean up the CanvasLayer parent as well
+		var victory_canvas_layer = victory_screen_instance.get_parent()
+		if victory_canvas_layer and victory_canvas_layer.name == "VictoryScreenCanvasLayer":
+			victory_canvas_layer.queue_free()
 		victory_screen_instance.queue_free()
 		victory_screen_instance = null
 	

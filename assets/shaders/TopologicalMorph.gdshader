@@ -58,7 +58,7 @@ bool is_vertex_selected(vec3 local_pos) {
 vec3 calculate_morphing(vec3 local_pos, float time) {
 	// ALL vertices morph, but in different ways based on selection
 	vec3 displacement = vec3(0.0);
-	
+
 	// Get selection strength (0.0 to 1.0)
 	float selection_strength = 0.0;
 	if (vertex_selection_mode == 0) {
@@ -80,33 +80,33 @@ vec3 calculate_morphing(vec3 local_pos, float time) {
 		float hash = sin(local_pos.x * 12.9898 + local_pos.y * 78.233 + local_pos.z * 37.719);
 		selection_strength = hash > (0.5 - selection_density * 0.2) ? 1.0 : 0.3;
 	}
-	
+
 	// 1. Face growth: move outward from center
 	float growth_factor = sin(time * face_growth_period) * face_growth_strength * selection_strength;
 	vec3 growth_direction = normalize(local_pos);
 	displacement += growth_direction * growth_factor;
-	
+
 	// 2. Vertex collapse: move toward center (opposite phase for different groups)
 	float collapse_factor = sin(time * vertex_collapse_period + 3.14) * vertex_collapse_strength * (2.0 - selection_strength);
 	vec3 collapse_direction = normalize(vec3(0.0, 0.0, 0.0) - local_pos);
 	displacement += collapse_direction * collapse_factor;
-	
+
 	return displacement * morph_intensity;
 }
 
 
 void vertex() {
 	vec3 local_pos = VERTEX;
-	
+
 	// Get time-based animation
 	float time = TIME * time_scale;
-	
+
 	// Calculate morphing displacement
 	vec3 final_displacement = calculate_morphing(local_pos, time);
-	
+
 	// Apply displacement
 	VERTEX = local_pos + final_displacement;
-	
+
 	// Recalculate normal for lighting
 	NORMAL = normalize(NORMAL);
 }
@@ -114,11 +114,11 @@ void vertex() {
 void fragment() {
 	// === BASE COLOR ===
 	vec3 base = base_color.rgb;
-	
+
 	// === FRESNEL EDGE GLOW ===
 	float fresnel = pow(1.0 - dot(NORMAL, VIEW), fresnel_power);
 	vec3 edge_glow = edge_color.rgb * fresnel * edge_glow_intensity;
-	
+
 	// === COMBINE ===
 	ALBEDO = base;
 	EMISSION = edge_glow;

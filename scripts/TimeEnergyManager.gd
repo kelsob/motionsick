@@ -39,15 +39,15 @@ extends Node
 
 @export_group("Debug Settings")
 ## Enable debug print statements for energy state changes
-@export var debug_energy_changes: bool = true
+@export var debug_energy_changes: bool = false
 ## Enable debug print statements for movement state changes
-@export var debug_movement_changes: bool = true
+@export var debug_movement_changes: bool = false
 ## Enable debug print statements for recharge state changes
-@export var debug_recharge_changes: bool = true
+@export var debug_recharge_changes: bool = false
 ## Enable debug print statements for firing events
-@export var debug_firing_events: bool = true
+@export var debug_firing_events: bool = false
 ## Enable debug print statements for configuration changes
-@export var debug_config_changes: bool = true
+@export var debug_config_changes: bool = false
 
 ## === RUNTIME STATE ===
 # Current energy amount

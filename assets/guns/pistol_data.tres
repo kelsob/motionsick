@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="GunData" load_steps=2 format=3 uid="uid://bngfb8aepwpg6"]
+
+[ext_resource type="Script" uid="uid://vo0f7kffg44j" path="res://scripts/player/GunData.gd" id="1_vfhoq"]
+
+[resource]
+script = ExtResource("1_vfhoq")
+gun_name = "Pistol"
+gun_type = 0
+fire_rate = 0.5
+damage = 45
+ammo_capacity = 12
+spread_angle = 2.0
+bullet_speed = 100.0
+is_shotgun = false
+pellet_count = 1
+shotgun_spread = 15.0
+is_explosive = false
+explosion_radius = 0.0
+explosion_damage = 0
+fire_mode = 0
+travel_type = 2
+knockback_force = 10.0
+piercing = false
+sfx_name = "pistol"
+muzzle_flash_size = 1.0
+recoil_intensity = 1.0
+bullet_trail_color = Color(1, 1, 1, 1)
+metadata/_custom_type_script = "uid://vo0f7kffg44j"

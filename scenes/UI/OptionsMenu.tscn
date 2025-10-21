@@ -34,16 +34,25 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
-text = "Master Volume"
+text = "Master"
 
 [node name="MasterVolumeSlider" type="HSlider" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
 
 [node name="Label2" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
-text = "SFX Volume"
+text = "SFX"
+horizontal_alignment = 2
 
 [node name="SFXVolumeSlider" type="HSlider" parent="OptionsContainer/SettingsContainer/AudioSection"]
+layout_mode = 2
+
+[node name="Label3" type="Label" parent="OptionsContainer/SettingsContainer/AudioSection"]
+layout_mode = 2
+text = "Music"
+horizontal_alignment = 2
+
+[node name="MusicVolumeSlider" type="HSlider" parent="OptionsContainer/SettingsContainer/AudioSection"]
 layout_mode = 2
 
 [node name="GraphicsSection" type="VBoxContainer" parent="OptionsContainer/SettingsContainer"]

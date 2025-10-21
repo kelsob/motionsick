@@ -8,6 +8,7 @@
 
 [node name="GunPickup" type="Area3D" groups=["gun_pickups"]]
 script = ExtResource("1_cdc4j")
+gun_type = 2
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_6y48w")

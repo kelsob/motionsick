@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="GunData" load_steps=2 format=3 uid="uid://jecqkk5176t1"]
+
+[ext_resource type="Script" uid="uid://vo0f7kffg44j" path="res://scripts/player/GunData.gd" id="1_vfhoq"]
+
+[resource]
+script = ExtResource("1_vfhoq")
+gun_name = "Sniper Rifle"
+gun_type = 3
+fire_rate = 2.0
+damage = 120
+ammo_capacity = 5
+spread_angle = 0.5
+bullet_speed = 150.0
+is_shotgun = false
+pellet_count = 1
+shotgun_spread = 15.0
+is_explosive = false
+explosion_radius = 0.0
+explosion_damage = 0
+fire_mode = 0
+travel_type = 0
+knockback_force = 50.0
+piercing = true
+sfx_name = "sniper"
+muzzle_flash_size = 1.8
+recoil_intensity = 2.5
+bullet_trail_color = Color(0.8, 1, 0.8, 1)
+metadata/_custom_type_script = "uid://vo0f7kffg44j"

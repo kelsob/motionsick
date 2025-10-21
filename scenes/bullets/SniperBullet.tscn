@@ -1,10 +1,51 @@
-[gd_scene load_steps=3 format=3 uid="uid://3t75xve3pglw"]
+[gd_scene load_steps=6 format=4 uid="uid://3t75xve3pglw"]
 
 [ext_resource type="PackedScene" uid="uid://cpxampdsrq0tc" path="res://scenes/bullets/bullet.tscn" id="1_abl86"]
 [ext_resource type="Material" uid="uid://bcgjhswev1ewf" path="res://assets/materials/SniperBullet.tres" id="2_4qi85"]
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qvcvq"]
+resource_name = "Material"
+cull_mode = 2
+albedo_color = Color(0.906332, 0.906332, 0.906332, 1)
+roughness = 0.5
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_68xfw"]
+_surfaces = [{
+"aabb": AABB(-2, -1.41421, -1.41421, 5.5, 2.82843, 2.82843),
+"format": 34359742465,
+"index_count": 42,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAAAAIABAADAAAAAQAFAAIAAgAFAAQAAwAFAAEABAAFAAMAAgAFAAUAAQAFAAUABAAFAAUAAwAFAAUABQAFAAUABQAFAAUA"),
+"name": "Material",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABgQAAAAAAAAACAAAAAAAAAAADzBLU/AAAAAPMEtT8AAACAAAAAAPMEtb8AAACAAAAAAAAAAADzBLW/AAAAwAAAAAAAAACA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_pi7n2"]
+resource_name = "bullet_Cube"
+_surfaces = [{
+"aabb": AABB(-2, -1.41421, -1.41421, 5.5, 2.82843, 2.82843),
+"attribute_data": PackedByteArray("AAAgPwAAAD8AAGA/AACAPgAAYD8AAAA/AAAgPwAAgD4AAMA+AAAAAAAAID8AAAAAAAAgPwAAQD8AAMA+AABAPwAAwD4AAEA/AAAgPwAAQD8AAAA+AAAAPwAAAD4AAIA+AADAPgAAgD4AAMA+AABAPwAAwD4AAAA/AAAgPwAAQD8AAMA+AACAPwAAID8AAEA/AAAgPwAAgD8AAMA+AABAPwAAwD4AAAAAAAAgPwAAAAAAACA/AAAAAAAAwD4AAAAAAAAAPgAAAD8AAAA+AACAPgAAAD4AAIA+AAAAPgAAAD8AAGA/AACAPgAAYD8AAAA/AABgPwAAAD8AAGA/AACAPg=="),
+"format": 34359742487,
+"index_count": 42,
+"index_data": PackedByteArray("AAABAAIAAwAEAAUABgAHAAgABgAJAAcACgALAAwADQAOAA8AEAARABIAEAATABEAFAAVABYAFAAXABUAGAAZABoAGAAbABkAHAAdAB4AHAAfAB0A"),
+"material": SubResource("StandardMaterial3D_qvcvq"),
+"name": "Material",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 32,
+"vertex_data": PackedByteArray("AABgQAAAAAAAAACAAAAAAAAAAADzBLU/AAAAAPMEtT8AAACAAABgQAAAAAAAAACAAAAAAPMEtb8AAACAAAAAAAAAAADzBLU/AAAAAPMEtT8AAACAAAAAwAAAAAAAAACAAAAAAAAAAADzBLW/AAAAwAAAAAAAAACAAAAAAAAAAADzBLW/AAAAAPMEtb8AAACAAABgQAAAAAAAAACAAAAAAAAAAADzBLW/AABgQAAAAAAAAACAAAAAAPMEtT8AAACAAAAAwAAAAAAAAACAAAAAwAAAAAAAAACAAAAAwAAAAAAAAACAAAAAwAAAAAAAAACAAAAAAPMEtb8AAACAAAAAwAAAAAAAAACAAAAAAAAAAADzBLU/AAAAwAAAAAAAAACAAAAAAAAAAADzBLW/AAAAwAAAAAAAAACAAAAAAPMEtb8AAACAAAAAwAAAAAAAAACAAAAAAAAAAADzBLU/AAAAwAAAAAAAAACAAAAAAPMEtT8AAACAAAAAwAAAAAAAAACAgpU9tdUkatKClT211SRq0oKVPbXVJGrSgpXBSv9//9+ClcFK/3//34KVwUr/f//fSC+Q3v///79IL5De////v0gvkN7///+/SC+Q3v///7/AyoMVKdtq0sDKgxUp22rSwMqDFSnbatLAynvq/3//38DKe+r/f//fwMp76v9//9//f///////v/9///////+//3///////7//f///////v5FetlD///8/kV62UP///z+RXrZQ////P5FetlD///8/SC9uIf///79IL24h////v0gvbiH///+/SC9uIf///7+RXkiv////P5FeSK////8/kV5Ir////z+RXkiv////Pw==")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_68xfw")
+
 [node name="SniperBullet" instance=ExtResource("1_abl86")]
 tracer_color = Color(1, 0.2, 0.6, 0.811765)
 
-[node name="MeshInstance3D" parent="." index="0"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." index="4"]
+transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
+mesh = SubResource("ArrayMesh_pi7n2")
+skeleton = NodePath("")
 surface_material_override/0 = ExtResource("2_4qi85")

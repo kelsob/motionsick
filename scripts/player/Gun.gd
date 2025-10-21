@@ -1,5 +1,10 @@
 extends Node3D
 
+# === GUN DATA SYSTEM ===
+# References to gun data resources for each gun type
+@export var gun_data_resources: Array[Resource] = []
+var current_gun_data: Resource = null
+
 # === GUN STATES ===
 enum State {
 	IDLE,
@@ -456,6 +461,9 @@ func _update_tracer_animation(tracer_data: Dictionary, time_adjusted_delta: floa
 	return false
 
 func _ready():
+	# Initialize gun data resources
+	_initialize_gun_data_resources()
+	
 	# Initialize timers
 	rapid_fire_timer = Timer.new()
 	rapid_fire_timer.one_shot = true
@@ -941,8 +949,9 @@ func _fire_bullet(damage: int):
 	if debug_ammo:
 		print("Ammo: ", current_ammo, "/", max_ammo)
 	
-	# Apply velocity loss to player when firing
-	_apply_firing_velocity_loss()
+	# Apply velocity loss to player when firing (only when actually firing)
+	# TEMPORARILY DISABLED FOR TESTING
+	# _apply_firing_velocity_loss()
 	
 	var travel_type = get_current_travel_type()
 	
@@ -998,6 +1007,8 @@ func _fire_hitscan(damage: int, travel_type: int):
 		# Deal direct damage if we hit an enemy
 		if result.collider.has_method("take_damage"):
 			result.collider.take_damage(damage)
+			# Play bullet hit enemy SFX
+			AudioManager.play_sfx("bullet_enemy_hit")
 		else:
 			# Hit environment - create wall ripple effect
 			_create_wall_ripple(result.position, result.normal)
@@ -1515,14 +1526,11 @@ func get_firing_direction(apply_spread: bool = true) -> Vector3:
 		print("WARNING: No AimRaycast found on camera! Falling back to camera forward direction.")
 		return -camera.global_transform.basis.z.normalized()
 	
-	# Force raycast update to get current aim direction
-	aim_raycast.force_raycast_update()
-	
 	# Always use a fixed focal point at focal_distance in the camera's aim direction
 	var camera_direction = -camera.global_transform.basis.z.normalized()
 	var focal_point = camera.global_position + (camera_direction * focal_distance)
 	
-	# If raycast hits something closer than focal distance, use that instead
+	# Try to get raycast collision if available (without forcing update to avoid physics timing issues)
 	if aim_raycast.is_colliding():
 		var hit_distance = camera.global_position.distance_to(aim_raycast.get_collision_point())
 		if hit_distance < focal_distance:
@@ -1628,211 +1636,128 @@ func get_current_recoil_duration() -> float:
 			return 0.3
 
 func is_current_mode_explosive() -> bool:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_explosive
-		FireMode.CHARGE_BLAST:
-			return charge_blast_explosive
-		FireMode.DASH_ATTACK:
-			return dash_attack_explosive
-		FireMode.JUMP_BURST:
-			return jump_burst_explosive
-		FireMode.SLOW_FIRE:
-			return slow_fire_explosive
-		FireMode.FAST_FIRE:
-			return fast_fire_explosive
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_explosive
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_explosive
-		FireMode.AUTO_CHARGE:
-			return auto_charge_explosive
-		_:
-			return false
+	"""Check if current gun is explosive based on gun data."""
+	if current_gun_data:
+		return current_gun_data.is_explosive
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.SLOW_FIRE:
+				return true  # Rocket launcher
+			_:
+				return false
 
 func get_current_explosion_radius() -> float:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_explosion_radius
-		FireMode.CHARGE_BLAST:
-			return charge_blast_explosion_radius
-		FireMode.DASH_ATTACK:
-			return dash_attack_explosion_radius
-		FireMode.JUMP_BURST:
-			return jump_burst_explosion_radius
-		FireMode.SLOW_FIRE:
-			return slow_fire_explosion_radius
-		FireMode.FAST_FIRE:
-			return fast_fire_explosion_radius
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_explosion_radius
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_explosion_radius
-		FireMode.AUTO_CHARGE:
-			return auto_charge_explosion_radius
-		_:
-			return 0.0
+	"""Get explosion radius based on current gun data."""
+	if current_gun_data:
+		return current_gun_data.explosion_radius
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.SLOW_FIRE:
+				return 10.0  # Rocket launcher
+			_:
+				return 0.0
 
 func get_current_explosion_damage() -> int:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_explosion_damage
-		FireMode.CHARGE_BLAST:
-			return charge_blast_explosion_damage
-		FireMode.DASH_ATTACK:
-			return dash_attack_explosion_damage
-		FireMode.JUMP_BURST:
-			return jump_burst_explosion_damage
-		FireMode.SLOW_FIRE:
-			return slow_fire_explosion_damage
-		FireMode.FAST_FIRE:
-			return fast_fire_explosion_damage
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_explosion_damage
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_explosion_damage
-		FireMode.AUTO_CHARGE:
-			return auto_charge_explosion_damage
-		_:
-			return 0
+	"""Get explosion damage based on current gun data."""
+	if current_gun_data:
+		return current_gun_data.explosion_damage
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.SLOW_FIRE:
+				return 200  # Rocket launcher
+			_:
+				return 0
 
 func is_current_mode_shotgun() -> bool:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_shotgun
-		FireMode.CHARGE_BLAST:
-			return charge_blast_shotgun
-		FireMode.DASH_ATTACK:
-			return dash_attack_shotgun
-		FireMode.JUMP_BURST:
-			return jump_burst_shotgun
-		FireMode.SLOW_FIRE:
-			return slow_fire_shotgun
-		FireMode.FAST_FIRE:
-			return fast_fire_shotgun
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_shotgun
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_shotgun
-		FireMode.AUTO_CHARGE:
-			return auto_charge_shotgun
-		_:
-			return false
+	"""Check if current gun is a shotgun based on gun data."""
+	if current_gun_data:
+		return current_gun_data.is_shotgun
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.DASH_ATTACK:
+				return true  # Shotgun mode
+			_:
+				return false
 
 func get_current_pellet_count() -> int:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_pellets
-		FireMode.CHARGE_BLAST:
-			return charge_blast_pellets
-		FireMode.DASH_ATTACK:
-			return dash_attack_pellets
-		FireMode.JUMP_BURST:
-			return jump_burst_pellets
-		FireMode.SLOW_FIRE:
-			return slow_fire_pellets
-		FireMode.FAST_FIRE:
-			return fast_fire_pellets
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_pellets
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_pellets
-		FireMode.AUTO_CHARGE:
-			return auto_charge_pellets
-		_:
-			return 1
+	"""Get pellet count based on current gun data."""
+	if current_gun_data:
+		return current_gun_data.pellet_count
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.DASH_ATTACK:
+				return 8  # Shotgun pellets
+			_:
+				return 1
 
 func get_current_shotgun_spread() -> float:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_shotgun_spread
-		FireMode.CHARGE_BLAST:
-			return charge_blast_shotgun_spread
-		FireMode.DASH_ATTACK:
-			return dash_attack_shotgun_spread
-		FireMode.JUMP_BURST:
-			return jump_burst_shotgun_spread
-		FireMode.SLOW_FIRE:
-			return slow_fire_shotgun_spread
-		FireMode.FAST_FIRE:
-			return fast_fire_shotgun_spread
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_shotgun_spread
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_shotgun_spread
-		FireMode.AUTO_CHARGE:
-			return auto_charge_shotgun_spread
-		_:
-			return 0.0
+	"""Get shotgun spread based on current gun data."""
+	if current_gun_data:
+		return current_gun_data.shotgun_spread
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.DASH_ATTACK:
+				return 20.0  # Shotgun spread
+			_:
+				return 0.0
 
 func get_current_piercing() -> float:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_piercing
-		FireMode.CHARGE_BLAST:
-			return charge_blast_piercing
-		FireMode.DASH_ATTACK:
-			return dash_attack_piercing
-		FireMode.JUMP_BURST:
-			return jump_burst_piercing
-		FireMode.SLOW_FIRE:
-			return slow_fire_piercing
-		FireMode.FAST_FIRE:
-			return fast_fire_piercing
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_piercing
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_piercing
-		FireMode.AUTO_CHARGE:
-			return auto_charge_piercing
-		_:
-			return 0.0
+	"""Get piercing value based on current gun data."""
+	if current_gun_data:
+		return 1.0 if current_gun_data.piercing else 0.0
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.SLOW_FIRE:
+				return 3.0  # Rocket launcher
+			_:
+				return 0.0
 
 func get_current_knockback() -> float:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_knockback
-		FireMode.CHARGE_BLAST:
-			return charge_blast_knockback
-		FireMode.DASH_ATTACK:
-			return dash_attack_knockback
-		FireMode.JUMP_BURST:
-			return jump_burst_knockback
-		FireMode.SLOW_FIRE:
-			return slow_fire_knockback
-		FireMode.FAST_FIRE:
-			return fast_fire_knockback
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_knockback
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_knockback
-		FireMode.AUTO_CHARGE:
-			return auto_charge_knockback
-		_:
-			return 1.0
+	"""Get knockback value based on current gun data."""
+	if current_gun_data:
+		return current_gun_data.knockback_force
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.RAPID_FIRE:
+				return 2.0
+			FireMode.CHARGE_BLAST:
+				return 1.5
+			FireMode.DASH_ATTACK:
+				return 8.0
+			FireMode.JUMP_BURST:
+				return 3.0
+			FireMode.SLOW_FIRE:
+				return 15.0
+			_:
+				return 1.0
 
 func get_current_travel_type() -> int:
-	match current_fire_mode:
-		FireMode.RAPID_FIRE:
-			return rapid_fire_travel
-		FireMode.CHARGE_BLAST:
-			return charge_blast_travel
-		FireMode.DASH_ATTACK:
-			return dash_attack_travel
-		FireMode.JUMP_BURST:
-			return jump_burst_travel
-		FireMode.SLOW_FIRE:
-			return slow_fire_travel
-		FireMode.FAST_FIRE:
-			return fast_fire_travel
-		FireMode.HEAVY_BLAST:
-			return heavy_blast_travel
-		FireMode.TRIPLE_SHOT:
-			return triple_shot_travel
-		FireMode.AUTO_CHARGE:
-			return auto_charge_travel
-		_:
-			return 2  # Default to CONSTANT_FAST
+	"""Get travel type based on current gun data."""
+	if current_gun_data:
+		return current_gun_data.travel_type
+	else:
+		# Fallback to hardcoded values if no gun data loaded
+		match current_fire_mode:
+			FireMode.RAPID_FIRE:
+				return 2  # CONSTANT_FAST
+			FireMode.CHARGE_BLAST:
+				return 2  # CONSTANT_FAST
+			FireMode.DASH_ATTACK:
+				return 2  # CONSTANT_FAST
+			FireMode.JUMP_BURST:
+				return 2  # CONSTANT_FAST
+			FireMode.SLOW_FIRE:
+				return 1  # CONSTANT_SLOW
+			_:
+				return 2
 
 func get_travel_config_for_mode() -> Dictionary:
 	"""Get travel configuration for current fire mode."""
@@ -2210,18 +2135,73 @@ func _create_wall_ripple(impact_position: Vector3, surface_normal: Vector3):
 func set_gun_type(gun_type: int):
 	"""Set the current gun type (called by GunPickup)."""
 	current_gun_type = gun_type
+	_load_gun_data(gun_type)
+	_apply_gun_properties()
 	if debug_equipment:
 		print("Gun type set to: ", _get_gun_type_name())
 
+func _load_gun_data(gun_type: int):
+	"""Load the GunData resource for the specified gun type."""
+	if gun_type < 0 or gun_type >= gun_data_resources.size():
+		print("ERROR: Invalid gun type: ", gun_type)
+		return
+	
+	current_gun_data = gun_data_resources[gun_type]
+	if debug_equipment:
+		print("Loaded gun data: ", current_gun_data.gun_name)
+
+func _initialize_gun_data_resources():
+	"""Initialize the gun data resources array with all gun types."""
+	if gun_data_resources.is_empty():
+		# Load gun data resources
+		gun_data_resources.append(load("res://assets/guns/pistol_data.tres"))
+		gun_data_resources.append(load("res://assets/guns/rifle_data.tres"))
+		gun_data_resources.append(load("res://assets/guns/shotgun_data.tres"))
+		gun_data_resources.append(load("res://assets/guns/sniper_data.tres"))
+		gun_data_resources.append(load("res://assets/guns/rocket_launcher_data.tres"))
+		
+		if debug_equipment:
+			print("Loaded gun data resources: ", gun_data_resources.size(), " guns")
+
+func _apply_gun_properties():
+	"""Apply the current gun data properties to the gun system."""
+	if not current_gun_data:
+		print("ERROR: No gun data loaded!")
+		return
+	
+	# Apply gun-specific properties
+	max_ammo = current_gun_data.ammo_capacity
+	current_ammo = max_ammo  # Start with full ammo
+	
+	# Update fire rate based on gun type
+	rapid_fire_rate_start = current_gun_data.fire_rate
+	rapid_fire_rate_min = current_gun_data.fire_rate
+	
+	# Update damage values
+	rapid_fire_damage = current_gun_data.damage
+	
+	# Update spread
+	rapid_fire_spread = current_gun_data.spread_angle
+	
+	# Update knockback
+	rapid_fire_knockback = current_gun_data.knockback_force
+	
+	if debug_equipment:
+		print("Applied gun properties - Ammo: ", max_ammo, " Fire Rate: ", rapid_fire_rate_start, " Damage: ", rapid_fire_damage)
+
 func _get_gun_type_name() -> String:
 	"""Get the string name for the current gun type."""
-	match current_gun_type:
-		0: return "pistol"
-		1: return "rifle"
-		2: return "shotgun"
-		3: return "sniper"
-		4: return "rocket_launcher"
-		_: return "pistol"
+	if current_gun_data:
+		return current_gun_data.sfx_name
+	else:
+		# Fallback to hardcoded names if no gun data loaded
+		match current_gun_type:
+			0: return "pistol"
+			1: return "rifle"
+			2: return "shotgun"
+			3: return "sniper"
+			4: return "rocket_launcher"
+			_: return "pistol"
 
 func _play_gunshot_sfx():
 	"""Play the appropriate gunshot sound for the current gun type."""

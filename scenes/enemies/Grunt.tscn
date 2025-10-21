@@ -15,7 +15,6 @@ grunt_color = Color(1, 0.270588, 0, 1)
 grunt_size_scale = 1.0
 grunt_movement_behavior = 0
 grunt_attack_behavior = 0
-debug_movement = true
 
 [node name="NavigationAgent3D" parent="." index="4"]
 radius = 1.5

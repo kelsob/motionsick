@@ -3,6 +3,8 @@
 [ext_resource type="Shader" uid="uid://r1lh523gd04n" path="res://assets/shaders/TopologicalMorph.gdshader" id="1_5bo54"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_5bo54"]
+radial_segments = 200
+rings = 100
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_cir7j"]
 render_priority = 0

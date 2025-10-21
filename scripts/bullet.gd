@@ -121,11 +121,11 @@ enum TravelType {
 ## Enable debug output for collision events
 @export var debug_collisions: bool = false
 ## Enable debug output for recall events
-@export var debug_recall: bool = true
+@export var debug_recall: bool = false
 ## Enable debug output for bounce exclusion system
-@export var debug_exclusion: bool = true
+@export var debug_exclusion: bool = false
 ## Enable debug output for audio hum system
-@export var debug_audio: bool = true
+@export var debug_audio: bool = false
 ## Enable debug output for bullet speed
 @export var debug_speed: bool = false
 
@@ -619,6 +619,8 @@ func _fire_hitscan():
 			if debug_collisions:
 				print("SUCCESS: Applying hitscan damage: ", damage)
 			hit_body.take_damage(damage)
+			# Play bullet hit enemy SFX
+			AudioManager.play_sfx("bullet_enemy_hit")
 		has_hit_target = true
 		_cleanup_bullet()
 		queue_free()
@@ -647,7 +649,7 @@ func _cleanup_bullet():
 func _on_body_entered(body):
 	# Force SHAPECASTupdate at the very start of collision handling
 	var shapecast = get_node_or_null("ShapeCast3D")
-	print("body:", body.collision_layer)
+	# Debug output removed to prevent console spam
 	
 	# DEBUG: Track all collisions
 	if debug_recall:
@@ -708,6 +710,9 @@ func _on_body_entered(body):
 		
 		if should_damage:
 			var damage_applied = body.take_damage(damage)
+			# Play bullet hit enemy SFX (only for enemy hits, not player hits)
+			if is_enemy_target:
+				AudioManager.play_sfx("bullet_enemy_hit")
 			# If damage was prevented on player (time dilation), don't free the bullet
 			if is_player_target and damage_applied == false:  # Explicitly check for false
 				if debug_collisions:
@@ -1111,7 +1116,7 @@ func _find_shapecast_impact(target_body: Node3D) -> Dictionary:
 	# Filter out excluded bodies
 	var valid_collisions = []
 	
-	# Print all collision data if debugging		print("SHAPECAST: ========== ALL COLLISION DATA ==========")
+	# Debug output disabled for performance
 	for i in range(collision_count):
 		var col_point = shapecast.get_collision_point(i)
 		var col_normal = shapecast.get_collision_normal(i)
@@ -1120,14 +1125,7 @@ func _find_shapecast_impact(target_body: Node3D) -> Dictionary:
 		var col_distance = global_position.distance_to(col_point)
 		
 		var is_excluded = col_object in bounce_exclusion_array
-		
-		print("SHAPECAST: Collision ", i, ":")
-		print("  Object: ", col_object.name, " [EXCLUDED]" if is_excluded else "")
-		print("  Position: ", col_point)
-		print("  Normal: ", col_normal)
-		print("  Distance: ", "%.3f" % col_distance)
-		print("  Shape Index: ", col_shape_idx)
-		print("  Object Layer: ", col_object.collision_layer)
+		# Debug output disabled for performance
 		
 		# Analyze normal direction
 		var normal_type = "Unknown"
@@ -1139,8 +1137,6 @@ func _find_shapecast_impact(target_body: Node3D) -> Dictionary:
 			normal_type = "Wall (Z-axis)"
 		else:
 			normal_type = "Angled Surface"
-		print("  Surface Type: ", normal_type)
-		print("  ---")
 		
 		# Only add to valid collisions if not excluded
 		if not is_excluded:
@@ -1153,8 +1149,7 @@ func _find_shapecast_impact(target_body: Node3D) -> Dictionary:
 				"index": i
 			})
 	
-	print("SHAPECAST: =======================================")
-	print("SHAPECAST: Valid collisions after exclusion: ", valid_collisions.size())
+	# Debug output disabled for performance
 	
 	# If all collisions were excluded, return empty
 	if valid_collisions.is_empty():
@@ -1382,6 +1377,8 @@ func _apply_bullet_explosion_damage(explosion_pos: Vector3):
 			if debug_explosions:
 				print("Bullet explosion damaged ", enemy.name, " for ", final_damage, " damage (distance: ", "%.1f" % distance, ")")
 			enemy.take_damage(final_damage)
+			# Play bullet hit enemy SFX for explosion damage
+			AudioManager.play_sfx("bullet_enemy_hit")
 
 
 

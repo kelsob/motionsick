@@ -1,9 +1,8 @@
-[gd_scene load_steps=27 format=3 uid="uid://d4m8gqa7quqc8"]
+[gd_scene load_steps=23 format=3 uid="uid://d4m8gqa7quqc8"]
 
 [ext_resource type="Script" uid="uid://di6plg2y6ce4w" path="res://scripts/main/Main.gd" id="1_blune"]
 [ext_resource type="PackedScene" uid="uid://dwjhkh178778o" path="res://scenes/player/player.tscn" id="1_hyk8p"]
 [ext_resource type="Script" uid="uid://b53vs2t4fgu5l" path="res://scripts/levels/LevelGameplayConfig.gd" id="5_dign7"]
-[ext_resource type="Script" uid="uid://dppl12qdryqst" path="res://scripts/levels/SpawnEventResource.gd" id="5_kiajw"]
 [ext_resource type="PackedScene" uid="uid://btlm7scbv6euh" path="res://assets/testgeometry/testhorror1.tscn" id="7_rknk3"]
 [ext_resource type="PackedScene" uid="uid://spf1uba54en5" path="res://scenes/GunPickup.tscn" id="11_ouso4"]
 [ext_resource type="Script" uid="uid://xypdm50ppsha" path="res://scripts/levels/LevelSpawnConfig.gd" id="13_hfyti"]
@@ -86,36 +85,6 @@ clearcoat_enabled = true
 
 [sub_resource type="BoxMesh" id="BoxMesh_rknk3"]
 size = Vector3(0.5, 50, 0.1)
-
-[sub_resource type="Resource" id="Resource_rknk3"]
-script = ExtResource("5_kiajw")
-enemy_type = 0
-spawn_time = 0.0
-spawn_marker_index = 0
-telegraph_duration = 3.9
-health_multiplier = 1.0
-speed_multiplier = 1.0
-metadata/_custom_type_script = "uid://dppl12qdryqst"
-
-[sub_resource type="Resource" id="Resource_sqne7"]
-script = ExtResource("5_kiajw")
-enemy_type = 0
-spawn_time = 0.0
-spawn_marker_index = 1
-telegraph_duration = 3.9
-health_multiplier = 1.0
-speed_multiplier = 1.0
-metadata/_custom_type_script = "uid://dppl12qdryqst"
-
-[sub_resource type="Resource" id="Resource_pyv6e"]
-script = ExtResource("5_kiajw")
-enemy_type = 1
-spawn_time = 10.0
-spawn_marker_index = 0
-telegraph_duration = -1.0
-health_multiplier = 1.0
-speed_multiplier = 1.0
-metadata/_custom_type_script = "uid://dppl12qdryqst"
 
 [sub_resource type="Resource" id="Resource_kiajw"]
 script = ExtResource("5_dign7")
@@ -313,23 +282,23 @@ surface_material_override/0 = SubResource("StandardMaterial3D_rknk3")
 
 [node name="LevelSpawnConfig" type="Node" parent="."]
 script = ExtResource("13_hfyti")
-spawn_events = Array[ExtResource("5_kiajw")]([SubResource("Resource_rknk3"), SubResource("Resource_sqne7"), SubResource("Resource_pyv6e")])
+enable_spawning = false
 gameplay_config = SubResource("Resource_kiajw")
 max_grunt_enemies = 1
 
 [node name="SpawnMarkers" type="Node3D" parent="LevelSpawnConfig"]
 
 [node name="SpawnPoint1" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 14.6865)
 
 [node name="SpawnPoint2" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 17.8454)
 
 [node name="SpawnPoint3" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -14.339)
 
 [node name="SpawnPoint4" type="Marker3D" parent="LevelSpawnConfig/SpawnMarkers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -15.163)
 
 [node name="Node3D" parent="." instance=ExtResource("7_rknk3")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.11434, 6.74356)

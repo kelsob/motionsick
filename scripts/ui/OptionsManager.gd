@@ -14,6 +14,8 @@ extends Control
 @export var default_master_volume: float = 0.8
 ## Default SFX volume (0.0 to 1.0)
 @export var default_sfx_volume: float = 0.8
+## Default music volume (0.0 to 1.0)
+@export var default_music_volume: float = 0.8
 ## Default fullscreen state
 @export var default_fullscreen: bool = false
 ## Default VSync state
@@ -39,9 +41,9 @@ extends Control
 
 @export_group("Debug Settings")
 ## Enable debug output for settings changes
-@export var debug_settings: bool = true
+@export var debug_settings: bool = false
 ## Enable debug output for save/load operations
-@export var debug_save_load: bool = true
+@export var debug_save_load: bool = false
 ## Enable debug output for scene transitions
 @export var debug_transitions: bool = false
 
@@ -49,6 +51,7 @@ extends Control
 # UI references - lazy loaded to avoid timing issues
 var _master_volume_slider: HSlider
 var _sfx_volume_slider: HSlider
+var _music_volume_slider: HSlider
 var _fullscreen_checkbox: CheckBox
 var _vsync_checkbox: CheckBox
 var _mouse_sensitivity_slider: HSlider
@@ -70,6 +73,12 @@ var sfx_volume_slider: HSlider:
 		if not _sfx_volume_slider:
 			_sfx_volume_slider = get_node_or_null("OptionsContainer/SettingsContainer/AudioSection/SFXVolumeSlider")
 		return _sfx_volume_slider
+
+var music_volume_slider: HSlider:
+	get:
+		if not _music_volume_slider:
+			_music_volume_slider = get_node_or_null("OptionsContainer/SettingsContainer/AudioSection/MusicVolumeSlider")
+		return _music_volume_slider
 
 var fullscreen_checkbox: CheckBox:
 	get:
@@ -125,6 +134,7 @@ func _load_settings():
 	current_settings = {
 		"master_volume": default_master_volume,
 		"sfx_volume": default_sfx_volume,
+		"music_volume": default_music_volume,
 		"fullscreen": default_fullscreen,
 		"vsync": default_vsync,
 		"mouse_sensitivity": default_mouse_sensitivity
@@ -175,6 +185,12 @@ func _apply_settings():
 		sfx_volume_slider.value = current_settings.sfx_volume
 		sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
 	
+	if music_volume_slider:
+		if music_volume_slider.value_changed.is_connected(_on_music_volume_changed):
+			music_volume_slider.value_changed.disconnect(_on_music_volume_changed)
+		music_volume_slider.value = current_settings.music_volume
+		music_volume_slider.value_changed.connect(_on_music_volume_changed)
+	
 	if fullscreen_checkbox:
 		fullscreen_checkbox.button_pressed = current_settings.fullscreen
 	if vsync_checkbox:
@@ -196,21 +212,29 @@ func _apply_audio_settings():
 	# Use AudioManager to set volumes (it handles bus conversion properly)
 	if AudioManager:
 		AudioManager.set_sfx_volume(current_settings.sfx_volume)
+		AudioManager.set_music_volume(current_settings.music_volume)
 		
 		if debug_settings:
 			print("OptionsManager: Applied audio settings via AudioManager")
 			print("  SFX volume: ", current_settings.sfx_volume)
+			print("  Music volume: ", current_settings.music_volume)
 	else:
 		# Fallback: Set bus volume directly if AudioManager not available
 		var master_bus_idx = AudioServer.get_bus_index(master_bus_name)
 		if master_bus_idx >= 0:
-			var volume_db = linear_to_db(current_settings.master_volume)
+			var volume_db = _safe_linear_to_db(current_settings.master_volume)
 			AudioServer.set_bus_volume_db(master_bus_idx, volume_db)
 		
 		var sfx_bus_idx = AudioServer.get_bus_index(sfx_bus_name)
 		if sfx_bus_idx >= 0:
-			var volume_db = linear_to_db(current_settings.sfx_volume)
+			var volume_db = _safe_linear_to_db(current_settings.sfx_volume)
 			AudioServer.set_bus_volume_db(sfx_bus_idx, volume_db)
+
+func _safe_linear_to_db(linear_volume: float) -> float:
+	"""Safely convert linear volume to dB, handling zero and negative values."""
+	if linear_volume <= 0.0:
+		return -80.0  # Mute (effectively silent)
+	return linear_to_db(linear_volume)
 
 func _apply_graphics_settings():
 	"""Apply graphics settings to the game."""
@@ -279,6 +303,24 @@ func _on_sfx_volume_changed(value: float):
 	
 	if debug_settings:
 		print("OptionsManager: SFX volume changed to: ", "%.2f" % value)
+
+func _on_music_volume_changed(value: float):
+	"""Handle music volume slider change."""
+	print("OptionsManager: _on_music_volume_changed CALLED with value: ", value)
+	
+	current_settings.music_volume = value
+	
+	print("OptionsManager: Calling AudioManager.set_music_volume(", value, ")")
+	if AudioManager:
+		AudioManager.set_music_volume(value)
+		print("OptionsManager: AudioManager.set_music_volume() completed")
+	else:
+		print("OptionsManager: ERROR - AudioManager is null!")
+	
+	_save_settings()
+	
+	if debug_settings:
+		print("OptionsManager: Music volume changed to: ", "%.2f" % value)
 
 func _on_fullscreen_toggled(pressed: bool):
 	"""Handle fullscreen checkbox toggle."""
@@ -362,6 +404,7 @@ func reset_to_defaults():
 	current_settings = {
 		"master_volume": default_master_volume,
 		"sfx_volume": default_sfx_volume,
+		"music_volume": default_music_volume,
 		"fullscreen": default_fullscreen,
 		"vsync": default_vsync,
 		"mouse_sensitivity": default_mouse_sensitivity
@@ -387,6 +430,7 @@ func print_settings_status():
 	print("UI connections:")
 	print("  Master volume slider: ", "Connected" if master_volume_slider else "Missing")
 	print("  SFX volume slider: ", "Connected" if sfx_volume_slider else "Missing")
+	print("  Music volume slider: ", "Connected" if music_volume_slider else "Missing")
 	print("  Fullscreen checkbox: ", "Connected" if fullscreen_checkbox else "Missing")
 	print("  VSync checkbox: ", "Connected" if vsync_checkbox else "Missing")
 	print("  Mouse sensitivity slider: ", "Connected" if mouse_sensitivity_slider else "Missing")
@@ -406,6 +450,11 @@ func _setup_ui():
 		sfx_volume_slider.max_value = 1.0
 		sfx_volume_slider.step = 0.05
 	
+	if music_volume_slider:
+		music_volume_slider.min_value = 0.0
+		music_volume_slider.max_value = 1.0
+		music_volume_slider.step = 0.05
+	
 	if mouse_sensitivity_slider:
 		mouse_sensitivity_slider.min_value = 0.01
 		mouse_sensitivity_slider.max_value = 1.0
@@ -416,6 +465,8 @@ func _setup_ui():
 		master_volume_slider.value_changed.connect(_on_master_volume_changed)
 	if sfx_volume_slider:
 		sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
+	if music_volume_slider:
+		music_volume_slider.value_changed.connect(_on_music_volume_changed)
 	if fullscreen_checkbox:
 		fullscreen_checkbox.toggled.connect(_on_fullscreen_toggled)
 	if vsync_checkbox:

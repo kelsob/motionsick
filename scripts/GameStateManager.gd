@@ -21,10 +21,15 @@ func reset_all_game_systems():
 	if time_manager:
 		time_manager.deactivate_for_menus()
 	
-	# 2. Reset TimeVisualManager
-	var time_visual_manager = get_node_or_null("/root/TimeVisualManager")
-	if time_visual_manager and time_visual_manager.has_method("deactivate"):
-		time_visual_manager.deactivate()
+	# 1.5. Deactivate MenuTimeManager
+	var menu_time_manager = get_node_or_null("/root/MenuTimeManager")
+	if menu_time_manager:
+		menu_time_manager.deactivate_for_gameplay()
+	
+	# 2. Reset LayeredVisualManager
+	var layered_visual_manager = get_node_or_null("/root/LayeredVisualManager")
+	if layered_visual_manager and layered_visual_manager.has_method("deactivate"):
+		layered_visual_manager.deactivate()
 	
 	# 3. Reset GameplayUIManager  
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
@@ -53,12 +58,17 @@ func reset_all_game_systems():
 	if score_manager:
 		score_manager.reset_score()
 	
-	# 8. Emit game restart signal for any other systems
+	# 8. Stop continuous inverse SFX
+	var audio_manager = get_node_or_null("/root/AudioManager")
+	if audio_manager and audio_manager.has_method("stop_continuous_inverse_sfx"):
+		audio_manager.stop_continuous_inverse_sfx()
+	
+	# 9. Emit game restart signal for any other systems
 	var game_manager = get_node_or_null("/root/GameManager")
 	if game_manager:
 		game_manager.game_restart_requested.emit()
 	
-	# 9. Reset GameManager state
+	# 10. Reset GameManager state
 	if game_manager:
 		game_manager.change_game_state(game_manager.GameState.PLAYING)
 	
@@ -100,11 +110,11 @@ func complete_restart_level():
 		if DEBUG_STATE_TRANSITIONS:
 			print("GameStateManager: Deactivated GameplayUI")
 	
-	var time_visual_manager = get_node_or_null("/root/TimeVisualManager")
-	if time_visual_manager:
-		time_visual_manager.deactivate()
+	var layered_visual_manager = get_node_or_null("/root/LayeredVisualManager")
+	if layered_visual_manager:
+		layered_visual_manager.deactivate()
 		if DEBUG_STATE_TRANSITIONS:
-			print("GameStateManager: Deactivated TimeVisualManager")
+			print("GameStateManager: Deactivated LayeredVisualManager")
 	
 	# === STEP 2: CLEAN UP EVERYTHING ===
 	var tracer_manager = get_node_or_null("/root/TracerManager")
@@ -123,6 +133,13 @@ func complete_restart_level():
 		arena_spawn_manager.reset_for_level()
 		if DEBUG_STATE_TRANSITIONS:
 			print("GameStateManager: Reset ArenaSpawnManager")
+	
+	# Stop continuous inverse SFX
+	var audio_manager = get_node_or_null("/root/AudioManager")
+	if audio_manager and audio_manager.has_method("stop_continuous_inverse_sfx"):
+		audio_manager.stop_continuous_inverse_sfx()
+		if DEBUG_STATE_TRANSITIONS:
+			print("GameStateManager: Stopped continuous inverse SFX")
 	
 	# Track session end for analytics
 	AnalyticsManager.end_session(false)
@@ -162,11 +179,15 @@ func reset_for_main_menu():
 	if time_manager:
 		time_manager.resume_time()
 	
+	# Activate menu time manager for background effects
+	var menu_time_manager = get_node_or_null("/root/MenuTimeManager")
+	if menu_time_manager:
+		menu_time_manager.activate_for_menu()
+	
 	# Standard reset
 	reset_all_game_systems()
 	
-	# Ensure mouse is visible for menu
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# Note: Mouse mode will be set by the target scene (main menu)
 
 func reset_for_analytics():
 	"""Reset systems specifically for analytics menu (keep mouse visible)."""

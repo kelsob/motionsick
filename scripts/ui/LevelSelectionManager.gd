@@ -18,16 +18,17 @@ extends Control
 
 @export_group("Debug Settings")
 ## Enable debug output for level selection events
-@export var debug_selection: bool = true
+@export var debug_selection: bool = false
 ## Enable debug output for UI population
-@export var debug_ui_population: bool = true
+@export var debug_ui_population: bool = false
 ## Enable debug output for scene transitions
-@export var debug_transitions: bool = true
+@export var debug_transitions: bool = false
 
 ## === RUNTIME STATE ===
 # UI references
 @onready var level_grid: GridContainer = $VBoxContainer/LevelGrid
 @onready var back_button: Button = $VBoxContainer/BackButton
+
 # Level data singleton reference
 var level_data_manager: Node = null
 

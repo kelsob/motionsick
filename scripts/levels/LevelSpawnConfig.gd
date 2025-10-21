@@ -73,7 +73,7 @@ class SpawnEvent:
 
 @export_group("Debug Settings")
 ## Enable debug output for spawn configuration
-@export var debug_spawn_config: bool = true
+@export var debug_spawn_config: bool = false
 
 ## === RUNTIME STATE ===
 var arena_spawn_manager: Node = null

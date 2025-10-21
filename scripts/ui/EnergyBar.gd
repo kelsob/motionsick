@@ -147,9 +147,7 @@ func _on_energy_changed(current: float, max_energy: float, percentage: float):
 	current_energy_percentage = percentage
 	_update_display()
 	
-	# Debug info (can remove later)
-	if percentage <= 10.0:
-		print("EnergyBar: CRITICAL ENERGY - ", "%.1f" % percentage, "%")
+	# Debug info removed to prevent console spam
 
 func _on_energy_depleted():
 	"""Called when energy is completely depleted."""

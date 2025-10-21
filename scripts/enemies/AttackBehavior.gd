@@ -403,7 +403,7 @@ class ChargedAttack extends AttackBehavior:
 	"""Charge up then fire powerful shot. Used by Sniper for telegraphed long-range shots."""
 	
 	var charged_damage: int = 100  # High damage to one-shot other enemies
-	var charge_time: float = 2.0  # Full 2-second telegraph
+	var charge_time: float = 2.0  # Default telegraph duration (will be overridden by enemy setting)
 	var projectile_speed: float = 100.0  # Ultra-fast bullets
 	var cooldown_time: float = 6.0  # Longer cooldown for sniper shots
 	var max_range: float = 999.0  # Unlimited range for snipers
@@ -413,6 +413,10 @@ class ChargedAttack extends AttackBehavior:
 	
 	func _on_setup():
 		behavior_name = "Charged"
+		
+		# Get telegraph duration from enemy configuration
+		if enemy and enemy.has_method("get") and enemy.get("telegraph_duration"):
+			charge_time = enemy.telegraph_duration
 		
 		# Create charge timer
 		charge_timer = Timer.new()
@@ -442,6 +446,9 @@ class ChargedAttack extends AttackBehavior:
 			return
 		
 		print(enemy.name, " starting charge with telegraph...")
+		
+		# Play sniper shot telegraph SFX
+		AudioManager.play_sfx("sniper_shot_telegraph")
 		
 		# Telegraph for ONLY the charge time (1.5 seconds)
 		var fire_position = enemy.global_position + Vector3.UP * 0.5

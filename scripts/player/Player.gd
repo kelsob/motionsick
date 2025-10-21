@@ -92,6 +92,31 @@ extends CharacterBody3D
 ## === COMPONENTS ===
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var mesh: MeshInstance3D = $MeshInstance3D
+
+func capture_afterimage_data() -> Dictionary:
+	"""Capture mesh data for afterimage creation."""
+	var mesh_data = {
+		"meshes": []
+	}
+	
+	# Capture player mesh
+	if mesh and mesh.mesh:
+		mesh_data.meshes.append({
+			"mesh": mesh.mesh,
+			"transform": mesh.global_transform
+		})
+	
+	# Capture gun mesh if it exists and is equipped
+	var gun = get_node_or_null("Camera3D/Gun")
+	if gun and gun.is_gun_equipped:
+		var gun_mesh = gun.get_node_or_null("MeshInstance3D")
+		if gun_mesh and gun_mesh.mesh:
+			mesh_data.meshes.append({
+				"mesh": gun_mesh.mesh,
+				"transform": gun_mesh.global_transform
+			})
+	
+	return mesh_data
 @onready var camera: Camera3D = $Camera3D
 @onready var gun: Node3D = $Camera3D/Gun
 @onready var action_tracker: PlayerActionTracker = $PlayerActionTracker

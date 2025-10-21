@@ -1,22 +1,23 @@
-[gd_scene load_steps=3 format=3 uid="uid://bkrvf02fj1283"]
+[gd_scene load_steps=3 format=3 uid="uid://bbt485xkhew5e"]
 
 [ext_resource type="Shader" uid="uid://deocyob60lmkx" path="res://assets/shaders/time_scale_chromatic.gdshader" id="1_blmrj"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_3xh4c"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_gnryq"]
 shader = ExtResource("1_blmrj")
 shader_parameter/time_intensity = 0.0
-shader_parameter/aberration_strength = 0.01
-shader_parameter/vignette_strength = 0.0
-shader_parameter/vignette_radius = 0.0
-shader_parameter/dilation_tint = Color(1.2899e-05, 0.957967, 0.823263, 1)
-shader_parameter/desaturation_strength = 0.25
+shader_parameter/aberration_strength = 0.005
+shader_parameter/vignette_strength = 0.5
+shader_parameter/vignette_radius = 0.8
+shader_parameter/dilation_tint = Color(0.3, 0.6, 1, 1)
+shader_parameter/desaturation_strength = 0.0
 shader_parameter/distortion_strength = 0.02
 
-[node name="TimeVisualEffect" type="CanvasLayer"]
-layer = 64
+[node name="TimeVisualEffect" type="Node"]
 
-[node name="EffectRect" type="ColorRect" parent="."]
-material = SubResource("ShaderMaterial_3xh4c")
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="ColorRect" type="ColorRect" parent="CanvasLayer"]
+material = SubResource("ShaderMaterial_gnryq")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

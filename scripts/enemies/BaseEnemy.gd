@@ -24,6 +24,8 @@ class_name BaseEnemy
 @export var movement_behavior_type: MovementBehavior.Type = MovementBehavior.Type.CHASE
 ## Type of attack behavior to use
 @export var attack_behavior_type: AttackBehavior.Type = AttackBehavior.Type.MELEE
+## Telegraph duration for charged attacks (sniper shots) in seconds
+@export var telegraph_duration: float = 2.0
 
 @export_group("Visual Settings")
 ## Color of the enemy mesh
@@ -78,12 +80,17 @@ class_name BaseEnemy
 @export var debug_visibility: bool = false
 ## Enable debug output for line-of-sight checks
 @export var debug_line_of_sight: bool = false
+## Enable debug output for audio system
+@export var debug_audio: bool = false
 
 ## === RUNTIME STATE ===
 # Health and lifecycle
 var current_health: int
 var is_dead: bool = false
 var is_attacking: bool = false
+
+# === ENEMY SCAN AUDIO SYSTEM ===
+var scan_player: AudioStreamPlayer3D = null  # Reference to current scan sound
 
 # Death animation state
 var is_dying: bool = false
@@ -131,6 +138,9 @@ func _ready():
 	# Sync movement and rotation speeds - use the exported values instead of hardcoded ones
 	speed = movement_speed
 	rotation_speed = turn_speed
+	
+	# Start scan audio
+	_start_scan()
 	
 	# Find player
 	player = get_tree().get_first_node_in_group("player")
@@ -212,6 +222,9 @@ func _physics_process(delta):
 	# Get time-adjusted delta for time system integration
 	var time_delta = time_affected.get_time_adjusted_delta(delta) if time_affected else delta
 	
+	# Update scan audio position to follow enemy
+	_update_scan_audio()
+	
 	# Full enemy logic - optimized movement system
 	_update_player_tracking()
 	_update_attack_logic(time_delta)
@@ -260,13 +273,15 @@ func _apply_movement(delta):
 		global_position += new_velocity * time_delta
 	else:
 		# Collision risk detected - use move_and_collide() for collision handling
-		if debug_movement:
-			print(name, " using move_and_collide() due to collision risk")
-		var collision = move_and_collide(new_velocity * time_delta)
-		if collision:
-			# If we hit something, try to slide along the collision normal
-			var slide_vector = new_velocity.slide(collision.get_normal())
-			global_position += slide_vector * time_delta
+		#move_and_slide()
+		pass
+		#if debug_movement:
+			#print(name, " using move_and_collide() due to collision risk")
+		#var collision = move_and_collide(new_velocity * time_delta)
+		#if collision:
+			## If we hit something, try to slide along the collision normal
+			#var slide_vector = new_velocity.slide(collision.get_normal())
+			#global_position += slide_vector * time_delta
 	# Use actual velocity direction for rotation
 	var velocity_direction = Vector3(velocity.x, 0, velocity.z)
 	
@@ -333,6 +348,12 @@ func _die():
 	is_dead = true
 	if debug_damage:
 		print(name, " died!")
+	
+	# Stop scan audio
+	_stop_scan()
+	
+	# Play enemy death SFX
+	AudioManager.play_sfx("enemy_death")
 	
 	# Add score for killing this enemy
 	var score_manager = get_node_or_null("/root/ScoreManager")
@@ -544,3 +565,31 @@ func print_status():
 	print("Is attacking: ", is_attacking)
 	print("Is dead: ", is_dead)
 	print("========================\n")
+
+# === ENEMY SCAN AUDIO SYSTEM ===
+
+func _update_scan_audio():
+	"""Update scan audio position to follow enemy."""
+	# Update scan position to follow enemy
+	if scan_player:
+		if scan_player.playing:
+			scan_player.global_position = global_position
+		else:
+			# Audio finished - play again immediately
+			var old_player = scan_player
+			scan_player = AudioManager.play_sfx_3d("enemy_scan", global_position, 0.7)
+			if debug_audio:
+				print("ENEMY SCAN: [", name, "] Audio loop - old: ", old_player, " new: ", scan_player, " pos: ", global_position)
+
+func _start_scan():
+	"""Start the scan audio when enemy spawns."""
+	# Play scan audio immediately (3D positioned) and store player reference
+	scan_player = AudioManager.play_sfx_3d("enemy_scan", global_position, 0.7)
+	if debug_audio:
+		print("ENEMY SCAN: [", name, "] STARTED - player: ", scan_player, " pos: ", global_position)
+
+func _stop_scan():
+	"""Stop the scan audio when enemy dies."""
+	if debug_audio:
+		print("ENEMY SCAN: [", name, "] STOPPED - player was: ", scan_player)
+	scan_player = null  # Clear reference

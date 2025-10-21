@@ -29,7 +29,8 @@ BootManager="*res://scripts/BootManager.gd"
 OptionsManager="*res://scripts/ui/OptionsManager.gd"
 AnalyticsManager="*res://scripts/AnalyticsManager.gd"
 AudioManager="*res://scripts/AudioManager.gd"
-TimeVisualManager="*res://scripts/TimeVisualManager.gd"
+LayeredVisualManager="*res://scripts/LayeredVisualManager.gd"
+MenuTimeManager="*res://scripts/MenuTimeManager.gd"
 
 [display]
 
@@ -114,3 +115,7 @@ action_deflect={
 3d_physics/layer_3="Environment"
 3d_physics/layer_4="Enemy"
 3d_physics/layer_8="Enemy"
+
+[physics]
+
+3d/run_on_separate_thread=true

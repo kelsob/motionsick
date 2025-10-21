@@ -77,6 +77,8 @@ var ui_players: Array[AudioStreamPlayer] = []
 
 # Track which players are playing undilated sounds (should not be time-scaled)
 var undilated_players: Array[AudioStreamPlayer] = []
+# Track which players are playing inverse-dilated sounds (inverse time scaling)
+var inverse_dilated_players: Array[AudioStreamPlayer] = []
 
 # Track which sound each player is currently playing (for pitch sensitivity)
 var sfx_player_current_sound: Dictionary = {}  # player -> sound_name
@@ -180,16 +182,20 @@ func _load_audio_library():
 	"""Load all audio files into memory with individual volume levels."""
 
 	# Music Assets
-	_register_music("track_1", preload("res://assets/sounds/music/MUSIC-dulledclub2.wav"), 0.0, 0.5)
+	_register_music("track_1", preload("res://assets/sounds/music/MUSIC-dulledclub2.wav"), 1.0, 1.0)
 
 	# Enemy SFX
 	_register_sfx("enemy_spawn_telegraph", preload("res://assets/sounds/sfx/enemies/spawn_telegraph.wav"), 1.0, 1.0)
+	_register_sfx("enemy_death", preload("res://assets/sounds/sfx/enemies/enemy_death.wav"), 1.0, 1.0)
+	_register_sfx("sniper_shot_telegraph", preload("res://assets/sounds/sfx/enemies/sniper_shot_telegraph.wav"), 1.0, 1.0)
+	_register_sfx("enemy_scan", preload("res://assets/sounds/sfx/enemies/enemyscan3.wav"), 1.0, 1.0)
 
 	# Player SFX
 	_register_sfx("player_death", preload("res://assets/sounds/sfx/player/people_man_scream.wav"), 0.75, 1.0)
 
 	# Time SFX
-	_register_sfx("clock_tick", preload("res://assets/sounds/sfx/time/tick_reverb.wav"), 0.1, 1.0)
+	_register_sfx("clock_tick", preload("res://assets/sounds/sfx/time/tick_reverb.wav"), 0.2, 1.0)
+	_register_sfx("time_dilation", preload("res://assets/sounds/sfx/time/windfast.wav"), 0.3, 1.0)
 
 	# UI SFX (no pitch scaling for UI sounds)
 	_register_sfx("ui_tick", preload("res://assets/sounds/sfx/ui/tick.wav"), 0.25, 0.0)
@@ -199,12 +205,13 @@ func _load_audio_library():
 	# Weapon SFX (full pitch scaling for combat feedback)
 	_register_sfx("gunshot_pistol", preload("res://assets/sounds/sfx/weapons/gunshot_mechanical.wav"), 0.8, 1.0)
 	_register_sfx("bounce_pistol", preload("res://assets/sounds/sfx/weapons/impact_percussive.wav"), 1.0, 1.0)
-	_register_sfx("bullet_pickup", preload("res://assets/sounds/sfx/weapons/impactenergy.wav"), 1.0, 1.0)
-	_register_sfx("bullet_redirect", preload("res://assets/sounds/sfx/weapons/impact_boom.wav"), 1.0, 1.0)
+	_register_sfx("bullet_pickup", preload("res://assets/sounds/sfx/weapons/impactenergy.wav"), 1.0, 0.0)
+	_register_sfx("bullet_redirect", preload("res://assets/sounds/sfx/weapons/impact_boom.wav"), 1.0, 0.0)
 	_register_sfx("pistol_empty_chamber", preload("res://assets/sounds/sfx/weapons/impactenergy2.wav"), 1.0, 1.0)
 	_register_sfx("pistol_pickup", preload("res://assets/sounds/sfx/weapons/mechanical_sound_4.wav"), 0.5, 1.0)
 	_register_sfx("bullet_explosion", preload("res://assets/sounds/sfx/weapons/gunshot_energy.wav"), 0.025, 1.0)
 	_register_sfx("bullet_hum", preload("res://assets/sounds/sfx/weapons/humlow.wav"), 1.0, 0.6)
+	_register_sfx("bullet_enemy_hit", preload("res://assets/sounds/sfx/weapons/bullet_enemy_hit.wav"), 1.0, 1.0)
 	
 	if DEBUG_AUDIO:
 		print("AudioManager: Audio library loaded - SFX: ", sfx_library.size(), " sounds")
@@ -293,7 +300,7 @@ func _update_pitch_and_speed_scaling():
 	
 	# Update SFX players with individual pitch sensitivity
 	for player in sfx_players:
-		if player.playing and not player in undilated_players:
+		if player.playing and not player in undilated_players and not player in inverse_dilated_players:
 			var sound_name = sfx_player_current_sound.get(player, "")
 			if sound_name != "":
 				var sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
@@ -302,6 +309,20 @@ func _update_pitch_and_speed_scaling():
 			else:
 				# Unknown sound, use default
 				player.pitch_scale = max(0.01, sfx_pitch_base)
+			player.stream_paused = false
+		
+		# Handle inverse-dilated players (inverse time scaling)
+		elif player.playing and player in inverse_dilated_players:
+			var sound_name = sfx_player_current_sound.get(player, "")
+			if sound_name != "":
+				var sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
+				# Inverse scaling: when time_scale is 1.0, pitch is 0.01 (paused), when time_scale is 0.0, pitch is 1.0 (normal)
+				var inverse_pitch_base = max(0.01, 1.0 - current_time_scale)
+				var final_pitch = max(0.01, lerp(1.0, inverse_pitch_base, sensitivity))
+				player.pitch_scale = final_pitch
+			else:
+				# Unknown sound, use default inverse scaling
+				player.pitch_scale = max(0.01, 1.0 - current_time_scale)
 			player.stream_paused = false
 	
 	# Update 3D SFX players with individual pitch sensitivity
@@ -369,22 +390,42 @@ func _cleanup_undilated_tracking(player: AudioStreamPlayer):
 	if player in sfx_player_current_sound:
 		sfx_player_current_sound.erase(player)
 
+func _cleanup_inverse_dilated_tracking(player: AudioStreamPlayer):
+	"""Remove player from inverse-dilated tracking when sound finishes."""
+	# Wait for the sound to actually finish, then clean up
+	if is_instance_valid(player):
+		await player.finished
+	
+	# Remove from inverse-dilated tracking
+	if player in inverse_dilated_players:
+		inverse_dilated_players.erase(player)
+	
+	# Remove from sound tracking
+	if player in sfx_player_current_sound:
+		sfx_player_current_sound.erase(player)
+
 func _update_all_volumes():
 	"""Update volume for all audio players based on user preferences."""
 	# Update SFX players (master * sfx * cap)
 	for player in sfx_players:
 		var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * max_volume_cap
-		player.volume_db = linear_to_db(final_volume)
+		player.volume_db = _safe_linear_to_db(final_volume)
 	
 	# Update Music players (master * music * cap)
 	for player in music_players:
 		var final_volume = base_music_volume * user_master_volume * user_music_volume * max_volume_cap
-		player.volume_db = linear_to_db(final_volume)
+		player.volume_db = _safe_linear_to_db(final_volume)
 	
 	# Update UI players (master * ui * cap)
 	for player in ui_players:
 		var final_volume = base_ui_volume * user_master_volume * user_ui_volume * max_volume_cap
-		player.volume_db = linear_to_db(final_volume)
+		player.volume_db = _safe_linear_to_db(final_volume)
+
+func _safe_linear_to_db(linear_volume: float) -> float:
+	"""Safely convert linear volume to dB, handling zero and negative values."""
+	if linear_volume <= 0.0:
+		return -80.0  # Mute (effectively silent)
+	return linear_to_db(linear_volume)
 
 ## === PUBLIC API - SFX ===
 
@@ -407,7 +448,7 @@ func play_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	# Calculate volume with individual SFX volume level and cap (master * sfx * individual * cap)
 	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)  # Default to 1.0 if not set
 	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level * max_volume_cap
-	player.volume_db = linear_to_db(final_volume)
+	player.volume_db = _safe_linear_to_db(final_volume)
 	
 	# Calculate correct pitch for current time scale with sensitivity
 	var pitch_sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)  # Default to full sensitivity
@@ -452,7 +493,7 @@ func play_sfx_undilated(sound_name: String, volume_modifier: float = 1.0) -> boo
 	# Calculate volume with individual SFX volume level (master * sfx * individual)
 	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)
 	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level
-	player.volume_db = linear_to_db(final_volume)
+	player.volume_db = _safe_linear_to_db(final_volume)
 	
 	# ALWAYS use normal pitch and speed - ignore time scale
 	player.pitch_scale = 1.0
@@ -470,6 +511,55 @@ func play_sfx_undilated(sound_name: String, volume_modifier: float = 1.0) -> boo
 	
 	if DEBUG_AUDIO:
 		print("AudioManager: Playing undilated SFX: ", sound_name, " (pitch: 1.0, ignoring time scale)")
+	
+	return true
+
+func play_sfx_inverse(sound_name: String, volume_modifier: float = 1.0) -> bool:
+	"""Play a sound effect with inverse time scaling (paused when time is normal, normal when time is stopped)."""
+	if not sfx_enabled or not sfx_library.has(sound_name):
+		if DEBUG_AUDIO:
+			print("AudioManager: Inverse SFX not found or disabled: ", sound_name)
+		return false
+	
+	var player = _get_next_sfx_player()
+	if not player:
+		if DEBUG_AUDIO:
+			print("AudioManager: No available SFX players for inverse sound")
+		return false
+	
+	# Configure player
+	player.stream = sfx_library[sound_name]
+	
+	# Calculate volume with individual SFX volume level and cap (master * sfx * individual * cap)
+	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)
+	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level * max_volume_cap
+	player.volume_db = _safe_linear_to_db(final_volume)
+	
+	# Calculate inverse pitch for current time scale with sensitivity
+	var pitch_sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
+	# Inverse scaling: when time_scale is 1.0, pitch is 0.01 (paused), when time_scale is 0.0, pitch is 1.0 (normal)
+	var inverse_pitch_base = max(0.01, 1.0 - current_time_scale)
+	var final_pitch = max(0.01, lerp(1.0, inverse_pitch_base, pitch_sensitivity))
+	
+	# Track which sound this player is playing
+	sfx_player_current_sound[player] = sound_name
+	
+	# Set pitch BEFORE playing to avoid the initial squeak
+	player.pitch_scale = final_pitch
+	
+	# Start playing at the correct inverse time-scaled pitch
+	player.play()
+	player.stream_paused = false
+	
+	# Track this player as inverse-dilated so it gets inverse time scaling
+	if not player in inverse_dilated_players:
+		inverse_dilated_players.append(player)
+	
+	# Clean up tracking when sound finishes
+	call_deferred("_cleanup_inverse_dilated_tracking", player)
+	
+	if DEBUG_AUDIO:
+		print("AudioManager: Playing inverse SFX: ", sound_name, " (inverse pitch: ", final_pitch, ")")
 	
 	return true
 
@@ -492,7 +582,7 @@ func play_sfx_3d(sound_name: String, position: Vector3, volume_modifier: float =
 	# Calculate volume with individual SFX volume level and cap (master * sfx * individual * cap)
 	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)  # Default to 1.0 if not set
 	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level * max_volume_cap
-	player.volume_db = linear_to_db(final_volume)
+	player.volume_db = _safe_linear_to_db(final_volume)
 	player.global_position = position
 	
 	# Set pitch scale for time distortion with sensitivity
@@ -526,6 +616,140 @@ func stop_all_sfx():
 		if player.playing:
 			player.stop()
 
+# === CONTINUOUS INVERSE SFX MANAGEMENT ===
+
+var continuous_inverse_player: AudioStreamPlayer = null
+
+func start_continuous_inverse_sfx(sound_name: String, volume_modifier: float = 1.0) -> bool:
+	"""Start a continuously playing inverse SFX that's frozen in time when player isn't moving."""
+	if not sfx_enabled or not sfx_library.has(sound_name):
+		if DEBUG_AUDIO:
+			print("AudioManager: Continuous inverse SFX not found or disabled: ", sound_name)
+		return false
+	
+	# Stop any existing continuous inverse SFX
+	stop_continuous_inverse_sfx()
+	
+	# Get a dedicated player for continuous inverse SFX
+	continuous_inverse_player = _get_next_sfx_player()
+	if not continuous_inverse_player:
+		if DEBUG_AUDIO:
+			print("AudioManager: No available SFX players for continuous inverse sound")
+		return false
+	
+	# Configure player
+	continuous_inverse_player.stream = sfx_library[sound_name]
+	
+	# Calculate volume with individual SFX volume level and cap
+	var sfx_volume_level = sfx_volumes.get(sound_name, 1.0)
+	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * volume_modifier * sfx_volume_level * max_volume_cap
+	continuous_inverse_player.volume_db = _safe_linear_to_db(final_volume)
+	
+	# Calculate inverse pitch for current time scale
+	var pitch_sensitivity = sfx_pitch_sensitivity.get(sound_name, 1.0)
+	var inverse_pitch_base = max(0.01, 1.0 - current_time_scale)
+	var final_pitch = max(0.01, lerp(1.0, inverse_pitch_base, pitch_sensitivity))
+	
+	# Track which sound this player is playing
+	sfx_player_current_sound[continuous_inverse_player] = sound_name
+	
+	# Set pitch and start playing
+	continuous_inverse_player.pitch_scale = final_pitch
+	continuous_inverse_player.play()
+	continuous_inverse_player.stream_paused = false
+	
+	# Track as inverse-dilated
+	if not continuous_inverse_player in inverse_dilated_players:
+		inverse_dilated_players.append(continuous_inverse_player)
+	
+	# Set up automatic looping when sound finishes
+	continuous_inverse_player.finished.connect(_on_continuous_inverse_finished)
+	
+	if DEBUG_AUDIO:
+		print("AudioManager: Started continuous inverse SFX: ", sound_name, " (inverse pitch: ", final_pitch, ")")
+	
+	return true
+
+func stop_continuous_inverse_sfx():
+	"""Stop the continuously playing inverse SFX."""
+	if continuous_inverse_player:
+		# Disconnect the finished signal to prevent looping
+		if continuous_inverse_player.finished.is_connected(_on_continuous_inverse_finished):
+			continuous_inverse_player.finished.disconnect(_on_continuous_inverse_finished)
+		
+		if continuous_inverse_player.playing:
+			continuous_inverse_player.stop()
+		
+		# Remove from inverse-dilated tracking
+		if continuous_inverse_player in inverse_dilated_players:
+			inverse_dilated_players.erase(continuous_inverse_player)
+		
+		# Remove from sound tracking
+		if continuous_inverse_player in sfx_player_current_sound:
+			sfx_player_current_sound.erase(continuous_inverse_player)
+		
+		if DEBUG_AUDIO:
+			print("AudioManager: Stopped continuous inverse SFX")
+	
+	continuous_inverse_player = null
+
+func _on_continuous_inverse_finished():
+	"""Called when continuous inverse SFX finishes - automatically restart it."""
+	if continuous_inverse_player and continuous_inverse_player in sfx_player_current_sound:
+		var sound_name = sfx_player_current_sound[continuous_inverse_player]
+		if DEBUG_AUDIO:
+			print("AudioManager: Continuous inverse SFX finished, restarting: ", sound_name)
+		
+		# Restart the same sound
+		continuous_inverse_player.play()
+		continuous_inverse_player.stream_paused = false
+
+func is_continuous_inverse_sfx_playing() -> bool:
+	"""Check if continuous inverse SFX is currently playing."""
+	return continuous_inverse_player and continuous_inverse_player.playing
+
+func fade_out_ui_sfx(fade_duration: float = 1.0):
+	"""Fade out all UI SFX players over the specified duration."""
+	if fade_duration <= 0.0:
+		# Instant stop
+		for player in ui_players:
+			if player.playing:
+				player.stop()
+		return
+	
+	# Create fade-out tween for each playing UI player
+	for player in ui_players:
+		if player.playing:
+			var tween = create_tween()
+			tween.tween_property(player, "volume_db", -80.0, fade_duration)
+			tween.tween_callback(player.stop)
+
+func fade_out_all_sfx(fade_duration: float = 1.0):
+	"""Fade out all SFX players (including regular SFX) over the specified duration."""
+	if fade_duration <= 0.0:
+		# Instant stop
+		for player in sfx_players:
+			if player.playing:
+				player.stop()
+		for player in ui_players:
+			if player.playing:
+				player.stop()
+		return
+	
+	# Create fade-out tween for each playing SFX player
+	for player in sfx_players:
+		if player.playing:
+			var tween = create_tween()
+			tween.tween_property(player, "volume_db", -80.0, fade_duration)
+			tween.tween_callback(player.stop)
+	
+	# Also fade out UI players
+	for player in ui_players:
+		if player.playing:
+			var tween = create_tween()
+			tween.tween_property(player, "volume_db", -80.0, fade_duration)
+			tween.tween_callback(player.stop)
+
 ## === PUBLIC API - MUSIC ===
 
 func play_music(track_name: String, fade_in_duration: float = 0.0) -> bool:
@@ -546,7 +770,7 @@ func play_music(track_name: String, fade_in_duration: float = 0.0) -> bool:
 	current_music_player.stream = music_library[track_name]
 	var track_volume = music_volumes.get(track_name, 1.0)
 	var final_volume = base_music_volume * user_master_volume * user_music_volume * track_volume * max_volume_cap
-	current_music_player.volume_db = linear_to_db(final_volume)
+	current_music_player.volume_db = _safe_linear_to_db(final_volume)
 	
 	# Apply pitch scaling with sensitivity
 	var pitch_sensitivity = music_pitch_sensitivity.get(track_name, 1.0)
@@ -598,7 +822,7 @@ func play_ui(sound_name: String, volume_modifier: float = 1.0) -> bool:
 	
 	# Configure player
 	player.stream = ui_library[sound_name]
-	player.volume_db = linear_to_db(base_ui_volume * user_ui_volume * volume_modifier)
+	player.volume_db = _safe_linear_to_db(base_ui_volume * user_ui_volume * volume_modifier)
 	player.pitch_scale = clamp(lerp(ui_min_pitch, ui_max_pitch, current_time_scale), 
 							   ui_min_pitch, ui_max_pitch)
 	player.play()
@@ -692,7 +916,7 @@ func set_ui_volume(volume: float):
 func _update_sfx_volumes():
 	"""Update volume for all SFX players."""
 	var final_volume = base_sfx_volume * user_master_volume * user_sfx_volume * max_volume_cap
-	var final_db = linear_to_db(final_volume)
+	var final_db = _safe_linear_to_db(final_volume)
 	
 	print("AudioManager: _update_sfx_volumes() - base=", base_sfx_volume, " master=", user_master_volume, " sfx=", user_sfx_volume, " cap=", max_volume_cap)
 	print("AudioManager: final_volume=", final_volume, " final_db=", final_db, " dB")
@@ -710,13 +934,13 @@ func _update_music_volumes():
 	"""Update volume for all music players."""
 	for player in music_players:
 		var final_volume = base_music_volume * user_master_volume * user_music_volume * max_volume_cap
-		player.volume_db = linear_to_db(final_volume)
+		player.volume_db = _safe_linear_to_db(final_volume)
 
 func _update_ui_volumes():
 	"""Update volume for all UI players."""
 	for player in ui_players:
 		var final_volume = base_ui_volume * user_master_volume * user_ui_volume * max_volume_cap
-		player.volume_db = linear_to_db(final_volume)
+		player.volume_db = _safe_linear_to_db(final_volume)
 
 ## === OPTIONS MENU INTEGRATION ===
 

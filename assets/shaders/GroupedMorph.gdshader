@@ -41,34 +41,34 @@ vec3 rotate_vertex(vec3 pos, vec3 axis, float angle) {
 	float s = sin(angle);
 	float c = cos(angle);
 	float oc = 1.0 - c;
-	
+
 	mat3 rot = mat3(
 		vec3(oc * axis.x * axis.x + c,           oc * axis.x * axis.y + axis.z * s,  oc * axis.z * axis.x - axis.y * s),
 		vec3(oc * axis.x * axis.y - axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z + axis.x * s),
 		vec3(oc * axis.z * axis.x + axis.y * s,  oc * axis.y * axis.z - axis.x * s,  oc * axis.z * axis.z + c)
 	);
-	
+
 	return rot * pos;
 }
 
 void vertex() {
 	vec3 local_pos = VERTEX;
-	
+
 	// Get time-based animation
 	float time = TIME * time_scale;
-	
+
 	// === UNIFORM ROTATION ===
 	// Rotate entire mesh around specified axis
 	float rotation_angle = time * rotation_speed * morph_intensity;
 	vec3 rotated_pos = rotate_vertex(local_pos, rotation_axis, rotation_angle);
-	
+
 	// === PHASE-OFFSET SCALE PULSE ===
 	// Each vertex gets a different phase offset for the wave
 	// Use vertex position to create a unique phase for each vertex
 	float vertex_phase = (local_pos.x + local_pos.y + local_pos.z) * vertex_phase_offset;
 	float scale_factor = 1.0 + sin(time * scale_pulse_speed + vertex_phase) * scale_pulse_strength * morph_intensity;
 	vec3 scaled_pos = rotated_pos * scale_factor;
-	
+
 	// === UNIFORM TRANSLATION ===
 	// Translate entire mesh (maintains connectivity)
 	vec3 translation = vec3(
@@ -76,13 +76,13 @@ void vertex() {
 		cos(time * translation_speed * 1.2) * translation_strength * morph_intensity,
 		sin(time * translation_speed * 0.8) * translation_strength * morph_intensity
 	);
-	
+
 	// Apply translation
 	vec3 final_pos = scaled_pos + translation;
-	
+
 	// Update vertex position
 	VERTEX = final_pos;
-	
+
 	// Recalculate normal for lighting
 	NORMAL = normalize(NORMAL);
 }
@@ -90,11 +90,11 @@ void vertex() {
 void fragment() {
 	// === BASE COLOR ===
 	vec3 base = base_color.rgb;
-	
+
 	// === FRESNEL EDGE GLOW ===
 	float fresnel = pow(1.0 - dot(NORMAL, VIEW), fresnel_power);
 	vec3 edge_glow = edge_color.rgb * fresnel * edge_glow_intensity;
-	
+
 	// === COMBINE ===
 	ALBEDO = base;
 	EMISSION = edge_glow;

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="GunData" load_steps=2 format=3 uid="uid://cktsdpk3csts3"]
+
+[ext_resource type="Script" uid="uid://vo0f7kffg44j" path="res://scripts/player/GunData.gd" id="1_vfhoq"]
+
+[resource]
+script = ExtResource("1_vfhoq")
+gun_name = "Shotgun"
+gun_type = 2
+fire_rate = 1.0
+damage = 25
+ammo_capacity = 8
+spread_angle = 3.0
+bullet_speed = 80.0
+is_shotgun = true
+pellet_count = 8
+shotgun_spread = 12.0
+is_explosive = false
+explosion_radius = 0.0
+explosion_damage = 0
+fire_mode = 3
+travel_type = 2
+knockback_force = 25.0
+piercing = false
+sfx_name = "shotgun"
+muzzle_flash_size = 1.5
+recoil_intensity = 2.0
+bullet_trail_color = Color(1, 0.8, 0.6, 1)
+metadata/_custom_type_script = "uid://vo0f7kffg44j"

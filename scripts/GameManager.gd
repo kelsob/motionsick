@@ -48,12 +48,16 @@ signal game_restart_requested
 
 # References
 var player: Node = null
+var afterimage_manager: Node = null
 var death_screen: Control = null
 var main_scene: Node3D = null
 
 func _ready():
 	# Add to autoload group
 	add_to_group("game_manager")
+	
+	# Initialize AfterImageManager
+	_initialize_afterimage_manager()
 	
 	# Wait a frame to ensure scene is loaded
 	await get_tree().process_frame
@@ -63,6 +67,25 @@ func _ready():
 	
 	# Initial setup
 	_setup_connections()
+
+func _initialize_afterimage_manager():
+	"""Initialize the AfterImageManager system."""
+	# Load the AfterImageManager script
+	var afterimage_script = preload("res://scripts/AfterImageManager.gd")
+	afterimage_manager = Node.new()
+	afterimage_manager.set_script(afterimage_script)
+	afterimage_manager.name = "AfterImageManager"
+	
+	# Add to scene using call_deferred to avoid busy node issues
+	call_deferred("_add_afterimage_manager")
+	
+	print("GameManager: AfterImageManager initialization deferred")
+
+func _add_afterimage_manager():
+	"""Add the AfterImageManager to the scene tree."""
+	if afterimage_manager:
+		get_tree().root.add_child(afterimage_manager)
+		print("GameManager: AfterImageManager added to scene")
 
 func _setup_connections():
 	"""Setup connections to player and death screen"""
@@ -88,6 +111,11 @@ func _setup_connections():
 			print("GameManager: Player death signal connected: ", player.player_died.is_connected(_on_player_died))
 		else:
 			print("Warning: Player doesn't have player_died signal")
+		
+		# Activate AfterImageManager for this player
+		if afterimage_manager and afterimage_manager.has_method("activate_system"):
+			afterimage_manager.activate_system(player)
+			print("GameManager: AfterImageManager activated for player")
 	else:
 		print("GameManager: Player not found")
 	
@@ -184,6 +212,11 @@ func _handle_level_won_state():
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	print("GameManager: Set mouse mode to visible")
 	
+	# Clear afterimages on victory
+	if afterimage_manager and afterimage_manager.has_method("_on_player_victory"):
+		afterimage_manager._on_player_victory()
+		print("GameManager: Cleared afterimages on victory")
+	
 	# Disable player input
 	if player and player.has_method("set_input_enabled"):
 		player.set_input_enabled(false)
@@ -214,6 +247,11 @@ func _on_player_died():
 	print("GameManager: Received player_died signal!")
 	print("GameManager: Player died!")
 	
+	# Clear afterimages on player death
+	if afterimage_manager and afterimage_manager.has_method("_on_player_died"):
+		afterimage_manager._on_player_died()
+		print("GameManager: Cleared afterimages on player death")
+	
 	# Disable combat UI immediately
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
 	if ui_manager:
@@ -225,6 +263,12 @@ func _on_player_died():
 	if time_manager:
 		time_manager.pause_time()
 		print("GameManager: Paused time system")
+	
+	# Stop continuous inverse SFX
+	var audio_manager = get_node_or_null("/root/AudioManager")
+	if audio_manager and audio_manager.has_method("stop_continuous_inverse_sfx"):
+		audio_manager.stop_continuous_inverse_sfx()
+		print("GameManager: Stopped continuous inverse SFX on player death")
 	
 	# Track session end for analytics (session failed)
 	AnalyticsManager.end_session(false)
@@ -444,6 +488,12 @@ func trigger_level_won():
 	if time_manager:
 		time_manager.pause_time()
 		print("GameManager: Paused time system")
+	
+	# Stop continuous inverse SFX
+	var audio_manager = get_node_or_null("/root/AudioManager")
+	if audio_manager and audio_manager.has_method("stop_continuous_inverse_sfx"):
+		audio_manager.stop_continuous_inverse_sfx()
+		print("GameManager: Stopped continuous inverse SFX on level win")
 	
 	# Track session end for analytics (session succeeded - different from death which is false)
 	AnalyticsManager.end_session(true)

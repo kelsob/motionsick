@@ -9,7 +9,7 @@ extends Node
 
 @export_group("Debug")
 ## Enable debug output
-@export var debug_boot: bool = true
+@export var debug_boot: bool = false
 
 func _ready():
 	# Apply saved settings immediately on game boot

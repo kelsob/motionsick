@@ -181,9 +181,9 @@ func _activate_gameplay_systems():
 		arena_spawn_manager.reset_for_level()
 	
 	# Activate time visual effects
-	var time_visual_manager = get_node_or_null("/root/TimeVisualManager")
-	if time_visual_manager and time_visual_manager.has_method("activate_for_gameplay"):
-		time_visual_manager.activate_for_gameplay()
+	var layered_visual_manager = get_node_or_null("/root/LayeredVisualManager")
+	if layered_visual_manager and layered_visual_manager.has_method("activate_for_gameplay"):
+		layered_visual_manager.activate_for_gameplay()
 	
 	# Then activate gameplay UI (so UI can find player that TimeManager found)
 	var ui_manager = get_node_or_null("/root/GameplayUIManager")
@@ -199,6 +199,16 @@ func _activate_gameplay_systems():
 	
 	# Create and start clock ticking for level atmosphere
 	_create_clock_tick_manager()
+	
+	# Fade out menu SFX and start gameplay audio
+	var audio_manager = get_node_or_null("/root/AudioManager")
+	if audio_manager:
+		# Fade out any menu SFX that might still be playing (including ambience_oneshot_1)
+		if audio_manager.has_method("fade_out_all_sfx"):
+			audio_manager.fade_out_all_sfx(0.5)  # Quick fade out over 0.5 seconds
+		# Start continuous inverse SFX for frozen-in-time ambient sound
+		if audio_manager.has_method("start_continuous_inverse_sfx"):
+			audio_manager.start_continuous_inverse_sfx("time_dilation")
 
 func deactivate_gameplay_systems():
 	"""Deactivate gameplay systems when returning to menus."""
@@ -211,9 +221,9 @@ func deactivate_gameplay_systems():
 		ui_manager.deactivate_gameplay_ui()
 	
 	# Deactivate time visual effects
-	var time_visual_manager = get_node_or_null("/root/TimeVisualManager")
-	if time_visual_manager and time_visual_manager.has_method("deactivate"):
-		time_visual_manager.deactivate()
+	var layered_visual_manager = get_node_or_null("/root/LayeredVisualManager")
+	if layered_visual_manager and layered_visual_manager.has_method("deactivate"):
+		layered_visual_manager.deactivate()
 	
 	# Deactivate TimeManager
 	var time_manager = get_node_or_null("/root/TimeManager")
