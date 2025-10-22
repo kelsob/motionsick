@@ -494,8 +494,8 @@ func _ready():
 	# Set initial state
 	_change_state(State.IDLE)
 	
-	# Initialize ammo system
-	current_ammo = starting_ammo
+	# Initialize ammo system - start with 0 ammo until gun is picked up
+	current_ammo = 0
 	ammo_changed.emit(current_ammo, max_ammo)
 	
 	# Apply auto-positioning if enabled
@@ -2185,6 +2185,9 @@ func _apply_gun_properties():
 	
 	# Update knockback
 	rapid_fire_knockback = current_gun_data.knockback_force
+	
+	# Emit ammo changed signal so UI updates with correct values
+	ammo_changed.emit(current_ammo, max_ammo)
 	
 	if debug_equipment:
 		print("Applied gun properties - Ammo: ", max_ammo, " Fire Rate: ", rapid_fire_rate_start, " Damage: ", rapid_fire_damage)

@@ -17,6 +17,7 @@ var bullet_indicators: Array[Control] = []
 var gun_reference: Node3D = null
 var max_ammo_count: int = 0
 var current_ammo_count: int = 0
+var is_rebuilding: bool = false
 
 func _ready():
 	# Create horizontal container for bullet indicators
@@ -65,8 +66,15 @@ func _connect_to_gun():
 		
 		# Initialize with current ammo values
 		var initial_current = gun.get_current_ammo() if gun.has_method("get_current_ammo") else 0
-		var initial_max = gun.get_max_ammo() if gun.has_method("get_max_ammo") else 6
-		_on_ammo_changed(initial_current, initial_max)
+		var initial_max = gun.get_max_ammo() if gun.has_method("get_max_ammo") else 0
+		
+		# Only show ammo indicator if gun is equipped and has reasonable ammo values
+		if gun.has_method("is_equipped") and gun.is_equipped() and initial_max > 0 and initial_max < 100:
+			_on_ammo_changed(initial_current, initial_max)
+		else:
+			# Hide the ammo indicator if gun is not equipped or has invalid ammo values
+			visible = false
+			print("AmmoIndicator: Gun not equipped or invalid ammo values, hiding indicator")
 	else:
 		print("AmmoIndicator: Gun does not have ammo_changed signal!")
 
@@ -74,18 +82,31 @@ func _on_ammo_changed(current_ammo: int, max_ammo: int):
 	"""Called when the gun's ammo count changes."""
 	print("AmmoIndicator: Ammo changed to ", current_ammo, "/", max_ammo)
 	
-	current_ammo_count = current_ammo
-	
-	# If max ammo changed, rebuild all indicators
-	if max_ammo != max_ammo_count:
-		max_ammo_count = max_ammo
-		_rebuild_bullet_indicators()
-	
-	# Update visibility of existing indicators
-	_update_bullet_visibility()
+	# Only show ammo indicator if gun is equipped and has reasonable ammo values
+	if gun_reference and gun_reference.has_method("is_equipped") and gun_reference.is_equipped() and max_ammo > 0 and max_ammo < 100:
+		visible = true
+		current_ammo_count = current_ammo
+		
+		# If max ammo changed, rebuild all indicators
+		if max_ammo != max_ammo_count and not is_rebuilding:
+			print("AmmoIndicator: Max ammo changed from ", max_ammo_count, " to ", max_ammo, " - rebuilding indicators")
+			max_ammo_count = max_ammo
+			_rebuild_bullet_indicators()
+		
+		# Update visibility of existing indicators
+		_update_bullet_visibility()
+	else:
+		# Hide the ammo indicator if gun is not equipped or has invalid ammo values
+		visible = false
+		print("AmmoIndicator: Hiding indicator - gun not equipped or invalid ammo values (max_ammo: ", max_ammo, ")")
 
 func _rebuild_bullet_indicators():
 	"""Rebuild all bullet indicators when max ammo changes."""
+	if is_rebuilding:
+		print("AmmoIndicator: Already rebuilding, skipping duplicate call")
+		return
+		
+	is_rebuilding = true
 	print("AmmoIndicator: Rebuilding indicators for max ammo: ", max_ammo_count)
 	
 	# Clear existing indicators
@@ -98,6 +119,8 @@ func _rebuild_bullet_indicators():
 		bullet_indicators.append(bullet_indicator)
 		
 		# Debug output removed to prevent console spam
+	
+	is_rebuilding = false
 
 func _clear_bullet_indicators():
 	"""Remove all existing bullet indicators."""
