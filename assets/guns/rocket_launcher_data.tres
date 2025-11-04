@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="GunData" load_steps=2 format=3 uid="uid://xiiy1ypyaq4c"]
+[gd_resource type="Resource" script_class="GunData" load_steps=4 format=3 uid="uid://xiiy1ypyaq4c"]
 
+[ext_resource type="PackedScene" uid="uid://bjeh1opxefroa" path="res://scenes/bullets/RocketLauncherBullet.tscn" id="1_mvwwv"]
 [ext_resource type="Script" uid="uid://vo0f7kffg44j" path="res://scripts/player/GunData.gd" id="1_vfhoq"]
+[ext_resource type="PackedScene" uid="uid://dxpy8f3g43ui8" path="res://scenes/guns/RocketLauncherGun.tscn" id="2_orkoe"]
 
 [resource]
 script = ExtResource("1_vfhoq")
@@ -25,4 +27,6 @@ sfx_name = "rocket_launcher"
 muzzle_flash_size = 2.0
 recoil_intensity = 3.0
 bullet_trail_color = Color(1, 0.6, 0.2, 1)
+gun_scene = ExtResource("2_orkoe")
+bullet_scene = ExtResource("1_mvwwv")
 metadata/_custom_type_script = "uid://vo0f7kffg44j"

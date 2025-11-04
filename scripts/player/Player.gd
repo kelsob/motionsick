@@ -729,16 +729,14 @@ func take_damage(damage: int) -> bool:
 
 func _try_pickup_gun() -> bool:
 	"""Try to pick up a gun if player is overlapping with it."""
-	# Check if we already have a gun equipped
-	if gun and gun.has_method("is_equipped") and gun.is_equipped():
-		return false
-	
 	# Find gun pickups and try to pick up (they check overlap internally)
+	# The pickup system now handles gun swapping automatically
 	var gun_pickups = get_tree().get_nodes_in_group("gun_pickups")
 	
 	for pickup in gun_pickups:
 		if pickup is Area3D and is_instance_valid(pickup):
 			# Try to pick up - the pickup itself checks if player is in range
+			# and handles gun swapping if player already has a gun
 			if pickup.has_method("try_pickup") and pickup.try_pickup(self):
 				return true
 	

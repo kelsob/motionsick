@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://dwjhkh178778o"]
+[gd_scene load_steps=7 format=3 uid="uid://dwjhkh178778o"]
 
 [ext_resource type="Script" uid="uid://dm5mn2fdd4ppt" path="res://scripts/player/Player.gd" id="1_tpytq"]
 [ext_resource type="Script" uid="uid://d4lbwp1akjl48" path="res://scripts/camera/FirstPersonCamera.gd" id="2_2gs60"]
@@ -8,9 +8,6 @@
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_wqvcu"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_2hlsy"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_gmlin"]
-size = Vector3(0.25, 0.25, 0.5)
 
 [node name="Player" type="CharacterBody3D"]
 collision_mask = 16
@@ -36,9 +33,6 @@ visible = false
 script = ExtResource("3_gmlin")
 current_gun_type = 2
 rapid_fire_recoil = 0.1
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Camera3D/Gun"]
-mesh = SubResource("BoxMesh_gmlin")
 
 [node name="Marker3D" type="Marker3D" parent="Camera3D/Gun"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.256268)

@@ -7,21 +7,20 @@
 [ext_resource type="PackedScene" uid="uid://spf1uba54en5" path="res://scenes/GunPickup.tscn" id="11_ouso4"]
 [ext_resource type="Script" uid="uid://xypdm50ppsha" path="res://scripts/levels/LevelSpawnConfig.gd" id="13_hfyti"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_kiajw"]
-sky_top_color = Color(0.813669, 0, 0.41146, 1)
-sky_horizon_color = Color(1, 0.428492, 0.643006, 1)
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ipj3d"]
+sky_horizon_color = Color(0.662243, 0.671743, 0.686743, 1)
+ground_horizon_color = Color(0.662243, 0.671743, 0.686743, 1)
 
-[sub_resource type="Sky" id="Sky_rknk3"]
-sky_material = SubResource("ProceduralSkyMaterial_kiajw")
+[sub_resource type="Sky" id="Sky_dign7"]
+sky_material = SubResource("ProceduralSkyMaterial_ipj3d")
 
 [sub_resource type="Environment" id="Environment_kiajw"]
-background_mode = 2
+background_mode = 1
 background_color = Color(0.0431373, 0.0588235, 0.0784314, 1)
-sky = SubResource("Sky_rknk3")
-ambient_light_source = 3
-ambient_light_color = Color(0, 0.505904, 0.858444, 1)
-ambient_light_sky_contribution = 0.19
-ambient_light_energy = 0.75
+sky = SubResource("Sky_dign7")
+ambient_light_color = Color(0.314619, 0.501691, 1, 1)
+ambient_light_sky_contribution = 0.2
+ambient_light_energy = 0.6
 tonemap_mode = 3
 glow_enabled = true
 glow_intensity = 0.2
@@ -138,7 +137,6 @@ environment = SubResource("Environment_kiajw")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.41428, 0.0837402)
-visible = false
 light_color = Color(0.603922, 0.827451, 1, 1)
 shadow_enabled = true
 omni_range = 24.209
@@ -146,7 +144,6 @@ omni_attenuation = 0.769
 
 [node name="OmniLight3D3" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.41428, 12.7625)
-visible = false
 light_color = Color(0.603922, 0.827451, 1, 1)
 shadow_enabled = true
 omni_range = 24.209
@@ -154,18 +151,10 @@ omni_attenuation = 0.769
 
 [node name="OmniLight3D2" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.41428, -17.1788)
-visible = false
 light_color = Color(0.926057, 0.732199, 0.842741, 1)
 shadow_enabled = true
 omni_range = 24.209
 omni_attenuation = 0.769
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Lights"]
-transform = Transform3D(0.866025, 0.433013, -0.25, 0, 0.5, 0.866025, 0.5, -0.75, 0.433013, 0, 21.1473, 0)
-light_color = Color(0.92931, 1.63645e-06, 0.536738, 1)
-light_energy = 2.0
-light_volumetric_fog_energy = 6.005
-shadow_enabled = true
 
 [node name="Player" parent="." instance=ExtResource("1_hyk8p")]
 
@@ -174,7 +163,6 @@ shadow_enabled = true
 [node name="GunPickup" parent="." instance=ExtResource("11_ouso4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1, -4.75)
 gun_type = 0
-current_ammo = 5
 
 [node name="GunPickup2" parent="." instance=ExtResource("11_ouso4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1, -4.75)
@@ -210,7 +198,6 @@ shape = SubResource("ConvexPolygonShape3D_a8run")
 
 [node name="Roof" type="StaticBody3D" parent="NavigationRegion3D/Environment"]
 transform = Transform3D(1, 0, 0, 0, -1, 8.74228e-08, 0, -8.74228e-08, -1, 0, 15, 0)
-visible = false
 collision_layer = 4
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="NavigationRegion3D/Environment/Roof"]

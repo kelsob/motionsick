@@ -1,7 +1,4 @@
-[gd_scene load_steps=6 format=4 uid="uid://j1iq81o0mh22"]
-
-[ext_resource type="PackedScene" uid="uid://cpxampdsrq0tc" path="res://scenes/bullets/bullet.tscn" id="1_g64gn"]
-[ext_resource type="Material" uid="uid://drxv2vjdu3myu" path="res://assets/materials/PlayerBullet.tres" id="2_p7wmw"]
+[gd_scene load_steps=4 format=4 uid="uid://tevwjtp6ndny"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qvcvq"]
 resource_name = "Material"
@@ -41,15 +38,7 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_68xfw")
 
-[node name="PlayerBullet" instance=ExtResource("1_g64gn")]
-lifetime = 300.0
-tracer_color = Color(0, 1, 0.866667, 1)
-can_bounce = true
-max_bounces = 10000
-bounce_energy_loss = 0.0
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." index="4"]
-transform = Transform3D(0.00019238, 0.000121949, 0.15, -0.000220222, 0.15, -0.000121669, -0.15, -0.000220067, 0.000192557, 0, 0, 0)
+[node name="MeshInstance3D" type="MeshInstance3D"]
+transform = Transform3D(-6.55671e-09, 0, 0.15, 0, 0.15, 0, -0.15, 0, -6.55671e-09, 0, 0, 0)
 mesh = SubResource("ArrayMesh_pi7n2")
 skeleton = NodePath("")
-surface_material_override/0 = ExtResource("2_p7wmw")

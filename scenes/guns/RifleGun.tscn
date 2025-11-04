@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3 uid="uid://dvc2o5qlo1wfr"]
+
+[ext_resource type="PackedScene" uid="uid://bybmn8q8hjp7u" path="res://scenes/guns/GunParent.tscn" id="1_lkvlu"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_fxnj0"]
+size = Vector3(0.2, 0.2, 1.2)
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_lkvlu"]
+points = PackedVector3Array(-0.1, -0.1, -0.55873, 0.119048, 0.119048, 0.609524, 0.119048, -0.109524, 0.609524, 0.119048, 0.119048, -0.609524, -0.109524, 0.119048, 0.609524, 0.119048, -0.109524, -0.609524, -0.109524, 0.119048, -0.609524, -0.1, -0.1, 0.55873)
+
+[node name="GunParent" instance=ExtResource("1_lkvlu")]
+
+[node name="GunMesh" parent="." index="0"]
+mesh = SubResource("BoxMesh_fxnj0")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="." index="1"]
+shape = SubResource("ConvexPolygonShape3D_lkvlu")

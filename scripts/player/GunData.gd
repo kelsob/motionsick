@@ -63,6 +63,12 @@ extends Resource
 ## Bullet trail color
 @export var bullet_trail_color: Color = Color.WHITE
 
+@export_group("Scenes")
+## Gun scene to instantiate for this gun type (inherits from GunParent)
+@export var gun_scene: PackedScene
+## Bullet scene to instantiate for this gun type
+@export var bullet_scene: PackedScene
+
 func _init():
 	# Set default values for pistol
 	gun_name = "Pistol"

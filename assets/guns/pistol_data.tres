@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="GunData" load_steps=2 format=3 uid="uid://bngfb8aepwpg6"]
+[gd_resource type="Resource" script_class="GunData" load_steps=4 format=3 uid="uid://bngfb8aepwpg6"]
 
+[ext_resource type="PackedScene" uid="uid://cwwdkftdd1syi" path="res://scenes/bullets/PistolBullet.tscn" id="1_ifvud"]
 [ext_resource type="Script" uid="uid://vo0f7kffg44j" path="res://scripts/player/GunData.gd" id="1_vfhoq"]
+[ext_resource type="PackedScene" uid="uid://dsqllqhnheobm" path="res://scenes/guns/PistolGun.tscn" id="2_0yms1"]
 
 [resource]
 script = ExtResource("1_vfhoq")
@@ -25,4 +27,6 @@ sfx_name = "pistol"
 muzzle_flash_size = 1.0
 recoil_intensity = 1.0
 bullet_trail_color = Color(1, 1, 1, 1)
+gun_scene = ExtResource("2_0yms1")
+bullet_scene = ExtResource("1_ifvud")
 metadata/_custom_type_script = "uid://vo0f7kffg44j"

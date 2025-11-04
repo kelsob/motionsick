@@ -328,7 +328,7 @@ var time_energy_manager: Node = null
 
 # === COMPONENTS ===
 # Player bullet scene (you'll create this)
-@export var player_bullet_scene: PackedScene = preload("res://scenes/bullets/PlayerBullet.tscn")
+# Removed player_bullet_scene - now using gun-specific bullet scenes from GunData
 @onready var camera = get_parent()  # Gun is now child of camera
 @onready var player = camera.get_parent()  # Player is camera's parent
 @onready var muzzle_marker = $Marker3D
@@ -888,8 +888,20 @@ func _prepare_next_bullet():
 			print("Not preparing bullet - no ammo remaining")
 		return
 		
+	# Use gun-specific bullet scene
+	var bullet_scene_to_use = null
+	if current_gun_data and current_gun_data.bullet_scene:
+		bullet_scene_to_use = current_gun_data.bullet_scene
+	else:
+		print("ERROR: No bullet scene available!")
+		if current_gun_data:
+			print("DEBUG: Gun data exists but no bullet_scene assigned: ", current_gun_data.gun_name)
+		else:
+			print("DEBUG: No gun data loaded!")
+		return  # Don't create bullet if no scene available
+	
 	# Instantiate a bullet ahead of time so it's ready when we need to fire
-	prepared_bullet = player_bullet_scene.instantiate()
+	prepared_bullet = bullet_scene_to_use.instantiate()
 	# Add directly to main scene since bullets are now scene children
 	get_tree().current_scene.add_child.call_deferred(prepared_bullet)
 	
@@ -1036,8 +1048,19 @@ func _fire_projectile(damage: int):
 		bullet = prepared_bullet
 		prepared_bullet = null
 	else:
-		# Fallback if no prepared bullet
-		bullet = player_bullet_scene.instantiate()
+		# Use gun-specific bullet scene
+		var bullet_scene_to_use = null
+		if current_gun_data and current_gun_data.bullet_scene:
+			bullet_scene_to_use = current_gun_data.bullet_scene
+		else:
+			print("ERROR: _fire_projectile - No bullet scene available!")
+			if current_gun_data:
+				print("DEBUG: Gun data exists but no bullet_scene assigned: ", current_gun_data.gun_name)
+			else:
+				print("DEBUG: No gun data loaded!")
+			return  # Don't create bullet if no scene available
+		
+		bullet = bullet_scene_to_use.instantiate()
 		get_tree().current_scene.add_child(bullet)
 		if bullet.has_method("set_gun_reference"):
 			bullet.set_gun_reference(self, muzzle_marker)
@@ -1380,8 +1403,19 @@ func _fire_shotgun_projectile_pellet(damage: int, direction: Vector3):
 	"""Fire a single projectile pellet."""
 	var spawn_position = get_muzzle_position()
 	
-	# Create bullet
-	var bullet = player_bullet_scene.instantiate()
+	# Create bullet using gun-specific scene
+	var bullet_scene_to_use = null
+	if current_gun_data and current_gun_data.bullet_scene:
+		bullet_scene_to_use = current_gun_data.bullet_scene
+	else:
+		print("ERROR: _fire_shotgun_projectile_pellet - No bullet scene available!")
+		if current_gun_data:
+			print("DEBUG: Gun data exists but no bullet_scene assigned: ", current_gun_data.gun_name)
+		else:
+			print("DEBUG: No gun data loaded!")
+		return  # Don't create bullet if no scene available
+	
+	var bullet = bullet_scene_to_use.instantiate()
 	get_tree().current_scene.add_child(bullet)
 	
 	# Setup bullet
@@ -1987,6 +2021,23 @@ func add_ammo(amount: int):
 	current_ammo = min(max_ammo, current_ammo + amount)
 	ammo_changed.emit(current_ammo, max_ammo)
 
+func get_current_gun_type() -> int:
+	"""Get the current gun type."""
+	return current_gun_type
+
+func drop_gun():
+	"""Drop the current gun (unequip it)."""
+	if debug_equipment:
+		print("Dropping gun...")
+	unequip_gun()
+
+func set_ammo(ammo_count: int):
+	"""Set the current ammo count."""
+	current_ammo = ammo_count
+	ammo_changed.emit(current_ammo, max_ammo)
+	if debug_ammo:
+		print("Ammo set to: ", current_ammo, "/", max_ammo)
+
 # === FIRING VELOCITY EFFECTS ===
 
 func _apply_firing_velocity_loss():
@@ -2169,6 +2220,9 @@ func _apply_gun_properties():
 		print("ERROR: No gun data loaded!")
 		return
 	
+	# Load the contextual gun scene
+	_load_gun_scene()
+	
 	# Apply gun-specific properties
 	max_ammo = current_gun_data.ammo_capacity
 	current_ammo = max_ammo  # Start with full ammo
@@ -2191,6 +2245,34 @@ func _apply_gun_properties():
 	
 	if debug_equipment:
 		print("Applied gun properties - Ammo: ", max_ammo, " Fire Rate: ", rapid_fire_rate_start, " Damage: ", rapid_fire_damage)
+
+func _load_gun_scene():
+	"""Load the contextual gun scene based on current gun data."""
+	if not current_gun_data or not current_gun_data.gun_scene:
+		print("ERROR: No gun scene found in gun data!")
+		return
+	
+	# Remove any existing gun scene
+	_clear_gun_scene()
+	
+	# Instantiate the new gun scene
+	var gun_scene_instance = current_gun_data.gun_scene.instantiate()
+	if not gun_scene_instance:
+		print("ERROR: Failed to instantiate gun scene!")
+		return
+	
+	# Add the gun scene as a child
+	add_child(gun_scene_instance)
+	
+	if debug_equipment:
+		print("Loaded gun scene: ", gun_scene_instance.name, " for gun type: ", current_gun_type)
+
+func _clear_gun_scene():
+	"""Remove any existing gun scene children."""
+	# Remove all children that are gun scenes (not the core gun system nodes)
+	for child in get_children():
+		if child.name.begins_with("Gun") or child.name.begins_with("Pistol") or child.name.begins_with("Rifle") or child.name.begins_with("Shotgun") or child.name.begins_with("Sniper") or child.name.begins_with("Rocket"):
+			child.queue_free()
 
 func _get_gun_type_name() -> String:
 	"""Get the string name for the current gun type."""

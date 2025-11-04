@@ -1,6 +1,6 @@
 extends Node3D
 
-const DEBUG_AFTERIMAGE = true
+const DEBUG_AFTERIMAGE = false
 
 enum AfterImageState {
 	INVISIBLE,
