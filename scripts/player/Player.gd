@@ -96,30 +96,59 @@ extends CharacterBody3D
 func capture_afterimage_data() -> Dictionary:
 	"""Capture mesh data for afterimage creation."""
 	var mesh_data = {
-		"meshes": []
+		"meshes": [],
+		"skeleton_node": null,  # Will hold duplicated skeleton hierarchy
+		"skeleton_position": Vector3.ZERO,  # Skeleton's global position
+		"skeleton_rotation": Vector3.ZERO   # Skeleton's global rotation
 	}
 	
-	# Capture player mesh
-	if mesh and mesh.mesh:
-		mesh_data.meshes.append({
-			"mesh": mesh.mesh,
-			"transform": mesh.global_transform
-		})
+	# Capture mannequin skeleton (animated character)
+	var skeleton_node = get_node_or_null("PlayerAnimationController/root/Skeleton3D")
+	if skeleton_node:
+		# Duplicate the entire Skeleton3D + body_001 hierarchy
+		var skeleton_duplicate = skeleton_node.duplicate(DUPLICATE_USE_INSTANTIATION)
+		mesh_data.skeleton_node = skeleton_duplicate
+		# Capture the skeleton's actual global position and rotation
+		mesh_data.skeleton_position = skeleton_node.global_position
+		mesh_data.skeleton_rotation = skeleton_node.global_rotation
 	
 	# Capture gun mesh if it exists and is equipped
 	var gun = get_node_or_null("Camera3D/Gun")
-	if gun and gun.is_gun_equipped:
-		var gun_mesh = gun.get_node_or_null("MeshInstance3D")
-		if gun_mesh and gun_mesh.mesh:
+	if gun and gun.get("is_gun_equipped"):
+		# The gun scene is instantiated as a child of the Gun node
+		# So we need to search through Gun's children to find the gun scene, then get GunMesh from it
+		var gun_mesh = null
+		
+		if debug_movement:
+			print("DEBUG: Searching for gun mesh. Gun has ", gun.get_child_count(), " children")
+		
+		# Search through Gun's children for the gun scene (which contains GunMesh)
+		for child in gun.get_children():
+			gun_mesh = child.get_node_or_null("GunMesh")
+			if gun_mesh:
+				if debug_movement:
+					print("DEBUG: Found GunMesh in child: ", child.name)
+				break
+		
+		if gun_mesh and gun_mesh is MeshInstance3D and gun_mesh.mesh:
 			mesh_data.meshes.append({
 				"mesh": gun_mesh.mesh,
 				"transform": gun_mesh.global_transform
 			})
+			if debug_movement:
+				print("Captured gun mesh for afterimage at: ", gun_mesh.global_position)
+		else:
+			if debug_movement:
+				if gun_mesh:
+					print("DEBUG: GunMesh found but invalid. Is MeshInstance3D: ", gun_mesh is MeshInstance3D, ", Has mesh: ", gun_mesh.mesh if gun_mesh is MeshInstance3D else "N/A")
+				else:
+					print("DEBUG: GunMesh not found in any children of Gun node")
 	
 	return mesh_data
 @onready var camera: Camera3D = $Camera3D
 @onready var gun: Node3D = $Camera3D/Gun
 @onready var action_tracker: PlayerActionTracker = $PlayerActionTracker
+@onready var animation_controller: PlayerAnimationController = $PlayerAnimationController
 
 ## === RUNTIME STATE ===
 # Movement states
@@ -148,7 +177,12 @@ var was_on_floor := true
 # Movement intent for time system (tracks input intensity, not velocity)
 var movement_intent: float = 0.0  # Horizontal movement intent
 var vertical_intent: float = 0.0  # Vertical movement intent (jump/fall)
+var vertical_intent_target: float = 0.0  # Target value for smooth interpolation
 var combined_movement_intent: float = 0.0  # Final combined intent
+
+# Smoothing settings for vertical intent (prevents jarring FOV changes on jump/land)
+var vertical_intent_acceleration: float = 15.0  # How fast vertical intent ramps up
+var vertical_intent_deceleration: float = 10.0  # How fast vertical intent ramps down
 
 # Time system integration
 var time_manager: Node = null
@@ -379,10 +413,18 @@ func update_movement_intent(delta: float):
 	# ADD VERTICAL VELOCITY COMPONENT
 	# Calculate vertical movement intensity (jump/fall motion)
 	var vertical_speed = abs(velocity.y)
-	vertical_intent = min(1.0, vertical_speed / jump_velocity)  # Normalize to 0-1 based on jump speed
+	vertical_intent_target = min(1.0, vertical_speed / jump_velocity)  # Normalize to 0-1 based on jump speed
+	
+	# Smoothly interpolate vertical intent to avoid jarring FOV changes
+	if vertical_intent_target > vertical_intent:
+		# Accelerate up (jumping)
+		vertical_intent = min(vertical_intent_target, vertical_intent + vertical_intent_acceleration * delta)
+	else:
+		# Decelerate down (landing/falling)
+		vertical_intent = max(vertical_intent_target, vertical_intent - vertical_intent_deceleration * delta)
 	
 	if debug_movement and vertical_intent > 0.1:
-		print("MOVEMENT INTENT DEBUG: vertical_speed=", vertical_speed, " jump_velocity=", jump_velocity, " vertical_intent=", vertical_intent)
+		print("MOVEMENT INTENT DEBUG: vertical_speed=", vertical_speed, " target=", vertical_intent_target, " smoothed=", vertical_intent)
 	
 	# Combine horizontal intent with vertical intent (use max, not add)
 	var combined_intent = max(movement_intent, vertical_intent)
@@ -447,6 +489,10 @@ func handle_jump_input():
 			# Track jump for analytics
 			AnalyticsManager.track_jump()
 			jump_performed.emit()
+			
+			# Notify animation controller
+			if animation_controller:
+				animation_controller.on_jump_started()
 		elif can_double_jump:
 			velocity.y = double_jump_velocity
 			can_double_jump = false
@@ -454,13 +500,24 @@ func handle_jump_input():
 			# Track double jump for analytics
 			AnalyticsManager.track_jump()
 			jump_performed.emit()
+			
+			# Notify animation controller
+			if animation_controller:
+				animation_controller.on_jump_started()
 
 func apply_gravity(delta):
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
+		was_on_floor = false
 	else:
 		if velocity.y < 0:
 			velocity.y = 0
+		
+		# Detect landing
+		if not was_on_floor:
+			if animation_controller:
+				animation_controller.on_landed()
+			was_on_floor = true
 
 func update_movement_state():
 	# Track movement input for gun system
@@ -539,6 +596,10 @@ func perform_dash():
 	AnalyticsManager.track_dash()
 	
 	dash_performed.emit()
+	
+	# Notify animation controller
+	if animation_controller:
+		animation_controller.on_dash_started()
 
 func get_dash_direction() -> Vector3:
 	# Use movement input if available, otherwise forward

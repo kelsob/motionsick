@@ -44,11 +44,37 @@ func setup_afterimage(data: Dictionary, color: Color = Color.WHITE, player: Node
 	if DEBUG_AFTERIMAGE:
 		print("afterimage: Enabled processing")
 	
-	# Create materials for each mesh
+	# Add skeleton node if present (for animated character)
+	if mesh_data.has("skeleton_node") and mesh_data.skeleton_node:
+		var skeleton = mesh_data.skeleton_node
+		
+		# Add to scene tree first
+		add_child(skeleton)
+		
+		# Force visibility on for the skeleton and all children (ignore source visibility)
+		skeleton.visible = true
+		_force_visibility_recursive(skeleton)
+		
+		# Set global transform after adding to tree
+		# Use the captured skeleton position and rotation (includes any offsets)
+		if mesh_data.has("skeleton_position") and mesh_data.has("skeleton_rotation"):
+			skeleton.global_position = mesh_data.skeleton_position
+			skeleton.global_rotation = mesh_data.skeleton_rotation
+		elif player_node:
+			# Fallback to player position if skeleton position not captured
+			skeleton.global_position = player_node.global_position
+			skeleton.global_rotation = player_node.global_rotation + Vector3(0, deg_to_rad(-180), 0)
+		
+		# Find all MeshInstance3D children and apply afterimage material
+		_apply_material_to_skeleton_meshes(skeleton)
+		
+		if DEBUG_AFTERIMAGE:
+			print("afterimage: Added skeleton at position: ", skeleton.global_position, " rotation: ", skeleton.global_rotation)
+	
+	# Create materials for non-skeleton meshes (like gun)
 	for mesh_info in mesh_data.meshes:
 		var mesh_instance = MeshInstance3D.new()
 		mesh_instance.mesh = mesh_info.mesh
-		mesh_instance.global_transform = mesh_info.transform
 		
 		# Create material with assigned color (start invisible)
 		var material = StandardMaterial3D.new()
@@ -59,12 +85,48 @@ func setup_afterimage(data: Dictionary, color: Color = Color.WHITE, player: Node
 		
 		mesh_instance.material_override = material
 		mesh_instances.append(mesh_instance)
+		
+		# Add to scene tree first
 		add_child(mesh_instance)
+		
+		# Set global transform after adding to tree
+		mesh_instance.global_transform = mesh_info.transform
+		
 		if DEBUG_AFTERIMAGE:
-			print("afterimage: Added mesh instance, total: ", mesh_instances.size())
+			print("afterimage: Added gun mesh at position: ", mesh_instance.global_position)
 	
 	if DEBUG_AFTERIMAGE:
 		print("afterimage: Setup complete, state: ", state, " mesh_instances: ", mesh_instances.size())
+
+func _apply_material_to_skeleton_meshes(node: Node):
+	"""Recursively find MeshInstance3D children and apply afterimage material."""
+	if node is MeshInstance3D:
+		var mesh_instance = node as MeshInstance3D
+		
+		# Create material with assigned color (start invisible)
+		var material = StandardMaterial3D.new()
+		material.albedo_color = Color(afterimage_color.r, afterimage_color.g, afterimage_color.b, 0.0)
+		material.flags_transparent = true
+		material.flags_unshaded = true
+		material.flags_do_not_receive_shadows = true
+		
+		mesh_instance.material_override = material
+		mesh_instances.append(mesh_instance)
+		
+		if DEBUG_AFTERIMAGE:
+			print("afterimage: Applied material to skeleton mesh: ", mesh_instance.name)
+	
+	# Recursively process children
+	for child in node.get_children():
+		_apply_material_to_skeleton_meshes(child)
+
+func _force_visibility_recursive(node: Node):
+	"""Recursively force all nodes to be visible, ignoring source visibility state."""
+	if node.has_method("set_visible"):
+		node.visible = true
+	
+	for child in node.get_children():
+		_force_visibility_recursive(child)
 
 func _process(delta):
 	"""Process afterimage animation using time scale."""

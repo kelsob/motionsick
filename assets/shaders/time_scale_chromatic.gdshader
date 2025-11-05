@@ -60,20 +60,28 @@ void fragment() {
 	vec3 aberrated_color = vec3(r, g, b);
 
 	// === DESATURATION ===
-	float luminance = dot(aberrated_color, vec3(0.299, 0.587, 0.114));
-	vec3 grayscale = vec3(luminance);
-	vec3 desaturated = mix(aberrated_color, grayscale, time_intensity * desaturation_strength);
+	vec3 final_color = aberrated_color;
+	
+	// Only apply desaturation if strength > 0
+	if (desaturation_strength > 0.0) {
+		float luminance = dot(aberrated_color, vec3(0.299, 0.587, 0.114));
+		vec3 grayscale = vec3(luminance);
+		final_color = mix(aberrated_color, grayscale, time_intensity * desaturation_strength);
+	}
 
 	// === COLOR TINT ===
-	vec3 tinted = mix(desaturated, desaturated * dilation_tint, time_intensity * 0.6);
+	// Only apply tint if it differs from neutral (white)
+	if (length(dilation_tint - vec3(1.0)) > 0.01) {
+		final_color = mix(final_color, final_color * dilation_tint, time_intensity * 0.6);
+	}
 
 	// === VIGNETTE ===
-	// Darken edges when time dilates
-	float vignette = smoothstep(vignette_radius, vignette_radius - 0.5, dist);
-	vignette = mix(1.0, vignette, time_intensity * vignette_strength);
-
-	// === FINAL COMPOSITE ===
-	vec3 final_color = tinted * vignette;
+	// Only apply vignette if strength > 0
+	if (vignette_strength > 0.0) {
+		float vignette = smoothstep(vignette_radius, vignette_radius - 0.5, dist);
+		vignette = mix(1.0, vignette, time_intensity * vignette_strength);
+		final_color *= vignette;
+	}
 
 	COLOR = vec4(final_color, 1.0);
 }

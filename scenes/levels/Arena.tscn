@@ -138,11 +138,9 @@ environment = SubResource("Environment_kiajw")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.41428, 0.0837402)
-visible = false
-light_color = Color(0.603922, 0.827451, 1, 1)
+light_color = Color(0, 0.52549, 0.439216, 1)
 shadow_enabled = true
-omni_range = 24.209
-omni_attenuation = 0.769
+omni_range = 25.0
 
 [node name="OmniLight3D3" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.41428, 12.7625)
@@ -154,17 +152,14 @@ omni_attenuation = 0.769
 
 [node name="OmniLight3D2" type="OmniLight3D" parent="Lights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.41428, -17.1788)
-visible = false
-light_color = Color(0.926057, 0.732199, 0.842741, 1)
+light_color = Color(0, 0.979525, 0.823979, 1)
 shadow_enabled = true
-omni_range = 24.209
-omni_attenuation = 0.769
+omni_range = 26.39
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="Lights"]
 transform = Transform3D(0.866025, 0.433013, -0.25, 0, 0.5, 0.866025, 0.5, -0.75, 0.433013, 0, 21.1473, 0)
-light_color = Color(0.92931, 1.63645e-06, 0.536738, 1)
-light_energy = 2.0
-light_volumetric_fog_energy = 6.005
+light_color = Color(0.909521, 2.20439e-05, 0.627154, 1)
+light_energy = 2.116
 shadow_enabled = true
 
 [node name="Player" parent="." instance=ExtResource("1_hyk8p")]

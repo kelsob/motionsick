@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3 uid="uid://cfo4pa3kjw4rr"]
+
+[ext_resource type="Shader" uid="uid://bvavj6tvcrrql" path="res://assets/shaders/EdgeHighlight.gdshader" id="1_hvllg"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_hvllg"]
+subdivide_width = 2
+subdivide_height = 2
+subdivide_depth = 2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_y818f"]
+render_priority = 0
+shader = ExtResource("1_hvllg")
+shader_parameter/outline_color = Color(0, 0, 0, 1)
+shader_parameter/outline_threshold = 0.2
+shader_parameter/outline_width = 1.0
+shader_parameter/distance_based_width = false
+shader_parameter/near_width = 3.0
+shader_parameter/far_width = 0.5
+shader_parameter/distance_range = 20.0
+
+[node name="Node3D" type="Node3D"]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_hvllg")
+surface_material_override/0 = SubResource("ShaderMaterial_y818f")
