@@ -177,6 +177,7 @@ enum FireMode {
 
 @export_group("Visual Effects")
 @export var wall_ripple_scene: PackedScene = preload("res://scenes/effects/WallRipple.tscn")
+@export var muzzle_flash_scene: PackedScene  # Assign in inspector
 
 @export_group("Knockback System")
 @export var rapid_fire_knockback: float = 2.0          # Pistol: light knockback
@@ -196,15 +197,6 @@ enum FireMode {
 @export_group("Recoil Settings")
 @export var recoil_randomness: float = 0.25  # Random variation in recoil direction
 
-@export_group("Animation Timing")
-## Duration for muzzle flash animation
-@export var muzzle_flash_duration: float = 0.2
-## Scale factor for muzzle flash growth phase
-@export var muzzle_flash_min_scale: float = 0.5
-## Maximum scale for muzzle flash
-@export var muzzle_flash_max_scale: float = 1.2
-## Percentage of animation time for growth phase
-@export var muzzle_flash_grow_phase_ratio: float = 0.25
 
 @export_group("Hitscan System")
 ## Maximum range for hitscan weapons
@@ -222,13 +214,6 @@ enum FireMode {
 ## Base tracer duration divisor
 @export var tracer_duration_divisor: float = 16.0
 
-@export_group("Muzzle Flash Properties")
-## Muzzle flash sphere radius
-@export var muzzle_flash_radius: float = 0.3
-## Muzzle flash sphere height
-@export var muzzle_flash_height: float = 0.6
-## Muzzle flash emission energy
-@export var muzzle_flash_emission_energy: float = 5.0
 
 @export_group("Impact Effects")
 ## Duration for impact effects
@@ -332,7 +317,6 @@ var time_energy_manager: Node = null
 @onready var camera = get_parent()  # Gun is now child of camera
 @onready var player = camera.get_parent()  # Player is camera's parent
 @onready var muzzle_marker = $Marker3D
-@onready var muzzle_flash: MeshInstance3D = create_muzzle_flash_node()
 
 # === BULLET PRE-SPAWN SYSTEM ===
 var prepared_bullet: Area3D = null  # Bullet that is spawned ahead of time and ready to fire
@@ -345,7 +329,6 @@ signal fired_shot(damage: int)
 signal ammo_changed(current: int, max: int)
 
 # === MANUAL ANIMATION SYSTEM ===
-var active_muzzle_flashes: Array[Dictionary] = []
 var active_tracers: Array[Dictionary] = []
 
 func _process(delta: float):
@@ -361,16 +344,6 @@ func _process(delta: float):
 	var time_manager = get_node_or_null("/root/TimeManager")
 	var time_adjusted_delta = time_manager.get_effective_delta(delta, 0.0) if time_manager else delta
 	
-	# Update muzzle flashes
-	var flashes_to_remove: Array[int] = []
-	for i in range(active_muzzle_flashes.size()):
-		var flash_data = active_muzzle_flashes[i]
-		if _update_muzzle_flash_animation(flash_data, time_adjusted_delta):
-			flashes_to_remove.append(i)
-	
-	for i in range(flashes_to_remove.size() - 1, -1, -1):
-		active_muzzle_flashes.remove_at(flashes_to_remove[i])
-	
 	# Update tracers
 	var tracers_to_remove: Array[int] = []
 	for i in range(active_tracers.size()):
@@ -383,48 +356,6 @@ func _process(delta: float):
 
 
 
-func _update_muzzle_flash_animation(flash_data: Dictionary, time_adjusted_delta: float) -> bool:
-	"""Update a single muzzle flash animation. Returns true if animation is complete."""
-	var muzzle_flash = flash_data.get("muzzle_flash")
-	var age = flash_data.get("age", 0.0)
-	var total_duration = flash_data.get("total_duration", 0.2)
-	var phase = flash_data.get("phase", "grow")  # grow, shrink
-	
-	if not is_instance_valid(muzzle_flash):
-		return true  # Remove invalid flashes
-	
-	# Age the flash using UNSCALED delta - muzzle flash should always proceed at normal speed
-	age += get_process_delta_time()  # Use unscaled delta time
-	flash_data["age"] = age
-	
-	# Calculate progress
-	var progress = age / total_duration
-	
-	match phase:
-		"grow":
-			# Grow phase (0.0 to grow_phase_ratio of total time)
-			var grow_progress = min(1.0, progress / muzzle_flash_grow_phase_ratio)
-			var scale_range = muzzle_flash_max_scale - muzzle_flash_min_scale
-			muzzle_flash.scale = Vector3.ONE * (muzzle_flash_min_scale + grow_progress * scale_range)
-			
-			if grow_progress >= 1.0:
-				phase = "shrink"
-				flash_data["phase"] = phase
-		
-		"shrink":
-			# Shrink and hide phase (grow_phase_ratio to 1.0 of total time)
-			var shrink_progress = (progress - muzzle_flash_grow_phase_ratio) / (1.0 - muzzle_flash_grow_phase_ratio)
-			if shrink_progress >= 1.0:
-				shrink_progress = 1.0
-			
-			muzzle_flash.scale = Vector3.ONE * (muzzle_flash_max_scale - shrink_progress * muzzle_flash_max_scale)
-			
-			if shrink_progress >= 1.0:
-				# Animation complete
-				muzzle_flash.visible = false
-				return true
-	
-	return false
 
 func _update_tracer_animation(tracer_data: Dictionary, time_adjusted_delta: float) -> bool:
 	"""Update a single tracer animation. Returns true if animation is complete."""
@@ -1113,52 +1044,39 @@ func _fire_projectile(damage: int):
 	# Prepare the next bullet
 	_prepare_next_bullet()
 
-func create_muzzle_flash_node() -> MeshInstance3D:
-	"""Create and setup the muzzle flash node attached to the gun."""
-	var flash = MeshInstance3D.new()
-	flash.name = "MuzzleFlash"
-	
-	# Create sphere mesh
-	var sphere = SphereMesh.new()
-	sphere.radius = muzzle_flash_radius
-	sphere.height = muzzle_flash_height
-	flash.mesh = sphere
-	
-	# Create bright yellow material
-	var material = StandardMaterial3D.new()
-	material.albedo_color = Color.YELLOW
-	material.emission_enabled = true
-	material.emission = Color.YELLOW
-	material.emission_energy = muzzle_flash_emission_energy
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	flash.material_override = material
-	
-	# Initially hidden
-	flash.visible = false
-	
-	# Attach to muzzle marker
-	muzzle_marker.add_child(flash)
-	
-	return flash
-
 func _show_muzzle_flash():
-	"""Show the muzzle flash briefly."""
-	if not muzzle_flash:
+	"""Instantiate and play the muzzle flash effect."""
+	print("DEBUG: _show_muzzle_flash() called")
+	
+	if not muzzle_flash_scene:
+		print("ERROR: No muzzle flash scene assigned to Gun!")
+		print("  Assign MuzzleFlash.tscn to the 'Muzzle Flash Scene' property in the inspector")
 		return
 	
-	muzzle_flash.visible = true
+	print("DEBUG: Muzzle flash scene found: ", muzzle_flash_scene.resource_path)
 	
-	# Start with small scale
-	muzzle_flash.scale = Vector3.ONE * muzzle_flash_min_scale
+	# Instantiate the muzzle flash scene
+	var flash_instance = muzzle_flash_scene.instantiate()
+	if not flash_instance:
+		print("ERROR: Failed to instantiate muzzle flash scene!")
+		return
 	
-	# Add to active muzzle flashes list for manual animation
-	var flash_data = {
-		"muzzle_flash": muzzle_flash,
-		"age": 0.0,
-		"total_duration": muzzle_flash_duration,
-		"phase": "grow"
-	}
-	active_muzzle_flashes.append(flash_data)
+	print("DEBUG: Muzzle flash instantiated: ", flash_instance.name)
+	
+	get_tree().current_scene.add_child(flash_instance)
+	print("DEBUG: Muzzle flash added to scene")
+	
+	# Position at muzzle
+	var muzzle_pos = get_muzzle_position()
+	flash_instance.global_position = muzzle_pos
+	print("DEBUG: Muzzle flash positioned at: ", muzzle_pos)
+	
+	# Match gun's rotation (so particles/light face forward)
+	flash_instance.global_rotation = muzzle_marker.global_rotation
+	print("DEBUG: Muzzle flash rotation set to: ", muzzle_marker.global_rotation)
+	
+	# Flash will auto-play and auto-cleanup via its script
+	print("DEBUG: Muzzle flash setup complete")
 
 func _create_hitscan_effects(start_pos: Vector3, end_pos: Vector3):
 	"""Create visual effects for hitscan weapons."""

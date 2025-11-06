@@ -16,6 +16,7 @@ class_name PlayerAnimationController
 
 # Node references (automatically set in _ready)
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
+@onready var animation_tree: AnimationTree = $AnimationTree
 var player: CharacterBody3D
 var time_manager: Node
 
@@ -64,8 +65,27 @@ func _ready():
 	
 	# Get animation player (sibling node)
 	if not animation_player:
-		push_error("PlayerAnimationController: Could not find AnimationPlayer at ../mannequiny-0_3_0/AnimationPlayer")
+		push_error("PlayerAnimationController: Could not find AnimationPlayer")
 		return
+	
+	# Get animation tree
+	if not animation_tree:
+		push_error("PlayerAnimationController: Could not find AnimationTree")
+		return
+	
+	# Make sure AnimationTree is active
+	animation_tree.active = true
+	
+	# DEBUG: Try to access the parameters to see what works
+	print("=== AnimationTree Debug ===")
+	print("Trying different parameter paths:")
+	print("  parameters/Blend2/blend_amount = ", animation_tree.get("parameters/Blend2/blend_amount"))
+	print("  parameters/UpperBodyPose/animation = ", animation_tree.get("parameters/UpperBodyPose/animation"))
+	print("  parameters/LowerBodyLocomotion/animation = ", animation_tree.get("parameters/LowerBodyLocomotion/animation"))
+	# Try with common default names
+	print("  parameters/Animation/animation = ", animation_tree.get("parameters/Animation/animation"))
+	print("  parameters/Animation2/animation = ", animation_tree.get("parameters/Animation2/animation"))
+	print("===========================")
 	
 	# Get TimeManager reference
 	time_manager = get_node("/root/TimeManager")
@@ -78,10 +98,10 @@ func _ready():
 	_play_animation(ANIM_IDLE, true)
 	
 	if debug_animations:
-		print("PlayerAnimationController initialized")
+		print("PlayerAnimationController initialized with AnimationTree")
 
 func _process(delta: float):
-	if not animation_player or not player:
+	if not animation_tree or not player:
 		return
 	
 	# Update timers
@@ -182,20 +202,38 @@ func _transition_to_state(new_state: AnimState):
 			_play_animation(ANIM_IDLE_TO_FIGHT, false)
 
 func _play_animation(anim_name: String, loop: bool = false):
-	"""Play an animation with blending."""
+	"""Play an animation through the AnimationTree."""
 	if not animation_player.has_animation(anim_name):
-		if debug_animations:
-			push_warning("Animation not found: ", anim_name)
+		print("WARNING: Animation not found: ", anim_name)
 		return
 	
-	# Set loop mode
+	# Set loop mode on the animation
 	var animation = animation_player.get_animation(anim_name)
 	if animation:
 		animation.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
 	
-	# Play with blend
-	if animation_player.current_animation != anim_name:
-		animation_player.play(anim_name, blend_time)
+	# Access the BlendTree root and set animation on the nodes directly
+	var tree_root = animation_tree.tree_root as AnimationNodeBlendTree
+	if tree_root:
+		# Get the animation nodes from the blend tree
+		var upper_body_node = tree_root.get_node("UpperBodyPose") as AnimationNodeAnimation
+		var lower_body_node = tree_root.get_node("LowerBodyLocomotion") as AnimationNodeAnimation
+		
+		# Set the animation property on each node
+		if upper_body_node:
+			upper_body_node.animation = anim_name
+		else:
+			print("ERROR: Could not find UpperBodyPose node in BlendTree")
+		
+		if lower_body_node:
+			lower_body_node.animation = anim_name
+		else:
+			print("ERROR: Could not find LowerBodyLocomotion node in BlendTree")
+		
+		if debug_animations:
+			print("Set animation to: ", anim_name, " (loop: ", loop, ")")
+	else:
+		print("ERROR: AnimationTree tree_root is not an AnimationNodeBlendTree")
 
 ## === PUBLIC API (called by Player.gd) ===
 

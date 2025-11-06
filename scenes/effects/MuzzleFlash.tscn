@@ -1,0 +1,49 @@
+[gd_scene load_steps=7 format=3 uid="uid://d1lv1c48kc56l"]
+
+[ext_resource type="Script" uid="uid://d14818m0b8hb5" path="res://scripts/effects/MuzzleFlash.gd" id="1_ddp0v"]
+[ext_resource type="Shader" uid="uid://cvoodjkyajspw" path="res://assets/shaders/MuzzleFlashDistortion.gdshader" id="2_whisy"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ddp0v"]
+direction = Vector3(0, 0, -1)
+spread = 37.5
+initial_velocity_min = 5.0
+initial_velocity_max = 10.0
+scale_min = 0.1
+scale_max = 0.3
+color = Color(1, 0.758555, 0.135409, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_ddp0v"]
+radius = 0.05
+height = 0.1
+
+[sub_resource type="SphereMesh" id="SphereMesh_c21hd"]
+radius = 0.4
+height = 0.6
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fvrq5"]
+render_priority = 0
+shader = ExtResource("2_whisy")
+shader_parameter/distortion_strength = 1.0
+shader_parameter/spiral_strength = 2.0
+
+[node name="MuzzleFlash" type="Node3D"]
+script = ExtResource("1_ddp0v")
+total_duration = 1.0
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.647059, 0, 1)
+light_energy = 0.0
+omni_attenuation = 2.0
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 12
+lifetime = 0.15
+one_shot = true
+explosiveness = 0.8
+process_material = SubResource("ParticleProcessMaterial_ddp0v")
+draw_pass_1 = SubResource("SphereMesh_ddp0v")
+
+[node name="DistortionMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_c21hd")
+surface_material_override/0 = SubResource("ShaderMaterial_fvrq5")
